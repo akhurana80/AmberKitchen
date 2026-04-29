@@ -22,9 +22,9 @@ export const config = {
     callbackUrl: process.env.PHONEPE_CALLBACK_URL ?? ""
   },
   fcmServiceAccountJson: process.env.FCM_SERVICE_ACCOUNT_JSON ?? "{}",
-  aws: {
-    region: process.env.AWS_REGION ?? "us-east-1",
-    snsSenderId: process.env.AWS_SNS_SENDER_ID ?? "AMBRKTCHN"
+  azure: {
+    communicationConnectionString: process.env.AZURE_COMMUNICATION_CONNECTION_STRING ?? "",
+    smsFrom: process.env.AZURE_SMS_FROM ?? ""
   }
 };
 

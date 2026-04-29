@@ -1,27 +1,26 @@
-import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
+import { SmsClient } from "@azure/communication-sms";
 import { config } from "../config";
-
-const sns = new SNSClient({ region: config.aws.region });
 
 export async function sendOtpSms(phone: string, code: string) {
   if (config.nodeEnv !== "production") {
     return { provider: "dev", sent: true };
   }
 
-  await sns.send(new PublishCommand({
-    PhoneNumber: phone,
-    Message: `Your AmberKitchen OTP is ${code}. It expires in 5 minutes.`,
-    MessageAttributes: {
-      "AWS.SNS.SMS.SenderID": {
-        DataType: "String",
-        StringValue: config.aws.snsSenderId
-      },
-      "AWS.SNS.SMS.SMSType": {
-        DataType: "String",
-        StringValue: "Transactional"
-      }
-    }
-  }));
+  if (!config.azure.communicationConnectionString || !config.azure.smsFrom) {
+    throw new Error("Azure Communication Services SMS is not configured");
+  }
 
-  return { provider: "aws-sns", sent: true };
+  const client = new SmsClient(config.azure.communicationConnectionString);
+  const response = await client.send({
+    from: config.azure.smsFrom,
+    to: [phone],
+    message: `Your AmberKitchen OTP is ${code}. It expires in 5 minutes.`
+  });
+
+  const result = response[0];
+  if (!result?.successful) {
+    throw new Error(result?.errorMessage ?? "Azure SMS delivery failed");
+  }
+
+  return { provider: "azure-communication-services", sent: true };
 }
