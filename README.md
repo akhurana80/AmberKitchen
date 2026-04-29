@@ -96,6 +96,7 @@
 - Security checklist: `docs/security-checklist.md`
 - iOS/Android mobile app: `docs/mobile-app.md`
 - Flutter iOS/Android demo: `docs/flutter-mobile-demo.md`
+- Web/mobile/Flutter parity: `docs/app-feature-parity.md`
 
 ## Mobile App
 ```bash
@@ -115,3 +116,8 @@ npm run flutter:android
 ```
 
 Flutter SDK is required locally. The Flutter app includes a Demo tab that walks through all customer, driver, restaurant, admin, analytics, wallet, payment, tracking, Azure, and marketplace features.
+
+## App Parity Check
+```bash
+npm run check:app-parity
+```
