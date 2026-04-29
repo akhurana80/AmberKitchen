@@ -252,6 +252,73 @@
     @if (role === "driver" && token()) {
       <section class="driver">
         <div class="admin-header">
+          <h2>Driver Onboarding</h2>
+          <button (click)="loadDriverOnboarding()">Refresh</button>
+        </div>
+
+        <div class="grid">
+          <label>
+            Full Name
+            <input [(ngModel)]="driverFullName">
+          </label>
+          <label>
+            Aadhaar Last 4
+            <input maxlength="4" [(ngModel)]="driverAadhaarLast4">
+          </label>
+          <label>
+            Aadhaar Front URL
+            <input [(ngModel)]="driverAadhaarFrontUrl">
+          </label>
+          <label>
+            Upload Aadhaar Front
+            <input type="file" accept="image/*,.pdf" (change)="uploadDriverDocument($event, 'aadhaarFront')">
+          </label>
+          <label>
+            Aadhaar Back URL
+            <input [(ngModel)]="driverAadhaarBackUrl">
+          </label>
+          <label>
+            Upload Aadhaar Back
+            <input type="file" accept="image/*,.pdf" (change)="uploadDriverDocument($event, 'aadhaarBack')">
+          </label>
+          <label>
+            Selfie URL
+            <input [(ngModel)]="driverSelfieUrl">
+          </label>
+          <label>
+            Upload Selfie
+            <input type="file" accept="image/*" (change)="uploadDriverDocument($event, 'selfie')">
+          </label>
+          <label>
+            Bank Last 4
+            <input maxlength="4" [(ngModel)]="driverBankLast4">
+          </label>
+          <label>
+            UPI ID
+            <input [(ngModel)]="driverUpiId">
+          </label>
+          <label>
+            Referral Code
+            <input [(ngModel)]="driverReferredByCode">
+          </label>
+          <button (click)="submitDriverOnboarding()">Submit Driver Signup</button>
+          <button [disabled]="!driverOnboarding()" (click)="runDriverBackgroundCheck()">Run Background Check</button>
+        </div>
+
+        @if (driverOnboarding(); as onboarding) {
+          <div class="status">
+            <strong>Approval:</strong> {{ onboarding.approval_status }}
+            <strong>OCR:</strong> {{ onboarding.ocr_status }} / {{ onboarding.ocr_confidence || "0" }}%
+            <strong>Selfie:</strong> {{ onboarding.selfie_status }} / {{ onboarding.selfie_match_score || "0" }}%
+            <strong>Background:</strong> {{ onboarding.background_check_status }}
+            <strong>Referral:</strong> {{ onboarding.referral_code || "-" }}
+            <strong>UPI:</strong> {{ onboarding.upi_id || "-" }}
+          </div>
+        }
+      </section>
+
+      <section class="driver">
+        <div class="admin-header">
           <h2>Delivery Partner App</h2>
           <button (click)="loadDeliveryOrders()">Refresh</button>
         </div>
@@ -533,11 +600,76 @@
       </section>
     }
 
-    @if (role === "delivery_admin" && token()) {
+    @if ((role === "delivery_admin" || role === "admin" || role === "super_admin") && token()) {
       <section class="driver">
         <div class="admin-header">
           <h2>Delivery Admin</h2>
-          <button (click)="loadDeliveryAdmin()">Refresh</button>
+          <div class="actions-inline">
+            <button (click)="loadDeliveryAdmin()">Refresh Orders</button>
+            <button (click)="loadDriverApplications()">Refresh Onboarding</button>
+          </div>
+        </div>
+
+        <h3>Driver Onboarding Approvals</h3>
+        <label>
+          Admin Note
+          <input [(ngModel)]="driverApprovalNote">
+        </label>
+
+        <div class="table">
+          <div class="row driver-onboarding-row head">
+            <span>Driver</span>
+            <span>Verification</span>
+            <span>Bank/UPI</span>
+            <span>Referral</span>
+            <span>Approval</span>
+            <span>Actions</span>
+          </div>
+          @for (application of driverApplications(); track application.id) {
+            <div class="row driver-onboarding-row">
+              <span>
+                {{ application.full_name }}
+                <small>{{ application.phone || application.user_phone || application.user_id }}</small>
+              </span>
+              <span>
+                OCR {{ application.ocr_status }} / Selfie {{ application.selfie_status }}
+                <small>BG {{ application.background_check_status }}</small>
+              </span>
+              <span>
+                {{ application.upi_id || "-" }}
+                <small>{{ application.bank_account_last4 || "-" }}</small>
+              </span>
+              <span>
+                {{ application.referral_code || "-" }}
+                <small>{{ application.referred_by_code || "-" }}</small>
+              </span>
+              <span>{{ application.approval_status }}</span>
+              <span>
+                <button (click)="updateDriverApproval(application.id, 'approved')">Approve</button>
+                <button (click)="updateDriverApproval(application.id, 'rejected')">Reject</button>
+              </span>
+            </div>
+          }
+        </div>
+
+        <h3>Referral System</h3>
+        <div class="table">
+          <div class="row referral-row head">
+            <span>Code</span>
+            <span>Referrer</span>
+            <span>Referred</span>
+            <span>Status</span>
+            <span>Reward</span>
+          </div>
+          @for (referral of driverReferralReports(); track referral.id) {
+            <div class="row referral-row">
+              <span>{{ referral.referral_code }}</span>
+              <span>{{ referral.referrer_phone || "-" }}</span>
+              <span>{{ referral.referred_phone || "-" }}</span>
+              <span>{{ referral.status }}</span>
+              <span>{{ formatCurrency(referral.reward_paise) }}</span>
+            </div>
+          }
         </div>
 
         <label>

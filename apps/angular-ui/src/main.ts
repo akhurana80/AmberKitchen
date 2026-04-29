@@ -6,7 +6,7 @@ import { Loader } from "@googlemaps/js-api-loader";
 import { getApps, initializeApp } from "firebase/app";
 import { getMessaging, getToken, isSupported } from "firebase/messaging";
 import { io } from "socket.io-client";
-import { ApiService } from "./services/api.service";
+import { ApiService, DriverOnboardingApplication } from "./services/api.service";
 import { environment } from "./environments/environment";
 
 @Component({
@@ -26,6 +26,26 @@ class AppComponent implements AfterViewInit {
   authNotice = signal("Use OTP or Google Sign-In to continue.");
   mapNotice = signal("Add a Google Maps browser key to enable the live delivery map.");
   pushNotice = signal("Enable push notifications after login.");
+  driverFullName = "";
+  driverAadhaarLast4 = "";
+  driverAadhaarFrontUrl = "";
+  driverAadhaarBackUrl = "";
+  driverSelfieUrl = "";
+  driverBankLast4 = "";
+  driverUpiId = "";
+  driverReferredByCode = "";
+  driverOnboarding = signal<DriverOnboardingApplication | null>(null);
+  driverApplications = signal<DriverOnboardingApplication[]>([]);
+  driverApprovalNote = "";
+  driverReferralReports = signal<Array<{
+    id: string;
+    referral_code: string;
+    status: string;
+    reward_paise: number;
+    referrer_phone: string | null;
+    referred_phone: string | null;
+    created_at: string;
+  }>>([]);
   restaurantName = "";
   restaurantAddress = "";
   restaurantContactName = "";
@@ -248,15 +268,21 @@ class AppComponent implements AfterViewInit {
     }
     if (this.role === "super_admin") {
       this.loadSuperAdmin();
+      this.loadDriverApplications();
     }
     if (this.role === "driver") {
       this.loadDeliveryOrders();
+      this.loadDriverOnboarding();
     }
     if (this.role === "restaurant") {
       this.loadRestaurantAdmin();
     }
     if (this.role === "delivery_admin") {
       this.loadDeliveryAdmin();
+      this.loadDriverApplications();
+    }
+    if (this.role === "admin") {
+      this.loadDriverApplications();
     }
     if (this.role === "customer") {
       this.searchRestaurants();
@@ -300,6 +326,72 @@ class AppComponent implements AfterViewInit {
   sendTestNotification() {
     this.api.sendTestNotification().subscribe(() => {
       this.pushNotice.set("Test push notification sent.");
+    });
+  }
+
+  loadDriverOnboarding() {
+    this.api.myDriverOnboarding().subscribe(application => {
+      this.driverOnboarding.set(application);
+    });
+  }
+
+  submitDriverOnboarding() {
+    this.api.submitDriverOnboarding({
+      fullName: this.driverFullName,
+      phone: this.phone || undefined,
+      aadhaarLast4: this.driverAadhaarLast4,
+      aadhaarFrontUrl: this.driverAadhaarFrontUrl || undefined,
+      aadhaarBackUrl: this.driverAadhaarBackUrl || undefined,
+      selfieUrl: this.driverSelfieUrl || undefined,
+      bankAccountLast4: this.driverBankLast4 || undefined,
+      upiId: this.driverUpiId || undefined,
+      referredByCode: this.driverReferredByCode || undefined
+    }).subscribe(application => {
+      this.driverOnboarding.set(application);
+    });
+  }
+
+  uploadDriverDocument(event: Event, field: "aadhaarFront" | "aadhaarBack" | "selfie") {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = String(reader.result ?? "");
+      if (field === "aadhaarFront") {
+        this.driverAadhaarFrontUrl = value;
+      }
+      if (field === "aadhaarBack") {
+        this.driverAadhaarBackUrl = value;
+      }
+      if (field === "selfie") {
+        this.driverSelfieUrl = value;
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  runDriverBackgroundCheck() {
+    this.api.runDriverBackgroundCheck().subscribe(application => {
+      this.driverOnboarding.set(application);
+    });
+  }
+
+  loadDriverApplications() {
+    this.api.driverOnboardingApplications().subscribe(applications => {
+      this.driverApplications.set(applications);
+    });
+    this.api.driverReferrals().subscribe(referrals => {
+      this.driverReferralReports.set(referrals);
+    });
+  }
+
+  updateDriverApproval(id: string, status: "approved" | "rejected" | "pending") {
+    this.api.updateDriverApplicationApproval(id, status, this.driverApprovalNote || undefined).subscribe(() => {
+      this.loadDriverApplications();
     });
   }
 

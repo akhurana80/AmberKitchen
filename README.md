@@ -29,6 +29,7 @@
 - Angular UI in `apps/angular-ui/`
 - Admin dashboard with platform metrics and recent orders
 - Delivery partner app with available orders, order acceptance, status updates, and live location sharing
+- Driver onboarding system with signup, Aadhaar upload or document URLs, OCR verification status, selfie face-match status, background check, Bank/UPI setup, referrals, and admin approval
 - Place order, edit order before restaurant confirmation, rules-based cancellation, status history, and refund request handling
 - Customer order lifecycle: place order, edit before confirmation, cancel by rules, live tracking, status updates, and refunds
 - Auto-cancel for unaccepted restaurant orders, partial refunds, estimated delivery time, driver contact, and reorder support

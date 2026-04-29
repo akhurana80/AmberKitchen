@@ -171,6 +171,65 @@ create table if not exists driver_locations (
   created_at timestamptz not null default now()
 );
 
+create table if not exists driver_onboarding (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null unique references users(id) on delete cascade,
+  full_name text not null,
+  phone text,
+  aadhaar_last4 text,
+  aadhaar_front_url text,
+  aadhaar_back_url text,
+  selfie_url text,
+  ocr_status text not null default 'pending' check (ocr_status in ('pending', 'verified', 'failed')),
+  ocr_confidence numeric(5, 2),
+  selfie_status text not null default 'pending' check (selfie_status in ('pending', 'verified', 'failed')),
+  selfie_match_score numeric(5, 2),
+  background_check_status text not null default 'pending' check (background_check_status in ('pending', 'clear', 'flagged')),
+  bank_account_last4 text,
+  upi_id text,
+  referral_code text unique,
+  referred_by_code text,
+  approval_status text not null default 'pending' check (approval_status in ('draft', 'pending', 'approved', 'rejected')),
+  admin_note text,
+  approved_by uuid references users(id),
+  approved_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table driver_onboarding add column if not exists aadhaar_last4 text;
+alter table driver_onboarding add column if not exists aadhaar_front_url text;
+alter table driver_onboarding add column if not exists aadhaar_back_url text;
+alter table driver_onboarding add column if not exists selfie_url text;
+alter table driver_onboarding add column if not exists ocr_status text not null default 'pending';
+alter table driver_onboarding add column if not exists ocr_confidence numeric(5, 2);
+alter table driver_onboarding add column if not exists selfie_status text not null default 'pending';
+alter table driver_onboarding add column if not exists selfie_match_score numeric(5, 2);
+alter table driver_onboarding add column if not exists background_check_status text not null default 'pending';
+alter table driver_onboarding add column if not exists bank_account_last4 text;
+alter table driver_onboarding add column if not exists upi_id text;
+alter table driver_onboarding add column if not exists referral_code text unique;
+alter table driver_onboarding add column if not exists referred_by_code text;
+alter table driver_onboarding add column if not exists approval_status text not null default 'pending';
+alter table driver_onboarding add column if not exists admin_note text;
+alter table driver_onboarding add column if not exists approved_by uuid references users(id);
+alter table driver_onboarding add column if not exists approved_at timestamptz;
+alter table driver_onboarding add column if not exists updated_at timestamptz not null default now();
+
+create table if not exists driver_referrals (
+  id uuid primary key default uuid_generate_v4(),
+  referrer_driver_id uuid references users(id),
+  referred_driver_id uuid references users(id),
+  referral_code text not null,
+  status text not null default 'pending' check (status in ('pending', 'qualified', 'paid', 'rejected')),
+  reward_paise integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists driver_onboarding_approval_idx on driver_onboarding (approval_status);
+create index if not exists driver_referrals_code_idx on driver_referrals (referral_code);
+create unique index if not exists driver_referrals_referred_uidx on driver_referrals (referred_driver_id) where referred_driver_id is not null;
+
 create table if not exists device_tokens (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null references users(id) on delete cascade,

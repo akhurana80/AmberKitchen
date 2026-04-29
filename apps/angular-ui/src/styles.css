@@ -186,6 +186,14 @@ small {
   grid-template-columns: 2fr 1fr 1.5fr 1fr auto;
 }
 
+.driver-onboarding-row {
+  grid-template-columns: 1.2fr 1.4fr 1fr 1fr 0.8fr 1.2fr;
+}
+
+.referral-row {
+  grid-template-columns: 1fr 1fr 1fr 0.8fr 0.8fr;
+}
+
 .places-row {
   grid-template-columns: 88px 1.5fr 0.7fr 2fr 1fr;
 }

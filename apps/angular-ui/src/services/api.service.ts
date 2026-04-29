@@ -132,6 +132,66 @@ export class ApiService {
     );
   }
 
+  submitDriverOnboarding(input: {
+    fullName: string;
+    phone?: string;
+    aadhaarLast4: string;
+    aadhaarFrontUrl?: string;
+    aadhaarBackUrl?: string;
+    selfieUrl?: string;
+    bankAccountLast4?: string;
+    upiId?: string;
+    referredByCode?: string;
+  }) {
+    return this.http.post<DriverOnboardingApplication>(
+      `${this.baseUrl}/api/driver-onboarding/signup`,
+      input,
+      { headers: this.authHeaders() }
+    );
+  }
+
+  myDriverOnboarding() {
+    return this.http.get<DriverOnboardingApplication | null>(
+      `${this.baseUrl}/api/driver-onboarding/mine`,
+      { headers: this.authHeaders() }
+    );
+  }
+
+  runDriverBackgroundCheck() {
+    return this.http.post<DriverOnboardingApplication>(
+      `${this.baseUrl}/api/driver-onboarding/background-check`,
+      { consent: true },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  driverOnboardingApplications() {
+    return this.http.get<DriverOnboardingApplication[]>(
+      `${this.baseUrl}/api/driver-onboarding/admin/applications`,
+      { headers: this.authHeaders() }
+    );
+  }
+
+  updateDriverApplicationApproval(id: string, status: "approved" | "rejected" | "pending", note?: string) {
+    return this.http.patch<DriverOnboardingApplication>(
+      `${this.baseUrl}/api/driver-onboarding/admin/applications/${id}/approval`,
+      { status, note },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  driverReferrals() {
+    return this.http.get<Array<{
+      id: string;
+      referral_code: string;
+      status: string;
+      reward_paise: number;
+      referrer_phone: string | null;
+      referred_phone: string | null;
+      created_at: string;
+    }>>(`${this.baseUrl}/api/driver-onboarding/admin/referrals`, { headers: this.authHeaders() });
+  }
+
   orderEta(orderId: string) {
     return this.http.get<{
       orderId: string;
@@ -374,3 +434,28 @@ export class ApiService {
     return new HttpHeaders({ Authorization: `Bearer ${this.token}` });
   }
 }
+
+export type DriverOnboardingApplication = {
+  id: string;
+  user_id: string;
+  full_name: string;
+  phone: string | null;
+  user_phone?: string | null;
+  aadhaar_last4: string | null;
+  aadhaar_front_url: string | null;
+  aadhaar_back_url: string | null;
+  selfie_url: string | null;
+  ocr_status: string;
+  ocr_confidence: string | null;
+  selfie_status: string;
+  selfie_match_score: string | null;
+  background_check_status: string;
+  bank_account_last4: string | null;
+  upi_id: string | null;
+  referral_code: string | null;
+  referred_by_code: string | null;
+  approval_status: string;
+  admin_note: string | null;
+  created_at: string;
+  updated_at: string;
+};

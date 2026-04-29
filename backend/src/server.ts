@@ -11,13 +11,14 @@ import { notificationRoutes } from "./routes/notification.routes";
 import { adminRoutes } from "./routes/admin.routes";
 import { restaurantRoutes } from "./routes/restaurant.routes";
 import { deliveryAdminRoutes } from "./routes/delivery-admin.routes";
+import { driverOnboardingRoutes } from "./routes/driver-onboarding.routes";
 import { attachRealtime } from "./realtime";
 
 const app = express();
 
 app.use(helmet());
 app.use(cors());
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "10mb" }));
 
 app.get("/health", (_, res) => {
   res.json({ ok: true, service: "amberkitchen-backend" });
@@ -31,6 +32,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/restaurants", restaurantRoutes);
 app.use("/api/delivery-admin", deliveryAdminRoutes);
+app.use("/api/driver-onboarding", driverOnboardingRoutes);
 
 const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   const status = error.name === "ZodError" ? 400 : 500;
