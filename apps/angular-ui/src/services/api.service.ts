@@ -48,6 +48,8 @@ export class ApiService {
       status: string;
       total_paise: number;
       delivery_address: string;
+      delivery_lat: string;
+      delivery_lng: string;
       estimated_delivery_at: string | null;
       driver_phone: string | null;
       driver_name: string | null;
@@ -109,6 +111,8 @@ export class ApiService {
       delivery_lng: string;
       restaurant_name: string;
       restaurant_address: string;
+      restaurant_lat: string | null;
+      restaurant_lng: string | null;
     }>>(`${this.baseUrl}/api/orders/available`, { headers: this.authHeaders() });
   }
 
@@ -126,6 +130,24 @@ export class ApiService {
       { lat, lng },
       { headers: this.authHeaders() }
     );
+  }
+
+  orderEta(orderId: string) {
+    return this.http.get<{
+      orderId: string;
+      status: string;
+      predictedEtaMinutes: number;
+      predictedDeliveryAt: string;
+      currentEstimatedDeliveryAt: string | null;
+      route: {
+        origin: { lat: number; lng: number };
+        pickup: { lat: number; lng: number };
+        dropoff: { lat: number; lng: number };
+        distanceToPickupKm: number;
+        distanceToDropoffKm: number;
+      };
+      driverLocationAt: string | null;
+    }>(`${this.baseUrl}/api/tracking/orders/${orderId}/eta`, { headers: this.authHeaders() });
   }
 
   adminDashboard() {
@@ -216,6 +238,27 @@ export class ApiService {
         lng: number;
       }>;
     }>(`${this.baseUrl}/api/restaurants/google-places/delhi-ncr?minRating=${minRating}`, { headers: this.authHeaders() });
+  }
+
+  trendingRestaurants(lat = 28.6139, lng = 77.209) {
+    return this.http.get<Array<{
+      id: string;
+      name: string;
+      address: string;
+      cuisine_type: string | null;
+      lat: string | null;
+      lng: string | null;
+      recent_orders: number;
+      delivered_orders: number;
+      active_orders: number;
+      rating: string | null;
+      starting_price_paise: number | null;
+      photo_url: string | null;
+      distance_km: string | null;
+      trending_score: string;
+      historical_eta_minutes: number;
+      predicted_eta_minutes: number;
+    }>>(`${this.baseUrl}/api/restaurants/trending?lat=${lat}&lng=${lng}`, { headers: this.authHeaders() });
   }
 
   searchRestaurants(filters: {

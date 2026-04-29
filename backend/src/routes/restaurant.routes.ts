@@ -7,6 +7,12 @@ import { searchDelhiNcrRestaurants } from "../services/google-places.service";
 
 export const restaurantRoutes = Router();
 
+function etaMinutes(distanceKm: number, activeOrders: number) {
+  const prepMinutes = 18 + Math.min(activeOrders, 8) * 2;
+  const travelMinutes = Math.ceil((distanceKm / 22) * 60);
+  return Math.max(20, prepMinutes + travelMinutes);
+}
+
 const menuItemInput = z.object({
   name: z.string().min(2),
   description: z.string().optional(),
@@ -80,6 +86,77 @@ restaurantRoutes.get("/search", requireAuth, async (req, res, next) => {
     );
 
     res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
+restaurantRoutes.get("/trending", requireAuth, async (req, res, next) => {
+  try {
+    const filters = z.object({
+      lat: z.coerce.number().optional(),
+      lng: z.coerce.number().optional(),
+      limit: z.coerce.number().int().min(1).max(50).default(10)
+    }).parse(req.query);
+
+    const result = await query(
+      `with restaurant_stats as (
+         select r.id,
+                count(o.id) filter (where o.created_at >= now() - interval '7 days') as recent_orders,
+                count(o.id) filter (where o.status = 'delivered' and o.created_at >= now() - interval '30 days') as delivered_orders,
+                count(o.id) filter (where o.status in ('created', 'accepted', 'preparing', 'ready', 'picked_up')) as active_orders,
+                avg(extract(epoch from (o.updated_at - o.created_at)) / 60)
+                  filter (where o.status = 'delivered' and o.created_at >= now() - interval '30 days') as avg_delivery_minutes
+         from restaurants r
+         left join orders o on o.restaurant_id = r.id
+         where r.approval_status = 'approved'
+         group by r.id
+       ),
+       menu_stats as (
+         select restaurant_id,
+                avg(rating) as avg_menu_rating,
+                min(price_paise) as starting_price_paise,
+                max(photo_url) filter (where photo_url is not null) as photo_url
+         from menu_items
+         where is_available = true
+         group by restaurant_id
+       )
+       select r.id,
+              r.name,
+              r.address,
+              r.cuisine_type,
+              r.lat,
+              r.lng,
+              coalesce(rs.recent_orders, 0)::integer as recent_orders,
+              coalesce(rs.delivered_orders, 0)::integer as delivered_orders,
+              coalesce(rs.active_orders, 0)::integer as active_orders,
+              round(coalesce(ms.avg_menu_rating, 0), 2) as rating,
+              ms.starting_price_paise,
+              ms.photo_url,
+              case
+                when $1::numeric is null or $2::numeric is null or r.lat is null or r.lng is null then null
+                else (sqrt(power((r.lat - $1::numeric), 2) + power((r.lng - $2::numeric), 2)) * 111)
+              end as distance_km,
+              round(
+                (coalesce(rs.recent_orders, 0) * 2.2)
+                + (coalesce(ms.avg_menu_rating, 0) * 8)
+                + (coalesce(rs.delivered_orders, 0) * 0.35),
+                2
+              ) as trending_score,
+              coalesce(round(rs.avg_delivery_minutes), 0)::integer as historical_eta_minutes
+       from restaurants r
+       join restaurant_stats rs on rs.id = r.id
+       left join menu_stats ms on ms.restaurant_id = r.id
+       where r.approval_status = 'approved'
+       order by trending_score desc, recent_orders desc, rating desc
+       limit $3`,
+      [filters.lat ?? null, filters.lng ?? null, filters.limit]
+    );
+
+    res.json(result.rows.map(row => ({
+      ...row,
+      predicted_eta_minutes: etaMinutes(Number(row.distance_km ?? 4), Number(row.active_orders ?? 0))
+    })));
   } catch (error) {
     next(error);
   }

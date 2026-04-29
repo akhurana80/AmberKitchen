@@ -90,6 +90,10 @@ alter table menu_items add column if not exists cuisine_type text;
 alter table menu_items add column if not exists rating numeric(3, 2);
 alter table menu_items add column if not exists google_place_id text;
 
+create index if not exists restaurants_approval_status_idx on restaurants (approval_status);
+create index if not exists menu_items_restaurant_available_idx on menu_items (restaurant_id, is_available);
+create index if not exists orders_restaurant_created_idx on orders (restaurant_id, created_at desc);
+
 create table if not exists orders (
   id uuid primary key default uuid_generate_v4(),
   customer_id uuid not null references users(id),

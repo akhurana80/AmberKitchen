@@ -194,6 +194,10 @@ small {
   grid-template-columns: 88px 1.4fr 1.5fr 1fr 0.8fr 0.8fr 0.8fr;
 }
 
+.trending-row {
+  grid-template-columns: 88px 1.7fr 1fr 0.8fr 0.8fr 0.8fr;
+}
+
 .thumb {
   width: 64px;
   height: 64px;

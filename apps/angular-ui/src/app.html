@@ -49,6 +49,48 @@
 
     @if (token()) {
       <section class="section">
+        <div class="admin-header">
+          <h2>Trending Restaurants</h2>
+          <button (click)="loadTrendingRestaurants()">Refresh Trending</button>
+        </div>
+        <div class="table">
+          <div class="row trending-row head">
+            <span>Photo</span>
+            <span>Restaurant</span>
+            <span>Cuisine</span>
+            <span>Trend</span>
+            <span>ETA</span>
+            <span>Distance</span>
+          </div>
+          @for (restaurant of trendingRestaurants(); track restaurant.id) {
+            <div class="row trending-row">
+              <span>
+                @if (restaurant.photo_url) {
+                  <img class="thumb" [src]="restaurant.photo_url" [alt]="restaurant.name">
+                } @else {
+                  -
+                }
+              </span>
+              <span>
+                {{ restaurant.name }}
+                <small>{{ restaurant.address }}</small>
+              </span>
+              <span>{{ restaurant.cuisine_type || "-" }}</span>
+              <span>
+                {{ restaurant.trending_score }}
+                <small>{{ restaurant.recent_orders }} recent orders</small>
+              </span>
+              <span>
+                {{ restaurant.predicted_eta_minutes }} min
+                @if (restaurant.historical_eta_minutes > 0) {
+                  <small>{{ restaurant.historical_eta_minutes }} min avg</small>
+                }
+              </span>
+              <span>{{ restaurant.distance_km ? (+restaurant.distance_km).toFixed(1) + " km" : "-" }}</span>
+            </div>
+          }
+        </div>
+
         <h2>Restaurant Search</h2>
         <div class="grid">
           <label>
@@ -93,6 +135,7 @@
             <input type="number" [(ngModel)]="searchLng">
           </label>
           <button (click)="searchRestaurants()">Search Restaurants</button>
+          <button (click)="loadTrendingRestaurants()">Update Trending Nearby</button>
         </div>
 
         <div class="table">
@@ -159,6 +202,9 @@
           <button (click)="requestRefund()">Request Refund</button>
           <button (click)="reorderActiveOrder()">Reorder</button>
           <button [disabled]="!orderDetails()?.driver_phone" (click)="callDriver()">Call Driver</button>
+          <button (click)="loadOrderEta()">Predict ETA</button>
+          <button (click)="drawOrderRoute()">Draw Google Route</button>
+          <button (click)="openGoogleNavigation()">Open Navigation</button>
         </div>
 
         @if (orderDetails(); as order) {
@@ -168,6 +214,10 @@
             <strong>Total:</strong> {{ formatCurrency(order.total_paise) }}
             <strong>Estimated Delivery:</strong> {{ order.estimated_delivery_at || "Calculating" }}
             <strong>Driver Contact:</strong> {{ order.driver_phone || "Not assigned" }}
+            @if (routeEta(); as eta) {
+              <strong>Predicted ETA:</strong> {{ eta.predictedEtaMinutes }} min
+              <strong>Route:</strong> {{ eta.route.distanceToPickupKm.toFixed(1) }} km to pickup / {{ eta.route.distanceToDropoffKm.toFixed(1) }} km to dropoff
+            }
           </div>
 
           <div class="table">
@@ -194,6 +244,7 @@
       <strong>Order:</strong> {{ orderId() || "Not created" }}
       <strong>Driver:</strong> {{ latestLocation() }}
       <strong>Map:</strong> {{ mapNotice() }}
+      <strong>Navigation:</strong> {{ navigationNotice() }}
     </div>
 
     <div #map class="map"></div>

@@ -62,6 +62,8 @@ class AppComponent implements AfterViewInit {
     status: string;
     total_paise: number;
     delivery_address: string;
+    delivery_lat: string;
+    delivery_lng: string;
     estimated_delivery_at: string | null;
     driver_phone: string | null;
     driver_name: string | null;
@@ -73,8 +75,12 @@ class AppComponent implements AfterViewInit {
     status: string;
     total_paise: number;
     delivery_address: string;
+    delivery_lat: string;
+    delivery_lng: string;
     restaurant_name: string;
     restaurant_address: string;
+    restaurant_lat: string | null;
+    restaurant_lng: string | null;
   }>>([]);
   activeDeliveryOrder = signal("");
   driverLat = 28.6139;
@@ -117,6 +123,34 @@ class AppComponent implements AfterViewInit {
     restaurant_address: string;
     distance_km: string | null;
   }>>([]);
+  trendingRestaurants = signal<Array<{
+    id: string;
+    name: string;
+    address: string;
+    cuisine_type: string | null;
+    lat: string | null;
+    lng: string | null;
+    recent_orders: number;
+    rating: string | null;
+    starting_price_paise: number | null;
+    photo_url: string | null;
+    distance_km: string | null;
+    trending_score: string;
+    historical_eta_minutes: number;
+    predicted_eta_minutes: number;
+  }>>([]);
+  routeEta = signal<{
+    predictedEtaMinutes: number;
+    predictedDeliveryAt: string;
+    route: {
+      origin: { lat: number; lng: number };
+      pickup: { lat: number; lng: number };
+      dropoff: { lat: number; lng: number };
+      distanceToPickupKm: number;
+      distanceToDropoffKm: number;
+    };
+  } | null>(null);
+  navigationNotice = signal("Route navigation will appear after an order is active.");
   deliveryAdminOrders = signal<Array<{
     id: string;
     status: string;
@@ -129,6 +163,8 @@ class AppComponent implements AfterViewInit {
   deliveryDrivers = signal<Array<{ id: string; phone: string; name: string }>>([]);
   private map?: google.maps.Map;
   private marker?: google.maps.Marker;
+  private directionsService?: google.maps.DirectionsService;
+  private directionsRenderer?: google.maps.DirectionsRenderer;
 
   ngAfterViewInit() {
     this.initializeGoogleLogin();
@@ -145,7 +181,10 @@ class AppComponent implements AfterViewInit {
         disableDefaultUI: true
       });
       this.marker = new google.maps.Marker({ map: this.map, position: center });
+      this.directionsService = new google.maps.DirectionsService();
+      this.directionsRenderer = new google.maps.DirectionsRenderer({ map: this.map, suppressMarkers: false });
       this.mapNotice.set("Live delivery map ready. Tracking updates will pan to the driver.");
+      this.navigationNotice.set("Google Maps route navigation is ready.");
     });
   }
 
@@ -221,6 +260,7 @@ class AppComponent implements AfterViewInit {
     }
     if (this.role === "customer") {
       this.searchRestaurants();
+      this.loadTrendingRestaurants();
     }
   }
 
@@ -279,6 +319,7 @@ class AppComponent implements AfterViewInit {
 
     this.api.getOrder(orderId).subscribe(order => {
       this.orderDetails.set(order);
+      this.loadOrderEta();
     });
   }
 
@@ -467,6 +508,63 @@ class AppComponent implements AfterViewInit {
     }).subscribe(results => {
       this.restaurantSearchResults.set(results);
     });
+  }
+
+  loadTrendingRestaurants() {
+    this.api.trendingRestaurants(this.searchLat, this.searchLng).subscribe(restaurants => {
+      this.trendingRestaurants.set(restaurants);
+    });
+  }
+
+  loadOrderEta() {
+    const orderId = this.orderId();
+    if (!orderId) {
+      return;
+    }
+
+    this.api.orderEta(orderId).subscribe(eta => {
+      this.routeEta.set(eta);
+      this.navigationNotice.set(`Predicted delivery ETA: ${eta.predictedEtaMinutes} minutes.`);
+    });
+  }
+
+  drawOrderRoute() {
+    const eta = this.routeEta();
+    if (!eta || !this.directionsService || !this.directionsRenderer) {
+      this.navigationNotice.set("Add a Google Maps browser key and load an order before drawing the route.");
+      return;
+    }
+
+    this.directionsService.route({
+      origin: eta.route.origin,
+      destination: eta.route.dropoff,
+      waypoints: [{ location: eta.route.pickup, stopover: true }],
+      travelMode: google.maps.TravelMode.DRIVING
+    }, (result, status) => {
+      if (status === google.maps.DirectionsStatus.OK && result) {
+        this.directionsRenderer?.setDirections(result);
+        const legMinutes = result.routes[0]?.legs.reduce((sum, leg) => sum + (leg.duration?.value ?? 0), 0) ?? 0;
+        const minutes = Math.ceil(legMinutes / 60);
+        this.navigationNotice.set(minutes > 0 ? `Google route drawn. Driving time: ${minutes} minutes.` : "Google route drawn.");
+        return;
+      }
+
+      this.navigationNotice.set(`Google route could not be drawn: ${status}`);
+    });
+  }
+
+  openGoogleNavigation() {
+    const eta = this.routeEta();
+    if (!eta) {
+      this.navigationNotice.set("Load ETA before opening navigation.");
+      return;
+    }
+
+    const origin = `${eta.route.origin.lat},${eta.route.origin.lng}`;
+    const waypoint = `${eta.route.pickup.lat},${eta.route.pickup.lng}`;
+    const destination = `${eta.route.dropoff.lat},${eta.route.dropoff.lng}`;
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&waypoints=${encodeURIComponent(waypoint)}&travelmode=driving`;
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   decideOrder(orderId: string, decision: "accepted" | "cancelled") {
