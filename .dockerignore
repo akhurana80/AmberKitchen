@@ -1,0 +1,8 @@
+node_modules
+backend/dist
+apps/angular-ui/dist
+apps/angular-ui/.angular
+coverage
+.git
+.env
+*.log

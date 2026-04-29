@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createHash } from "crypto";
 import { z } from "zod";
 import { requireAuth, requireRole } from "../auth";
 import { query, transaction } from "../db";
@@ -8,6 +9,10 @@ export const orderRoutes = Router();
 
 function routeParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value ?? "";
+}
+
+function hashRequestBody(body: unknown) {
+  return createHash("sha256").update(JSON.stringify(body)).digest("hex");
 }
 
 orderRoutes.use(requireAuth);
@@ -25,6 +30,23 @@ orderRoutes.post("/", requireRole("customer", "admin"), async (req, res, next) =
         pricePaise: z.number().int().positive()
       })).min(1)
     }).parse(req.body);
+
+    const idempotencyKey = req.header("idempotency-key");
+    const requestHash = hashRequestBody(body);
+    if (idempotencyKey) {
+      const existing = await query<{ request_hash: string; response_status: number; response_body: unknown }>(
+        `select request_hash, response_status, response_body
+         from idempotency_keys
+         where key = $1 and user_id = $2 and scope = 'order:create'`,
+        [idempotencyKey, req.user!.id]
+      );
+      if (existing.rows[0]) {
+        if (existing.rows[0].request_hash !== requestHash) {
+          return res.status(409).json({ error: "Idempotency key was already used with a different order request" });
+        }
+        return res.status(existing.rows[0].response_status).json(existing.rows[0].response_body);
+      }
+    }
 
     const result = await transaction(async client => {
       const totalPaise = body.items.reduce((sum, item) => sum + item.quantity * item.pricePaise, 0);
@@ -54,6 +76,15 @@ orderRoutes.post("/", requireRole("customer", "admin"), async (req, res, next) =
 
       return { id: order.rows[0].id, totalPaise, status: "created", estimatedDeliveryAt: order.rows[0].estimated_delivery_at };
     });
+
+    if (idempotencyKey) {
+      await query(
+        `insert into idempotency_keys (key, user_id, scope, request_hash, response_status, response_body)
+         values ($1, $2, 'order:create', $3, $4, $5)
+         on conflict (key, user_id, scope) do nothing`,
+        [idempotencyKey, req.user!.id, requestHash, 201, result]
+      );
+    }
 
     res.status(201).json(result);
   } catch (error) {

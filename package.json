@@ -12,6 +12,11 @@
     "ui:start": "npm --workspace apps/angular-ui run start",
     "ui:build": "npm --workspace apps/angular-ui run build",
     "test:load": "node infra/scripts/load-test.js",
-    "db:backup": "bash infra/scripts/postgres-backup.sh"
+    "db:backup": "bash infra/scripts/postgres-backup.sh",
+    "db:migrate": "npm --workspace backend run db:migrate",
+    "db:seed": "npm --workspace backend run db:seed",
+    "backend:worker": "npm --workspace backend run worker",
+    "backend:worker:once": "npm --workspace backend run worker:once",
+    "test:smoke": "npm --workspace backend run test:smoke"
   }
 }

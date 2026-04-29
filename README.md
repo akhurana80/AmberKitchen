@@ -56,6 +56,10 @@
 - Azure integration event tracking for WhatsApp, email, blob storage, OCR, face verification, Mapbox/OpenStreetMap routing, and missed-call OTP fallback
 - Launch-readiness hardening: request IDs, CORS allow-list, in-memory rate limits, audit logs, DB-backed health checks, webhook signature verification, migration runner, CI workflow, Azure deploy workflow, backup script, and load-test script
 - Azure Container Apps deployment script
+- Versioned `/api/v1` routes while keeping existing `/api` compatibility
+- Idempotent order creation to prevent duplicate orders during payment or network retries
+- Payment webhook replay protection for Paytm, PhonePe, and Razorpay callback processing
+- Migration folder, development seed data, smoke test, operations worker, Dockerfiles, OpenAPI contract, and launch/security runbooks
 
 ## Local Run
 1. Copy `backend/.env.example` to `backend/.env` and fill provider credentials.
@@ -65,15 +69,26 @@
    ```bash
    docker compose -f infra/docker-compose.yml up --build
    ```
-5. Run the Angular UI:
+5. Apply database setup:
+   ```bash
+   npm run db:migrate
+   npm run db:seed
+   ```
+6. Run the Angular UI:
    ```bash
    npm install
    npm run ui:start
    ```
-6. Run launch-readiness checks:
+7. Run launch-readiness checks:
    ```bash
    npm --workspace backend run build
    npm --workspace apps/angular-ui exec -- tsc -p tsconfig.app.json --noEmit
+   npm run test:smoke
    npm run test:load
    npm run db:backup
    ```
+
+## Launch Docs
+- API contract: `docs/openapi.yaml`
+- Launch runbook: `docs/launch-runbook.md`
+- Security checklist: `docs/security-checklist.md`

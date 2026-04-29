@@ -449,9 +449,32 @@ create table if not exists schema_migrations (
   applied_at timestamptz not null default now()
 );
 
+create table if not exists idempotency_keys (
+  key text not null,
+  user_id uuid not null references users(id),
+  scope text not null,
+  request_hash text,
+  response_status integer,
+  response_body jsonb,
+  created_at timestamptz not null default now(),
+  primary key (key, user_id, scope)
+);
+
+create table if not exists webhook_events (
+  provider text not null,
+  event_id text not null,
+  transaction_id text,
+  status text,
+  raw_payload jsonb,
+  received_at timestamptz not null default now(),
+  primary key (provider, event_id)
+);
+
 create index if not exists audit_logs_created_idx on audit_logs (created_at desc);
 create index if not exists file_assets_owner_idx on file_assets (owner_id, created_at desc);
 create index if not exists verification_checks_user_idx on verification_checks (user_id, created_at desc);
+create index if not exists idempotency_keys_user_created_idx on idempotency_keys (user_id, created_at desc);
+create index if not exists webhook_events_received_idx on webhook_events (received_at desc);
 
 create table if not exists device_tokens (
   id uuid primary key default uuid_generate_v4(),

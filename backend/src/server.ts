@@ -1,9 +1,10 @@
 import http from "http";
+import { Socket } from "net";
 import express, { ErrorRequestHandler } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { config } from "./config";
-import { query } from "./db";
+import { db, query } from "./db";
 import { authRoutes } from "./routes/auth.routes";
 import { orderRoutes } from "./routes/order.routes";
 import { paymentRoutes } from "./routes/payment.routes";
@@ -60,19 +61,24 @@ app.get("/health", async (_req, res) => {
   }
 });
 
-app.use("/api/auth", authRoutes);
-app.use("/api/orders", orderRoutes);
-app.use("/api/payments", paymentRoutes);
-app.use("/api/tracking", trackingRoutes);
-app.use("/api/notifications", notificationRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/restaurants", restaurantRoutes);
-app.use("/api/delivery-admin", deliveryAdminRoutes);
-app.use("/api/driver-onboarding", driverOnboardingRoutes);
-app.use("/api/wallet", walletRoutes);
-app.use("/api/operations", operationsRoutes);
-app.use("/api/marketplace", marketplaceRoutes);
-app.use("/api/integrations", integrationRoutes);
+function registerRoutes(prefix: string) {
+  app.use(`${prefix}/auth`, authRoutes);
+  app.use(`${prefix}/orders`, orderRoutes);
+  app.use(`${prefix}/payments`, paymentRoutes);
+  app.use(`${prefix}/tracking`, trackingRoutes);
+  app.use(`${prefix}/notifications`, notificationRoutes);
+  app.use(`${prefix}/admin`, adminRoutes);
+  app.use(`${prefix}/restaurants`, restaurantRoutes);
+  app.use(`${prefix}/delivery-admin`, deliveryAdminRoutes);
+  app.use(`${prefix}/driver-onboarding`, driverOnboardingRoutes);
+  app.use(`${prefix}/wallet`, walletRoutes);
+  app.use(`${prefix}/operations`, operationsRoutes);
+  app.use(`${prefix}/marketplace`, marketplaceRoutes);
+  app.use(`${prefix}/integrations`, integrationRoutes);
+}
+
+registerRoutes("/api");
+registerRoutes("/api/v1");
 
 const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   const status = error.name === "ZodError" ? 400 : 500;
@@ -87,6 +93,32 @@ app.use(errorHandler);
 const server = http.createServer(app);
 attachRealtime(server);
 
-server.listen(config.port, () => {
-  console.log(`AmberKitchen backend listening on ${config.port}`);
+const sockets = new Set<Socket>();
+server.on("connection", socket => {
+  sockets.add(socket);
+  socket.on("close", () => sockets.delete(socket));
 });
+
+server.listen(config.port, () => {
+  console.log(JSON.stringify({ level: "info", service: "amberkitchen-backend", port: config.port, message: "listening" }));
+});
+
+function shutdown(signal: string) {
+  console.log(JSON.stringify({ level: "info", service: "amberkitchen-backend", signal, message: "shutdown_started" }));
+  server.close(async () => {
+    await db.end();
+    console.log(JSON.stringify({ level: "info", service: "amberkitchen-backend", signal, message: "shutdown_complete" }));
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    for (const socket of sockets) {
+      socket.destroy();
+    }
+    console.error(JSON.stringify({ level: "error", service: "amberkitchen-backend", signal, message: "shutdown_forced" }));
+    process.exit(1);
+  }, 10000).unref();
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
