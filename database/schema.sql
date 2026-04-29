@@ -74,10 +74,21 @@ create table if not exists menu_items (
   name text not null,
   description text,
   price_paise integer not null,
+  photo_url text,
+  is_veg boolean,
+  cuisine_type text,
+  rating numeric(3, 2),
+  google_place_id text,
   is_available boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table menu_items add column if not exists photo_url text;
+alter table menu_items add column if not exists is_veg boolean;
+alter table menu_items add column if not exists cuisine_type text;
+alter table menu_items add column if not exists rating numeric(3, 2);
+alter table menu_items add column if not exists google_place_id text;
 
 create table if not exists orders (
   id uuid primary key default uuid_generate_v4(),

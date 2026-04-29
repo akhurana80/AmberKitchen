@@ -47,6 +47,93 @@
       <button [disabled]="!token()" (click)="sendTestNotification()">Test Push</button>
     </div>
 
+    @if (token()) {
+      <section class="section">
+        <h2>Restaurant Search</h2>
+        <div class="grid">
+          <label>
+            Search
+            <input [(ngModel)]="searchText" placeholder="Biryani, thali, restaurant">
+          </label>
+          <label>
+            Cuisine
+            <input [(ngModel)]="searchCuisine" placeholder="North Indian">
+          </label>
+          <label>
+            Diet
+            <select [(ngModel)]="searchDiet">
+              <option value="all">All</option>
+              <option value="veg">Veg</option>
+              <option value="non_veg">Non Veg</option>
+            </select>
+          </label>
+          <label>
+            Minimum Rating
+            <input type="number" min="0" max="5" step="0.1" [(ngModel)]="searchMinRating">
+          </label>
+          <label>
+            Max Price Paise
+            <input type="number" [(ngModel)]="searchMaxPricePaise">
+          </label>
+          <label>
+            Sort
+            <select [(ngModel)]="searchSort">
+              <option value="rating_desc">Rating</option>
+              <option value="distance">Distance</option>
+              <option value="price_asc">Price Low</option>
+              <option value="price_desc">Price High</option>
+            </select>
+          </label>
+          <label>
+            Latitude
+            <input type="number" [(ngModel)]="searchLat">
+          </label>
+          <label>
+            Longitude
+            <input type="number" [(ngModel)]="searchLng">
+          </label>
+          <button (click)="searchRestaurants()">Search Restaurants</button>
+        </div>
+
+        <div class="table">
+          <div class="row search-row head">
+            <span>Photo</span>
+            <span>Menu</span>
+            <span>Restaurant</span>
+            <span>Cuisine</span>
+            <span>Diet</span>
+            <span>Rating</span>
+            <span>Price</span>
+          </div>
+          @for (item of restaurantSearchResults(); track item.menu_item_id) {
+            <div class="row search-row">
+              <span>
+                @if (item.photo_url) {
+                  <img class="thumb" [src]="item.photo_url" [alt]="item.menu_item_name">
+                } @else {
+                  -
+                }
+              </span>
+              <span>{{ item.menu_item_name }}</span>
+              <span>
+                {{ item.restaurant_name }}
+                <small>{{ item.restaurant_address }}</small>
+              </span>
+              <span>{{ item.cuisine_type || "-" }}</span>
+              <span>{{ item.is_veg === null ? "-" : item.is_veg ? "Veg" : "Non Veg" }}</span>
+              <span>
+                {{ item.rating || "-" }}
+                @if (item.distance_km) {
+                  <small>{{ (+item.distance_km).toFixed(1) }} km</small>
+                }
+              </span>
+              <span>{{ formatCurrency(item.price_paise) }}</span>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
     @if (orderId()) {
       <section class="section">
         <h2>Order Controls</h2>
@@ -302,18 +389,29 @@
 
         <div class="admin-header">
           <h3>Google Places Delhi NCR</h3>
-          <button (click)="loadDelhiNcrPlaces()">Load Rated Restaurants</button>
+          <div class="actions-inline">
+            <button (click)="loadDelhiNcrPlaces()">Load Rated Restaurants</button>
+            <button [disabled]="!selectedRestaurantId || delhiNcrPlaces().length === 0" (click)="importPlacesAsMenu()">Import Photos To Menu</button>
+          </div>
         </div>
 
         <div class="table">
-          <div class="row head">
+          <div class="row places-row head">
+            <span>Photo</span>
             <span>Name</span>
             <span>Rating</span>
             <span>Address</span>
             <span>Location</span>
           </div>
           @for (place of delhiNcrPlaces(); track place.googlePlaceId) {
-            <div class="row">
+            <div class="row places-row">
+              <span>
+                @if (place.photoUrl) {
+                  <img class="thumb" [src]="place.photoUrl" [alt]="place.name">
+                } @else {
+                  -
+                }
+              </span>
               <span>{{ place.name }}</span>
               <span>{{ place.rating }}</span>
               <span>{{ place.address }}</span>
@@ -328,8 +426,28 @@
             <input [(ngModel)]="menuItemName">
           </label>
           <label>
+            Description
+            <input [(ngModel)]="menuItemDescription">
+          </label>
+          <label>
             Price Paise
             <input type="number" [(ngModel)]="menuItemPricePaise">
+          </label>
+          <label>
+            Photo URL
+            <input [(ngModel)]="menuItemPhotoUrl">
+          </label>
+          <label>
+            Cuisine
+            <input [(ngModel)]="menuItemCuisineType">
+          </label>
+          <label>
+            Rating
+            <input type="number" min="0" max="5" step="0.1" [(ngModel)]="menuItemRating">
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="menuItemIsVeg">
+            Veg Item
           </label>
           <button [disabled]="!selectedRestaurantId" (click)="addMenuItem()">Add Menu Item</button>
         </div>

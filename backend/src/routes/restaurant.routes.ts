@@ -7,6 +7,84 @@ import { searchDelhiNcrRestaurants } from "../services/google-places.service";
 
 export const restaurantRoutes = Router();
 
+const menuItemInput = z.object({
+  name: z.string().min(2),
+  description: z.string().optional(),
+  pricePaise: z.number().int().positive(),
+  photoUrl: z.string().url().optional(),
+  isVeg: z.boolean().optional(),
+  cuisineType: z.string().optional(),
+  rating: z.number().min(0).max(5).optional(),
+  googlePlaceId: z.string().optional(),
+  isAvailable: z.boolean().default(true)
+});
+
+restaurantRoutes.get("/search", requireAuth, async (req, res, next) => {
+  try {
+    const filters = z.object({
+      q: z.string().optional(),
+      cuisine: z.string().optional(),
+      diet: z.enum(["all", "veg", "non_veg"]).default("all"),
+      minRating: z.coerce.number().min(0).max(5).optional(),
+      maxPricePaise: z.coerce.number().int().positive().optional(),
+      lat: z.coerce.number().optional(),
+      lng: z.coerce.number().optional(),
+      sort: z.enum(["rating_desc", "distance", "price_asc", "price_desc"]).default("rating_desc")
+    }).parse(req.query);
+
+    const orderBy = {
+      rating_desc: "coalesce(mi.rating, 0) desc, coalesce(r.cuisine_type, mi.cuisine_type, '') asc, mi.price_paise asc",
+      distance: "distance_km asc nulls last, coalesce(mi.rating, 0) desc",
+      price_asc: "mi.price_paise asc, coalesce(mi.rating, 0) desc",
+      price_desc: "mi.price_paise desc, coalesce(mi.rating, 0) desc"
+    }[filters.sort];
+
+    const result = await query(
+      `select mi.id as menu_item_id,
+              mi.name as menu_item_name,
+              mi.description,
+              mi.price_paise,
+              mi.photo_url,
+              mi.is_veg,
+              coalesce(mi.cuisine_type, r.cuisine_type) as cuisine_type,
+              mi.rating,
+              r.id as restaurant_id,
+              r.name as restaurant_name,
+              r.address as restaurant_address,
+              r.lat,
+              r.lng,
+              case
+                when $6::numeric is null or $7::numeric is null or r.lat is null or r.lng is null then null
+                else (sqrt(power((r.lat - $6::numeric), 2) + power((r.lng - $7::numeric), 2)) * 111)
+              end as distance_km
+       from menu_items mi
+       join restaurants r on r.id = mi.restaurant_id
+       where mi.is_available = true
+         and r.approval_status = 'approved'
+         and ($1::text is null or mi.name ilike '%' || $1 || '%' or r.name ilike '%' || $1 || '%')
+         and ($2::text is null or lower(coalesce(mi.cuisine_type, r.cuisine_type, '')) = lower($2))
+         and ($3::text = 'all' or ($3::text = 'veg' and mi.is_veg is true) or ($3::text = 'non_veg' and mi.is_veg is false))
+         and ($4::numeric is null or coalesce(mi.rating, 0) >= $4::numeric)
+         and ($5::integer is null or mi.price_paise <= $5::integer)
+       order by ${orderBy}
+       limit 100`,
+      [
+        filters.q || null,
+        filters.cuisine || null,
+        filters.diet,
+        filters.minRating ?? null,
+        filters.maxPricePaise ?? null,
+        filters.lat ?? null,
+        filters.lng ?? null
+      ]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
 restaurantRoutes.use(requireAuth, requireRole("restaurant", "admin", "super_admin"));
 
 restaurantRoutes.post("/", async (req, res, next) => {
@@ -131,18 +209,27 @@ restaurantRoutes.get("/mine", async (req, res, next) => {
 
 restaurantRoutes.post("/:restaurantId/menu", async (req, res, next) => {
   try {
-    const body = z.object({
-      name: z.string().min(2),
-      description: z.string().optional(),
-      pricePaise: z.number().int().positive(),
-      isAvailable: z.boolean().default(true)
-    }).parse(req.body);
+    const body = menuItemInput.parse(req.body);
 
     const result = await query(
-      `insert into menu_items (restaurant_id, name, description, price_paise, is_available)
-       values ($1, $2, $3, $4, $5)
+      `insert into menu_items (
+         restaurant_id, name, description, price_paise, photo_url, is_veg,
+         cuisine_type, rating, google_place_id, is_available
+       )
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        returning *`,
-      [req.params.restaurantId, body.name, body.description ?? null, body.pricePaise, body.isAvailable]
+      [
+        req.params.restaurantId,
+        body.name,
+        body.description ?? null,
+        body.pricePaise,
+        body.photoUrl ?? null,
+        body.isVeg ?? null,
+        body.cuisineType ?? null,
+        body.rating ?? null,
+        body.googlePlaceId ?? null,
+        body.isAvailable
+      ]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -159,12 +246,57 @@ restaurantRoutes.get("/:restaurantId/menu", async (req, res, next) => {
   }
 });
 
+restaurantRoutes.post("/:restaurantId/menu/import", async (req, res, next) => {
+  try {
+    const body = z.object({
+      items: z.array(menuItemInput).min(1).max(100)
+    }).parse(req.body);
+
+    const values: unknown[] = [];
+    const placeholders = body.items.map((item, index) => {
+      const offset = index * 10;
+      values.push(
+        req.params.restaurantId,
+        item.name,
+        item.description ?? null,
+        item.pricePaise,
+        item.photoUrl ?? null,
+        item.isVeg ?? null,
+        item.cuisineType ?? null,
+        item.rating ?? null,
+        item.googlePlaceId ?? null,
+        item.isAvailable
+      );
+      return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10})`;
+    });
+
+    const result = await query(
+      `insert into menu_items (
+         restaurant_id, name, description, price_paise, photo_url, is_veg,
+         cuisine_type, rating, google_place_id, is_available
+       )
+       values ${placeholders.join(", ")}
+       returning *`,
+      values
+    );
+
+    res.status(201).json({ imported: result.rowCount, items: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
 restaurantRoutes.patch("/menu/:itemId", async (req, res, next) => {
   try {
     const body = z.object({
       name: z.string().min(2).optional(),
       description: z.string().optional(),
       pricePaise: z.number().int().positive().optional(),
+      photoUrl: z.string().url().optional(),
+      isVeg: z.boolean().optional(),
+      cuisineType: z.string().optional(),
+      rating: z.number().min(0).max(5).optional(),
+      googlePlaceId: z.string().optional(),
       isAvailable: z.boolean().optional()
     }).parse(req.body);
 
@@ -173,11 +305,27 @@ restaurantRoutes.patch("/menu/:itemId", async (req, res, next) => {
        set name = coalesce($1, name),
            description = coalesce($2, description),
            price_paise = coalesce($3, price_paise),
-           is_available = coalesce($4, is_available),
+           photo_url = coalesce($4, photo_url),
+           is_veg = coalesce($5, is_veg),
+           cuisine_type = coalesce($6, cuisine_type),
+           rating = coalesce($7, rating),
+           google_place_id = coalesce($8, google_place_id),
+           is_available = coalesce($9, is_available),
            updated_at = now()
-       where id = $5
+       where id = $10
        returning *`,
-      [body.name ?? null, body.description ?? null, body.pricePaise ?? null, body.isAvailable ?? null, req.params.itemId]
+      [
+        body.name ?? null,
+        body.description ?? null,
+        body.pricePaise ?? null,
+        body.photoUrl ?? null,
+        body.isVeg ?? null,
+        body.cuisineType ?? null,
+        body.rating ?? null,
+        body.googlePlaceId ?? null,
+        body.isAvailable ?? null,
+        req.params.itemId
+      ]
     );
     res.json(result.rows[0]);
   } catch (error) {

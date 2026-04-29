@@ -35,7 +35,20 @@ class AppComponent implements AfterViewInit {
   restaurantGstNumber = "";
   restaurantBankAccountLast4 = "";
   menuItemName = "";
+  menuItemDescription = "";
   menuItemPricePaise = 0;
+  menuItemPhotoUrl = "";
+  menuItemIsVeg = true;
+  menuItemCuisineType = "";
+  menuItemRating = 0;
+  searchText = "";
+  searchCuisine = "";
+  searchDiet: "all" | "veg" | "non_veg" = "all";
+  searchMinRating = 3;
+  searchMaxPricePaise = 0;
+  searchSort: "rating_desc" | "distance" | "price_asc" | "price_desc" = "rating_desc";
+  searchLat = 28.6139;
+  searchLng = 77.209;
   selectedRestaurantId = "";
   selectedDriverId = "";
   token = signal("");
@@ -86,8 +99,23 @@ class AppComponent implements AfterViewInit {
     name: string;
     address: string;
     rating: number;
+    photoUrl: string | null;
     lat: number;
     lng: number;
+  }>>([]);
+  restaurantSearchResults = signal<Array<{
+    menu_item_id: string;
+    menu_item_name: string;
+    description: string | null;
+    price_paise: number;
+    photo_url: string | null;
+    is_veg: boolean | null;
+    cuisine_type: string | null;
+    rating: string | null;
+    restaurant_id: string;
+    restaurant_name: string;
+    restaurant_address: string;
+    distance_km: string | null;
   }>>([]);
   deliveryAdminOrders = signal<Array<{
     id: string;
@@ -190,6 +218,9 @@ class AppComponent implements AfterViewInit {
     }
     if (this.role === "delivery_admin") {
       this.loadDeliveryAdmin();
+    }
+    if (this.role === "customer") {
+      this.searchRestaurants();
     }
   }
 
@@ -383,9 +414,58 @@ class AppComponent implements AfterViewInit {
     if (!this.selectedRestaurantId) {
       return;
     }
-    this.api.createMenuItem(this.selectedRestaurantId, this.menuItemName, this.menuItemPricePaise).subscribe(() => {
+    this.api.createMenuItem(this.selectedRestaurantId, {
+      name: this.menuItemName,
+      description: this.menuItemDescription || undefined,
+      pricePaise: this.menuItemPricePaise,
+      photoUrl: this.menuItemPhotoUrl || undefined,
+      isVeg: this.menuItemIsVeg,
+      cuisineType: this.menuItemCuisineType || undefined,
+      rating: this.menuItemRating > 0 ? this.menuItemRating : undefined
+    }).subscribe(() => {
       this.menuItemName = "";
+      this.menuItemDescription = "";
       this.menuItemPricePaise = 0;
+      this.menuItemPhotoUrl = "";
+      this.menuItemRating = 0;
+    });
+  }
+
+  importPlacesAsMenu() {
+    if (!this.selectedRestaurantId || this.delhiNcrPlaces().length === 0) {
+      return;
+    }
+
+    const cuisineType = this.menuItemCuisineType || this.restaurantCuisineType || "Delhi NCR";
+    const items = this.delhiNcrPlaces().map(place => ({
+      name: place.name,
+      description: place.address,
+      pricePaise: this.menuItemPricePaise > 0 ? this.menuItemPricePaise : 19900,
+      photoUrl: place.photoUrl || undefined,
+      isVeg: this.menuItemIsVeg,
+      cuisineType,
+      rating: place.rating,
+      googlePlaceId: place.googlePlaceId
+    }));
+
+    this.api.importMenuItems(this.selectedRestaurantId, items).subscribe(() => {
+      this.loadRestaurantOperations();
+    });
+  }
+
+  searchRestaurants() {
+    const maxPricePaise = this.searchMaxPricePaise > 0 ? this.searchMaxPricePaise : undefined;
+    this.api.searchRestaurants({
+      q: this.searchText || undefined,
+      cuisine: this.searchCuisine || undefined,
+      diet: this.searchDiet,
+      minRating: this.searchMinRating > 0 ? this.searchMinRating : undefined,
+      maxPricePaise,
+      sort: this.searchSort,
+      lat: this.searchSort === "distance" ? this.searchLat : undefined,
+      lng: this.searchSort === "distance" ? this.searchLng : undefined
+    }).subscribe(results => {
+      this.restaurantSearchResults.set(results);
     });
   }
 

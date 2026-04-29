@@ -6,6 +6,10 @@ import { emitOrderUpdate } from "../realtime";
 
 export const orderRoutes = Router();
 
+function routeParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value ?? "";
+}
+
 orderRoutes.use(requireAuth);
 
 orderRoutes.post("/", requireRole("customer", "admin"), async (req, res, next) => {
@@ -265,7 +269,7 @@ orderRoutes.patch("/:id", requireRole("customer", "admin", "super_admin"), async
     });
 
     if (result.statusCode === 200) {
-      emitOrderUpdate(req.params.id, result.body);
+      emitOrderUpdate(routeParam(req.params.id), result.body);
     }
     res.status(result.statusCode).json(result.body);
   } catch (error) {
@@ -290,8 +294,8 @@ orderRoutes.patch("/:id/assign", requireRole("driver", "admin"), async (req, res
       return res.status(409).json({ error: "Order is already assigned to another delivery partner" });
     }
 
-    emitOrderUpdate(req.params.id, result.rows[0]);
-    await recordStatusHistory(req.params.id, result.rows[0].status, req.user!.id, "Delivery partner assigned");
+    emitOrderUpdate(routeParam(req.params.id), result.rows[0]);
+    await recordStatusHistory(routeParam(req.params.id), result.rows[0].status, req.user!.id, "Delivery partner assigned");
     res.json(result.rows[0]);
   } catch (error) {
     next(error);
@@ -349,14 +353,14 @@ orderRoutes.post("/:id/cancel", requireRole("customer", "restaurant", "admin", "
       );
 
       if (paidPayment.rows[0]) {
-        await createRefundForPaidOrder(req.params.id, body.reason);
+        await createRefundForPaidOrder(routeParam(req.params.id), body.reason);
       }
 
       return { statusCode: 200, body: updated.rows[0] };
     });
 
     if (result.statusCode === 200) {
-      emitOrderUpdate(req.params.id, result.body);
+      emitOrderUpdate(routeParam(req.params.id), result.body);
     }
     res.status(result.statusCode).json(result.body);
   } catch (error) {
@@ -391,8 +395,8 @@ orderRoutes.patch("/:id/status", requireRole("restaurant", "driver", "admin"), a
       return res.status(404).json({ error: "Order not found or not assigned to this delivery partner" });
     }
 
-    emitOrderUpdate(req.params.id, result.rows[0]);
-    await recordStatusHistory(req.params.id, body.status, req.user!.id, `Status changed to ${body.status}`);
+    emitOrderUpdate(routeParam(req.params.id), result.rows[0]);
+    await recordStatusHistory(routeParam(req.params.id), body.status, req.user!.id, `Status changed to ${body.status}`);
     res.json(result.rows[0]);
   } catch (error) {
     next(error);

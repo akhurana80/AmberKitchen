@@ -6,6 +6,10 @@ import { emitDriverLocation } from "../realtime";
 
 export const trackingRoutes = Router();
 
+function routeParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value ?? "";
+}
+
 trackingRoutes.use(requireAuth);
 
 trackingRoutes.post("/orders/:orderId/location", requireRole("driver", "admin"), async (req, res, next) => {
@@ -24,7 +28,7 @@ trackingRoutes.post("/orders/:orderId/location", requireRole("driver", "admin"),
       [req.params.orderId, req.user!.id, body.lat, body.lng, body.heading ?? null, body.speed ?? null]
     );
 
-    emitDriverLocation(req.params.orderId, result.rows[0]);
+    emitDriverLocation(routeParam(req.params.orderId), result.rows[0]);
     res.status(201).json(result.rows[0]);
   } catch (error) {
     next(error);

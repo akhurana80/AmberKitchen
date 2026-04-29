@@ -6,6 +6,10 @@ import { query } from "../db";
 
 export const paymentRoutes = Router();
 
+function routeParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value ?? "";
+}
+
 paymentRoutes.post("/create", requireAuth, async (req, res, next) => {
   try {
     const body = z.object({
@@ -42,7 +46,7 @@ paymentRoutes.post("/phonepe/callback", async (req, res, next) => {
 
 paymentRoutes.get("/phonepe/:transactionId/status", requireAuth, async (req, res, next) => {
   try {
-    const response = await verifyPhonePeTransaction(req.params.transactionId);
+    const response = await verifyPhonePeTransaction(routeParam(req.params.transactionId));
     res.json(response.data);
   } catch (error) {
     next(error);

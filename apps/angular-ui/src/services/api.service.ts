@@ -211,16 +211,75 @@ export class ApiService {
         name: string;
         address: string;
         rating: number;
+        photoUrl: string | null;
         lat: number;
         lng: number;
       }>;
     }>(`${this.baseUrl}/api/restaurants/google-places/delhi-ncr?minRating=${minRating}`, { headers: this.authHeaders() });
   }
 
-  createMenuItem(restaurantId: string, name: string, pricePaise: number) {
+  searchRestaurants(filters: {
+    q?: string;
+    cuisine?: string;
+    diet?: "all" | "veg" | "non_veg";
+    minRating?: number;
+    maxPricePaise?: number;
+    sort?: "rating_desc" | "distance" | "price_asc" | "price_desc";
+    lat?: number;
+    lng?: number;
+  }) {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        params.set(key, String(value));
+      }
+    });
+
+    return this.http.get<Array<{
+      menu_item_id: string;
+      menu_item_name: string;
+      description: string | null;
+      price_paise: number;
+      photo_url: string | null;
+      is_veg: boolean | null;
+      cuisine_type: string | null;
+      rating: string | null;
+      restaurant_id: string;
+      restaurant_name: string;
+      restaurant_address: string;
+      distance_km: string | null;
+    }>>(`${this.baseUrl}/api/restaurants/search?${params.toString()}`, { headers: this.authHeaders() });
+  }
+
+  createMenuItem(restaurantId: string, item: {
+    name: string;
+    pricePaise: number;
+    description?: string;
+    photoUrl?: string;
+    isVeg?: boolean;
+    cuisineType?: string;
+    rating?: number;
+  }) {
     return this.http.post(
       `${this.baseUrl}/api/restaurants/${restaurantId}/menu`,
-      { name, pricePaise, isAvailable: true },
+      { ...item, isAvailable: true },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  importMenuItems(restaurantId: string, items: Array<{
+    name: string;
+    pricePaise: number;
+    description?: string;
+    photoUrl?: string;
+    isVeg?: boolean;
+    cuisineType?: string;
+    rating?: number;
+    googlePlaceId?: string;
+  }>) {
+    return this.http.post(
+      `${this.baseUrl}/api/restaurants/${restaurantId}/menu/import`,
+      { items },
       { headers: this.authHeaders() }
     );
   }

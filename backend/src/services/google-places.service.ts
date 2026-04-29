@@ -6,6 +6,7 @@ type GooglePlace = {
   displayName?: { text?: string };
   formattedAddress?: string;
   rating?: number;
+  photos?: Array<{ name?: string }>;
   location?: {
     latitude?: number;
     longitude?: number;
@@ -52,7 +53,7 @@ export async function searchDelhiNcrRestaurants(options: {
       headers: {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": config.googlePlacesApiKey,
-        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.location"
+        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.photos,places.location"
       }
     }
   );
@@ -64,6 +65,9 @@ export async function searchDelhiNcrRestaurants(options: {
       name: place.displayName?.text ?? "Unnamed restaurant",
       address: place.formattedAddress ?? "",
       rating: place.rating,
+      photoUrl: place.photos?.[0]?.name
+        ? `https://places.googleapis.com/v1/${place.photos[0].name}/media?maxWidthPx=800&key=${config.googlePlacesApiKey}`
+        : null,
       lat: place.location?.latitude,
       lng: place.location?.longitude
     }))
