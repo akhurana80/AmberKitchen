@@ -88,9 +88,16 @@ label {
   background-size: 32px 32px;
 }
 
-.admin {
+.admin,
+.driver {
   margin-top: 1.5rem;
   display: grid;
+  gap: 1rem;
+}
+
+.driver-controls {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 1rem;
 }
 
@@ -144,6 +151,10 @@ label {
   overflow-wrap: anywhere;
 }
 
+.driver-row {
+  grid-template-columns: 2fr 1fr 1.5fr 1fr auto;
+}
+
 .row:first-child {
   border-top: 0;
 }
@@ -156,6 +167,7 @@ label {
 @media (max-width: 640px) {
   .grid,
   .actions,
+  .driver-controls,
   .metrics,
   .row {
     grid-template-columns: 1fr;

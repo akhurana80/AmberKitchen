@@ -60,6 +60,48 @@ orderRoutes.get("/", async (req, res, next) => {
   }
 });
 
+orderRoutes.get("/available", requireRole("driver", "admin"), async (_req, res, next) => {
+  try {
+    const result = await query(
+      `select o.id, o.status, o.total_paise, o.delivery_address, o.delivery_lat, o.delivery_lng,
+              r.name as restaurant_name, r.address as restaurant_address, r.lat as restaurant_lat, r.lng as restaurant_lng
+       from orders o
+       left join restaurants r on r.id = o.restaurant_id
+       where o.driver_id is null
+         and o.status in ('accepted', 'ready')
+       order by o.created_at asc
+       limit 25`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
+orderRoutes.patch("/:id/assign", requireRole("driver", "admin"), async (req, res, next) => {
+  try {
+    const result = await query(
+      `update orders
+       set driver_id = $1,
+           status = case when status = 'ready' then status else 'accepted' end,
+           updated_at = now()
+       where id = $2
+         and (driver_id is null or driver_id = $1)
+       returning *`,
+      [req.user!.id, req.params.id]
+    );
+
+    if (!result.rows[0]) {
+      return res.status(409).json({ error: "Order is already assigned to another delivery partner" });
+    }
+
+    emitOrderUpdate(req.params.id, result.rows[0]);
+    res.json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
 orderRoutes.patch("/:id/status", requireRole("restaurant", "driver", "admin"), async (req, res, next) => {
   try {
     const body = z.object({
@@ -69,9 +111,14 @@ orderRoutes.patch("/:id/status", requireRole("restaurant", "driver", "admin"), a
     const result = await query(
       `update orders set status = $1, updated_at = now()
        where id = $2
+         and ($3::text <> 'driver' or driver_id = $4)
        returning *`,
-      [body.status, req.params.id]
+      [body.status, req.params.id, req.user!.role, req.user!.id]
     );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: "Order not found or not assigned to this delivery partner" });
+    }
 
     emitOrderUpdate(req.params.id, result.rows[0]);
     res.json(result.rows[0]);

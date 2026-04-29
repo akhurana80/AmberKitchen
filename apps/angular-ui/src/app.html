@@ -38,6 +38,52 @@
 
     <div #map class="map"></div>
 
+    @if (role === "driver" && token()) {
+      <section class="driver">
+        <div class="admin-header">
+          <h2>Delivery Partner App</h2>
+          <button (click)="loadDeliveryOrders()">Refresh</button>
+        </div>
+
+        <div class="driver-controls">
+          <label>
+            Latitude
+            <input type="number" [(ngModel)]="driverLat">
+          </label>
+          <label>
+            Longitude
+            <input type="number" [(ngModel)]="driverLng">
+          </label>
+          <button [disabled]="!activeDeliveryOrder()" (click)="shareDriverLocation()">Share Location</button>
+          <button [disabled]="!activeDeliveryOrder()" (click)="updateDeliveryStatus('picked_up')">Picked Up</button>
+          <button [disabled]="!activeDeliveryOrder()" (click)="updateDeliveryStatus('delivered')">Delivered</button>
+        </div>
+
+        <div class="status">
+          <strong>Active Delivery:</strong> {{ activeDeliveryOrder() || "No active delivery" }}
+        </div>
+
+        <div class="table">
+          <div class="row driver-row head">
+            <span>Order</span>
+            <span>Restaurant</span>
+            <span>Dropoff</span>
+            <span>Total</span>
+            <span>Action</span>
+          </div>
+          @for (order of driverOrders(); track order.id) {
+            <div class="row driver-row">
+              <span>{{ order.id }}</span>
+              <span>{{ order.restaurant_name || "Restaurant" }}</span>
+              <span>{{ order.delivery_address }}</span>
+              <span>{{ formatCurrency(order.total_paise) }}</span>
+              <button (click)="acceptDelivery(order.id)">Accept</button>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
     @if (adminDashboard(); as dashboard) {
       <section class="admin">
         <div class="admin-header">

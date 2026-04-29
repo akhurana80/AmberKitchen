@@ -26,6 +26,7 @@
 - Push notification plumbing through Firebase Cloud Messaging
 - Angular UI in `apps/angular-ui/`
 - Admin dashboard with platform metrics and recent orders
+- Delivery partner app with available orders, order acceptance, status updates, and live location sharing
 - Azure Container Apps deployment script
 
 ## Local Run

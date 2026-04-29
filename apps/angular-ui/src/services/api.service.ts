@@ -43,6 +43,35 @@ export class ApiService {
     );
   }
 
+  availableDeliveryOrders() {
+    return this.http.get<Array<{
+      id: string;
+      status: string;
+      total_paise: number;
+      delivery_address: string;
+      delivery_lat: string;
+      delivery_lng: string;
+      restaurant_name: string;
+      restaurant_address: string;
+    }>>(`${this.baseUrl}/api/orders/available`, { headers: this.authHeaders() });
+  }
+
+  acceptDeliveryOrder(orderId: string) {
+    return this.http.patch(`${this.baseUrl}/api/orders/${orderId}/assign`, {}, { headers: this.authHeaders() });
+  }
+
+  updateOrderStatus(orderId: string, status: string) {
+    return this.http.patch(`${this.baseUrl}/api/orders/${orderId}/status`, { status }, { headers: this.authHeaders() });
+  }
+
+  sendDriverLocation(orderId: string, lat: number, lng: number) {
+    return this.http.post(
+      `${this.baseUrl}/api/tracking/orders/${orderId}/location`,
+      { lat, lng },
+      { headers: this.authHeaders() }
+    );
+  }
+
   adminDashboard() {
     return this.http.get<{
       users: number;

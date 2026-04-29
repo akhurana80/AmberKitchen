@@ -23,6 +23,17 @@ class AppComponent implements AfterViewInit {
   token = signal("");
   orderId = signal("");
   latestLocation = signal("Waiting for driver location");
+  driverOrders = signal<Array<{
+    id: string;
+    status: string;
+    total_paise: number;
+    delivery_address: string;
+    restaurant_name: string;
+    restaurant_address: string;
+  }>>([]);
+  activeDeliveryOrder = signal("");
+  driverLat = 28.6139;
+  driverLng = 77.209;
   adminDashboard = signal<{
     users: number;
     ordersByStatus: Array<{ status: string; count: number }>;
@@ -62,6 +73,9 @@ class AppComponent implements AfterViewInit {
       if (this.role === "admin") {
         this.loadAdminDashboard();
       }
+      if (this.role === "driver") {
+        this.loadDeliveryOrders();
+      }
     });
   }
 
@@ -82,6 +96,46 @@ class AppComponent implements AfterViewInit {
   loadAdminDashboard() {
     this.api.adminDashboard().subscribe(dashboard => {
       this.adminDashboard.set(dashboard);
+    });
+  }
+
+  loadDeliveryOrders() {
+    this.api.availableDeliveryOrders().subscribe(orders => {
+      this.driverOrders.set(orders);
+    });
+  }
+
+  acceptDelivery(orderId: string) {
+    this.api.acceptDeliveryOrder(orderId).subscribe(() => {
+      this.activeDeliveryOrder.set(orderId);
+      this.orderId.set(orderId);
+      this.watchOrder(orderId);
+      this.loadDeliveryOrders();
+    });
+  }
+
+  updateDeliveryStatus(status: "picked_up" | "delivered") {
+    const orderId = this.activeDeliveryOrder();
+    if (!orderId) {
+      return;
+    }
+
+    this.api.updateOrderStatus(orderId, status).subscribe(() => {
+      if (status === "delivered") {
+        this.activeDeliveryOrder.set("");
+      }
+    });
+  }
+
+  shareDriverLocation() {
+    const orderId = this.activeDeliveryOrder();
+    if (!orderId) {
+      return;
+    }
+
+    this.api.sendDriverLocation(orderId, this.driverLat, this.driverLng).subscribe(() => {
+      this.latestLocation.set(`${this.driverLat}, ${this.driverLng}`);
+      this.updateMap(this.driverLat, this.driverLng);
     });
   }
 
