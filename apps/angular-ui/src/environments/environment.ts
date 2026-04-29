@@ -1,4 +1,5 @@
 export const environment = {
   apiBaseUrl: "http://localhost:8080",
-  googleMapsApiKey: ""
+  googleMapsApiKey: "",
+  googleClientId: ""
 };

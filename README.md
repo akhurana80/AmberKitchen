@@ -19,6 +19,7 @@
 - Node.js TypeScript backend in `backend/`
 - PostgreSQL schema in `database/schema.sql`
 - OTP and Google authentication API routes
+- Real OTP login through Azure Communication Services and Google Sign-In in the Angular UI
 - Production OTP SMS delivery through Azure Communication Services
 - PhonePe and Paytm payment adapter routes
 - Live order tracking with Socket.IO
@@ -42,7 +43,7 @@
 
 ## Local Run
 1. Copy `backend/.env.example` to `backend/.env` and fill provider credentials.
-2. Add your Google Maps browser key to `apps/angular-ui/src/environments/environment.ts`.
+2. Add your Google Maps browser key and Google web client ID to `apps/angular-ui/src/environments/environment.ts`.
 3. Start PostgreSQL and backend dependencies:
    ```bash
    docker compose -f infra/docker-compose.yml up --build

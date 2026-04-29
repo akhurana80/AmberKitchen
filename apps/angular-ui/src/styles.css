@@ -76,6 +76,17 @@ label {
   border-radius: 6px;
 }
 
+.status.compact {
+  margin-top: 1rem;
+}
+
+.google-login {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  margin-top: 1rem;
+}
+
 .section {
   display: grid;
   gap: 1rem;

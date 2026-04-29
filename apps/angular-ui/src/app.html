@@ -3,6 +3,10 @@
     <h1>AmberKitchen</h1>
     <p>Customer ordering, OTP login, payments, live tracking, and push-ready backend.</p>
 
+    <div class="status compact">
+      <strong>Login:</strong> {{ authNotice() }}
+    </div>
+
     <div class="grid">
       <label>
         Phone
@@ -25,6 +29,10 @@
         </select>
       </label>
       <button (click)="verifyOtp()">Verify OTP</button>
+    </div>
+
+    <div class="google-login">
+      <div #googleButton></div>
     </div>
 
     <div class="actions">
@@ -93,6 +101,7 @@
     <div class="status">
       <strong>Order:</strong> {{ orderId() || "Not created" }}
       <strong>Driver:</strong> {{ latestLocation() }}
+      <strong>Map:</strong> {{ mapNotice() }}
     </div>
 
     <div #map class="map"></div>

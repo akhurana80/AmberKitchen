@@ -17,9 +17,12 @@ import { environment } from "./environments/environment";
 class AppComponent implements AfterViewInit {
   private api = inject(ApiService);
   @ViewChild("map", { static: true }) mapElement!: ElementRef<HTMLDivElement>;
+  @ViewChild("googleButton", { static: true }) googleButtonElement!: ElementRef<HTMLDivElement>;
   phone = "";
   otp = "";
   role = "customer";
+  authNotice = signal("Use OTP or Google Sign-In to continue.");
+  mapNotice = signal("Add a Google Maps browser key to enable the live delivery map.");
   restaurantName = "";
   restaurantAddress = "";
   restaurantContactName = "";
@@ -89,6 +92,8 @@ class AppComponent implements AfterViewInit {
   private marker?: google.maps.Marker;
 
   ngAfterViewInit() {
+    this.initializeGoogleLogin();
+
     if (!environment.googleMapsApiKey) {
       return;
     }
@@ -101,6 +106,7 @@ class AppComponent implements AfterViewInit {
         disableDefaultUI: true
       });
       this.marker = new google.maps.Marker({ map: this.map, position: center });
+      this.mapNotice.set("Live delivery map ready. Tracking updates will pan to the driver.");
     });
   }
 
@@ -112,24 +118,68 @@ class AppComponent implements AfterViewInit {
 
   verifyOtp() {
     this.api.verifyOtp(this.phone, this.otp, this.role).subscribe(response => {
-      this.token.set(response.token);
-      this.api.token = response.token;
-      if (this.role === "admin") {
-        this.loadAdminDashboard();
-      }
-      if (this.role === "super_admin") {
-        this.loadSuperAdmin();
-      }
-      if (this.role === "driver") {
-        this.loadDeliveryOrders();
-      }
-      if (this.role === "restaurant") {
-        this.loadRestaurantAdmin();
-      }
-      if (this.role === "delivery_admin") {
-        this.loadDeliveryAdmin();
-      }
+      this.completeLogin(response.token, "OTP login successful.");
     });
+  }
+
+  private initializeGoogleLogin() {
+    if (!environment.googleClientId) {
+      this.authNotice.set("OTP is ready. Add a Google client ID to enable Google Sign-In.");
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      const google = (window as unknown as { google?: {
+        accounts: {
+          id: {
+            initialize: (options: unknown) => void;
+            renderButton: (element: HTMLElement, options: unknown) => void;
+          };
+        };
+      } }).google;
+
+      google?.accounts.id.initialize({
+        client_id: environment.googleClientId,
+        callback: (credentialResponse: { credential: string }) => {
+          this.api.googleLogin(credentialResponse.credential, this.role).subscribe(response => {
+            this.completeLogin(response.token, "Google login successful.");
+          });
+        }
+      });
+
+      google?.accounts.id.renderButton(this.googleButtonElement.nativeElement, {
+        theme: "outline",
+        size: "large",
+        width: 280
+      });
+      this.authNotice.set("OTP and Google Sign-In are ready.");
+    };
+    document.head.appendChild(script);
+  }
+
+  private completeLogin(token: string, notice: string) {
+    this.token.set(token);
+    this.api.token = token;
+    this.authNotice.set(notice);
+    if (this.role === "admin") {
+      this.loadAdminDashboard();
+    }
+    if (this.role === "super_admin") {
+      this.loadSuperAdmin();
+    }
+    if (this.role === "driver") {
+      this.loadDeliveryOrders();
+    }
+    if (this.role === "restaurant") {
+      this.loadRestaurantAdmin();
+    }
+    if (this.role === "delivery_admin") {
+      this.loadDeliveryAdmin();
+    }
   }
 
   createDemoOrder() {

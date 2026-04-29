@@ -21,6 +21,13 @@ export class ApiService {
     });
   }
 
+  googleLogin(idToken: string, role: string) {
+    return this.http.post<{ token: string; user: unknown }>(`${this.baseUrl}/api/auth/google`, {
+      idToken,
+      role
+    });
+  }
+
   createOrder() {
     return this.http.post<{ id: string; totalPaise: number; status: string; estimatedDeliveryAt: string }>(
       `${this.baseUrl}/api/orders`,
