@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "AmberKitchen",
+    "slug": "amberkitchen-mobile",
+    "scheme": "amberkitchen",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.amberkitchen.mobile",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "AmberKitchen uses your location for restaurant distance, delivery ETA, and live driver tracking.",
+        "NSCameraUsageDescription": "AmberKitchen uses camera access for driver selfie verification and onboarding document capture.",
+        "NSPhotoLibraryUsageDescription": "AmberKitchen uses photo library access for driver Aadhaar and selfie uploads."
+      }
+    },
+    "android": {
+      "package": "com.amberkitchen.mobile",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "POST_NOTIFICATIONS"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": ""
+        }
+      }
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-location",
+      "expo-notifications"
+    ],
+    "extra": {
+      "apiBaseUrl": "http://localhost:4000"
+    }
+  }
+}

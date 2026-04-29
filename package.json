@@ -3,7 +3,8 @@
   "private": true,
   "workspaces": [
     "backend",
-    "apps/angular-ui"
+    "apps/angular-ui",
+    "apps/mobile-react"
   ],
   "scripts": {
     "start": "echo 'Start services individually'",
@@ -11,6 +12,10 @@
     "backend:build": "npm --workspace backend run build",
     "ui:start": "npm --workspace apps/angular-ui run start",
     "ui:build": "npm --workspace apps/angular-ui run build",
+    "mobile:start": "npm --workspace apps/mobile-react run start",
+    "mobile:ios": "npm --workspace apps/mobile-react run ios",
+    "mobile:android": "npm --workspace apps/mobile-react run android",
+    "mobile:prebuild": "npm --workspace apps/mobile-react run prebuild",
     "test:load": "node infra/scripts/load-test.js",
     "db:backup": "bash infra/scripts/postgres-backup.sh",
     "db:migrate": "npm --workspace backend run db:migrate",

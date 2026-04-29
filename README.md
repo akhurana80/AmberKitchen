@@ -60,6 +60,7 @@
 - Idempotent order creation to prevent duplicate orders during payment or network retries
 - Payment webhook replay protection for Paytm, PhonePe, and Razorpay callback processing
 - Migration folder, development seed data, smoke test, operations worker, Dockerfiles, OpenAPI contract, and launch/security runbooks
+- React Native mobile app in `apps/mobile-react/` for iPhone and Android with customer, driver, restaurant, admin, live tracking, payments, wallet, push notification, and operations flows
 
 ## Local Run
 1. Copy `backend/.env.example` to `backend/.env` and fill provider credentials.
@@ -92,3 +93,14 @@
 - API contract: `docs/openapi.yaml`
 - Launch runbook: `docs/launch-runbook.md`
 - Security checklist: `docs/security-checklist.md`
+- iOS/Android mobile app: `docs/mobile-app.md`
+
+## Mobile App
+```bash
+npm install
+npm run mobile:start
+npm run mobile:ios
+npm run mobile:android
+```
+
+Use `apps/mobile-react/.env.example` to configure the backend URL for simulator, emulator, real device, or Azure.
