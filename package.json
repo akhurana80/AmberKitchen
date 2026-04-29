@@ -1,7 +1,15 @@
 {
   "name": "cloud-kitchen",
   "private": true,
+  "workspaces": [
+    "backend",
+    "apps/angular-ui"
+  ],
   "scripts": {
-    "start": "echo 'Start services individually'"
+    "start": "echo 'Start services individually'",
+    "backend:dev": "npm --workspace backend run dev",
+    "backend:build": "npm --workspace backend run build",
+    "ui:start": "npm --workspace apps/angular-ui run start",
+    "ui:build": "npm --workspace apps/angular-ui run build"
   }
 }

@@ -5,8 +5,12 @@ services:
     image: postgres:14
     environment:
       POSTGRES_PASSWORD: password
+      POSTGRES_DB: amberkitchen
     ports:
       - "5432:5432"
+    volumes:
+      - ../database/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql
+      - ../database/seed.sql:/docker-entrypoint-initdb.d/002-seed.sql
 
   redis:
     image: redis:7
@@ -17,3 +21,16 @@ services:
     image: rabbitmq:3-management
     ports:
       - "5672:5672"
+
+  backend:
+    build:
+      context: ../backend
+    environment:
+      NODE_ENV: development
+      PORT: 8080
+      DATABASE_URL: postgres://postgres:password@postgres:5432/amberkitchen
+      JWT_SECRET: local-development-secret
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres

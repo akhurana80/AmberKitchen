@@ -1,0 +1,30 @@
+<main class="shell">
+  <section class="panel">
+    <h1>AmberKitchen</h1>
+    <p>Customer ordering, OTP login, payments, live tracking, and push-ready backend.</p>
+
+    <div class="grid">
+      <label>
+        Phone
+        <input [(ngModel)]="phone" placeholder="+919999999999">
+      </label>
+      <button (click)="requestOtp()">Send OTP</button>
+      <label>
+        OTP
+        <input [(ngModel)]="otp" placeholder="123456">
+      </label>
+      <button (click)="verifyOtp()">Verify OTP</button>
+    </div>
+
+    <div class="actions">
+      <button [disabled]="!token()" (click)="createDemoOrder()">Create Demo Order</button>
+      <button [disabled]="!orderId()" (click)="startPayment('phonepe')">PhonePe</button>
+      <button [disabled]="!orderId()" (click)="startPayment('paytm')">Paytm</button>
+    </div>
+
+    <div class="status">
+      <strong>Order:</strong> {{ orderId() || "Not created" }}
+      <strong>Driver:</strong> {{ latestLocation() }}
+    </div>
+  </section>
+</main>
