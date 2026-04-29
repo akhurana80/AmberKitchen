@@ -76,6 +76,14 @@ label {
   border-radius: 6px;
 }
 
+.section {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
 .map {
   height: 320px;
   margin-top: 1.5rem;
@@ -134,6 +142,12 @@ label {
 
 .metrics strong {
   font-size: 1.4rem;
+}
+
+small {
+  display: block;
+  color: #64748b;
+  margin-top: 0.25rem;
 }
 
 .table {

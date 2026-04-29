@@ -9,6 +9,8 @@ import { paymentRoutes } from "./routes/payment.routes";
 import { trackingRoutes } from "./routes/tracking.routes";
 import { notificationRoutes } from "./routes/notification.routes";
 import { adminRoutes } from "./routes/admin.routes";
+import { restaurantRoutes } from "./routes/restaurant.routes";
+import { deliveryAdminRoutes } from "./routes/delivery-admin.routes";
 import { attachRealtime } from "./realtime";
 
 const app = express();
@@ -27,6 +29,8 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/tracking", trackingRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/restaurants", restaurantRoutes);
+app.use("/api/delivery-admin", deliveryAdminRoutes);
 
 const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   const status = error.name === "ZodError" ? 400 : 500;

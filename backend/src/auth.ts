@@ -4,8 +4,10 @@ import { config } from "./config";
 
 export type AuthUser = {
   id: string;
-  role: "customer" | "driver" | "restaurant" | "admin";
+  role: UserRole;
 };
+
+export type UserRole = "customer" | "driver" | "restaurant" | "admin" | "super_admin" | "delivery_admin";
 
 declare global {
   namespace Express {
@@ -34,7 +36,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-export function requireRole(...roles: AuthUser["role"][]) {
+export function requireRole(...roles: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({ error: "Forbidden" });

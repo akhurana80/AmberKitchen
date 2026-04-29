@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { query } from "../db";
-import { signToken } from "../auth";
+import { signToken, UserRole } from "../auth";
 import { createOtp, verifyOtp } from "../services/otp.service";
 import { verifyGoogleIdToken } from "../services/google-auth.service";
 
@@ -21,7 +21,7 @@ authRoutes.post("/otp/verify", async (req, res, next) => {
     const body = z.object({
       phone: z.string().min(8),
       code: z.string().length(6),
-      role: z.enum(["customer", "driver", "restaurant", "admin"]).default("customer")
+      role: z.enum(["customer", "driver", "restaurant", "admin", "super_admin", "delivery_admin"]).default("customer")
     }).parse(req.body);
 
     const valid = await verifyOtp(body.phone, body.code);
@@ -40,7 +40,7 @@ authRoutes.post("/google", async (req, res, next) => {
   try {
     const body = z.object({
       idToken: z.string().min(20),
-      role: z.enum(["customer", "driver", "restaurant", "admin"]).default("customer")
+      role: z.enum(["customer", "driver", "restaurant", "admin", "super_admin", "delivery_admin"]).default("customer")
     }).parse(req.body);
     const profile = await verifyGoogleIdToken(body.idToken);
     const user = await upsertUser({ email: profile.email, name: profile.name, googleId: profile.googleId, role: body.role });
@@ -55,7 +55,7 @@ async function upsertUser(input: {
   email?: string;
   name?: string;
   googleId?: string;
-  role: "customer" | "driver" | "restaurant" | "admin";
+  role: UserRole;
 }) {
   const existing = await query<{ id: string }>(
     `select id from users

@@ -20,6 +20,8 @@
           <option value="driver">Driver</option>
           <option value="restaurant">Restaurant</option>
           <option value="admin">Admin</option>
+          <option value="super_admin">Super Admin</option>
+          <option value="delivery_admin">Delivery Admin</option>
         </select>
       </label>
       <button (click)="verifyOtp()">Verify OTP</button>
@@ -27,9 +29,58 @@
 
     <div class="actions">
       <button [disabled]="!token()" (click)="createDemoOrder()">Create Demo Order</button>
+      <button [disabled]="!orderId()" (click)="loadOrderDetails()">Status Updates</button>
       <button [disabled]="!orderId()" (click)="startPayment('phonepe')">PhonePe</button>
       <button [disabled]="!orderId()" (click)="startPayment('paytm')">Paytm</button>
     </div>
+
+    @if (orderId()) {
+      <section class="section">
+        <h2>Order Controls</h2>
+        <div class="grid">
+          <label>
+            Edit Delivery Address
+            <input [(ngModel)]="editDeliveryAddress">
+          </label>
+          <button (click)="editActiveOrder()">Edit Before Confirmation</button>
+          <label>
+            Cancel Reason
+            <input [(ngModel)]="cancelReason">
+          </label>
+          <button (click)="cancelActiveOrder()">Cancel Order</button>
+          <label>
+            Refund Reason
+            <input [(ngModel)]="refundReason">
+          </label>
+          <button (click)="requestRefund()">Request Refund</button>
+        </div>
+
+        @if (orderDetails(); as order) {
+          <div class="status">
+            <strong>Status:</strong> {{ order.status }}
+            <strong>Address:</strong> {{ order.delivery_address }}
+            <strong>Total:</strong> {{ formatCurrency(order.total_paise) }}
+          </div>
+
+          <div class="table">
+            <div class="row head">
+              <span>Status</span>
+              <span>Note</span>
+              <span>Time</span>
+              <span>Order</span>
+            </div>
+            @for (event of order.history; track event.created_at + event.status) {
+              <div class="row">
+                <span>{{ event.status }}</span>
+                <span>{{ event.note || "-" }}</span>
+                <span>{{ event.created_at }}</span>
+                <span>{{ order.id }}</span>
+              </div>
+            }
+          </div>
+        }
+      </section>
+    }
 
     <div class="status">
       <strong>Order:</strong> {{ orderId() || "Not created" }}
@@ -78,6 +129,237 @@
               <span>{{ order.delivery_address }}</span>
               <span>{{ formatCurrency(order.total_paise) }}</span>
               <button (click)="acceptDelivery(order.id)">Accept</button>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    @if (role === "super_admin" && token()) {
+      <section class="admin">
+        <div class="admin-header">
+          <h2>Super Admin</h2>
+          <button (click)="loadSuperAdmin()">Refresh</button>
+        </div>
+
+        <div class="table">
+          <div class="row head">
+            <span>Restaurant</span>
+            <span>Address</span>
+            <span>Status</span>
+            <span>Actions</span>
+          </div>
+          @for (restaurant of adminRestaurants(); track restaurant.id) {
+            <div class="row">
+              <span>{{ restaurant.name }}</span>
+              <span>{{ restaurant.address }}</span>
+              <span>{{ restaurant.approval_status }}</span>
+              <span>
+                <button (click)="updateRestaurantApproval(restaurant.id, 'approved')">Approve</button>
+                <button (click)="updateRestaurantApproval(restaurant.id, 'rejected')">Reject</button>
+              </span>
+            </div>
+          }
+        </div>
+
+        <div class="metrics">
+          @for (report of paymentReports(); track report.provider + report.status) {
+            <article>
+              <span>{{ report.provider }} {{ report.status }}</span>
+              <strong>{{ report.transactions }}</strong>
+              <small>{{ formatCurrency(report.amount_paise) }}</small>
+            </article>
+          }
+        </div>
+
+        @if (platformAnalytics(); as analytics) {
+          <div class="metrics">
+            <article>
+              <span>Daily Analytics</span>
+              <strong>{{ analytics.dailyOrders.length }}</strong>
+            </article>
+            <article>
+              <span>Top Restaurants</span>
+              <strong>{{ analytics.topRestaurants.length }}</strong>
+            </article>
+            <article>
+              <span>Driver Stats</span>
+              <strong>{{ analytics.driverStats.length }}</strong>
+            </article>
+          </div>
+        }
+
+        <div class="table">
+          <div class="row head">
+            <span>User</span>
+            <span>Phone</span>
+            <span>Email</span>
+            <span>Role</span>
+          </div>
+          @for (user of adminUsers(); track user.id) {
+            <div class="row">
+              <span>{{ user.name || user.id }}</span>
+              <span>{{ user.phone || "-" }}</span>
+              <span>{{ user.email || "-" }}</span>
+              <span>{{ user.role }}</span>
+            </div>
+          }
+        </div>
+
+        <div class="table">
+          <div class="row head">
+            <span>Order</span>
+            <span>Status</span>
+            <span>Restaurant</span>
+            <span>Total</span>
+          </div>
+          @for (order of adminAllOrders(); track order.id) {
+            <div class="row">
+              <span>{{ order.id }}</span>
+              <span>{{ order.status }}</span>
+              <span>{{ order.restaurant_name || "-" }}</span>
+              <span>{{ formatCurrency(order.total_paise) }}</span>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    @if (role === "restaurant" && token()) {
+      <section class="admin">
+        <div class="admin-header">
+          <h2>Restaurant Admin</h2>
+          <button (click)="loadRestaurantAdmin()">Refresh</button>
+        </div>
+
+        <h3>Restaurant Onboarding</h3>
+        <div class="grid">
+          <label>
+            Restaurant Name
+            <input [(ngModel)]="restaurantName">
+          </label>
+          <label>
+            Address
+            <input [(ngModel)]="restaurantAddress">
+          </label>
+          <label>
+            Contact Name
+            <input [(ngModel)]="restaurantContactName">
+          </label>
+          <label>
+            Contact Phone
+            <input [(ngModel)]="restaurantContactPhone">
+          </label>
+          <label>
+            Cuisine Type
+            <input [(ngModel)]="restaurantCuisineType">
+          </label>
+          <label>
+            FSSAI License
+            <input [(ngModel)]="restaurantFssaiLicense">
+          </label>
+          <label>
+            GST Number
+            <input [(ngModel)]="restaurantGstNumber">
+          </label>
+          <label>
+            Bank Last 4
+            <input maxlength="4" [(ngModel)]="restaurantBankAccountLast4">
+          </label>
+          <button (click)="createRestaurant()">Submit Onboarding</button>
+        </div>
+
+        <label>
+          Active Restaurant
+          <select [(ngModel)]="selectedRestaurantId" (change)="loadRestaurantOperations()">
+            @for (restaurant of restaurantAccounts(); track restaurant.id) {
+              <option [value]="restaurant.id">{{ restaurant.name }} - {{ restaurant.onboarding_status }} / {{ restaurant.approval_status }}</option>
+            }
+          </select>
+        </label>
+
+        <div class="grid">
+          <label>
+            Menu Item
+            <input [(ngModel)]="menuItemName">
+          </label>
+          <label>
+            Price Paise
+            <input type="number" [(ngModel)]="menuItemPricePaise">
+          </label>
+          <button [disabled]="!selectedRestaurantId" (click)="addMenuItem()">Add Menu Item</button>
+        </div>
+
+        @if (restaurantEarnings(); as earnings) {
+          <div class="metrics">
+            <article><span>Orders</span><strong>{{ earnings.orders }}</strong></article>
+            <article><span>Gross</span><strong>{{ formatCurrency(+earnings.gross_paise) }}</strong></article>
+            <article><span>Payout</span><strong>{{ formatCurrency(+earnings.estimated_payout_paise) }}</strong></article>
+          </div>
+        }
+
+        <div class="table">
+          <div class="row head">
+            <span>Order</span>
+            <span>Status</span>
+            <span>Total</span>
+            <span>Actions</span>
+          </div>
+          @for (order of restaurantOrders(); track order.id) {
+            <div class="row">
+              <span>{{ order.id }}</span>
+              <span>{{ order.status }}</span>
+              <span>{{ formatCurrency(order.total_paise) }}</span>
+              <span>
+                <button (click)="decideOrder(order.id, 'accepted')">Accept</button>
+                <button (click)="decideOrder(order.id, 'cancelled')">Reject</button>
+              </span>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    @if (role === "delivery_admin" && token()) {
+      <section class="driver">
+        <div class="admin-header">
+          <h2>Delivery Admin</h2>
+          <button (click)="loadDeliveryAdmin()">Refresh</button>
+        </div>
+
+        <label>
+          Driver
+          <select [(ngModel)]="selectedDriverId">
+            <option value="">Select driver</option>
+            @for (driver of deliveryDrivers(); track driver.id) {
+              <option [value]="driver.id">{{ driver.name || driver.phone || driver.id }}</option>
+            }
+          </select>
+        </label>
+
+        <div class="table">
+          <div class="row driver-row head">
+            <span>Order</span>
+            <span>Status</span>
+            <span>Restaurant</span>
+            <span>Live Tracking</span>
+            <span>Action</span>
+          </div>
+          @for (order of deliveryAdminOrders(); track order.id) {
+            <div class="row driver-row">
+              <span>{{ order.id }}</span>
+              <span>{{ order.status }}</span>
+              <span>{{ order.restaurant_name || "-" }}</span>
+              <span>
+                {{ order.driver_phone || "Unassigned" }}
+                @if (order.last_driver_lat && order.last_driver_lng) {
+                  <small>{{ order.last_driver_lat }}, {{ order.last_driver_lng }}</small>
+                }
+              </span>
+              <span>
+                <button (click)="assignDriver(order.id)">Assign</button>
+                <button (click)="trackDeliveryAdminOrder(order)">Track</button>
+              </span>
             </div>
           }
         </div>

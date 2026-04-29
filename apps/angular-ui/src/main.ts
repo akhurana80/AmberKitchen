@@ -20,8 +20,30 @@ class AppComponent implements AfterViewInit {
   phone = "";
   otp = "";
   role = "customer";
+  restaurantName = "";
+  restaurantAddress = "";
+  restaurantContactName = "";
+  restaurantContactPhone = "";
+  restaurantCuisineType = "";
+  restaurantFssaiLicense = "";
+  restaurantGstNumber = "";
+  restaurantBankAccountLast4 = "";
+  menuItemName = "";
+  menuItemPricePaise = 0;
+  selectedRestaurantId = "";
+  selectedDriverId = "";
   token = signal("");
   orderId = signal("");
+  editDeliveryAddress = "Updated demo delivery address";
+  cancelReason = "Customer requested cancellation";
+  refundReason = "Order cancelled by customer";
+  orderDetails = signal<{
+    id: string;
+    status: string;
+    total_paise: number;
+    delivery_address: string;
+    history: Array<{ status: string; note: string; created_at: string }>;
+  } | null>(null);
   latestLocation = signal("Waiting for driver location");
   driverOrders = signal<Array<{
     id: string;
@@ -41,6 +63,24 @@ class AppComponent implements AfterViewInit {
     payments: Array<{ provider: string; status: string; count: number }>;
     recentOrders: Array<{ id: string; status: string; total_paise: number; restaurant_name: string; created_at: string }>;
   } | null>(null);
+  adminRestaurants = signal<Array<{ id: string; name: string; address: string; approval_status: string }>>([]);
+  adminUsers = signal<Array<{ id: string; phone: string; email: string; name: string; role: string }>>([]);
+  paymentReports = signal<Array<{ provider: string; status: string; transactions: number; amount_paise: number }>>([]);
+  adminAllOrders = signal<Array<{ id: string; status: string; total_paise: number; restaurant_name: string; customer_phone: string; driver_phone: string }>>([]);
+  platformAnalytics = signal<{ dailyOrders: unknown[]; topRestaurants: unknown[]; driverStats: unknown[] } | null>(null);
+  restaurantAccounts = signal<Array<{ id: string; name: string; address: string; approval_status: string; onboarding_status: string }>>([]);
+  restaurantOrders = signal<Array<{ id: string; status: string; total_paise: number }>>([]);
+  restaurantEarnings = signal<{ orders: string; gross_paise: string; estimated_payout_paise: string } | null>(null);
+  deliveryAdminOrders = signal<Array<{
+    id: string;
+    status: string;
+    restaurant_name: string;
+    driver_phone: string;
+    last_driver_lat: string | null;
+    last_driver_lng: string | null;
+    last_location_at: string | null;
+  }>>([]);
+  deliveryDrivers = signal<Array<{ id: string; phone: string; name: string }>>([]);
   private map?: google.maps.Map;
   private marker?: google.maps.Marker;
 
@@ -73,8 +113,17 @@ class AppComponent implements AfterViewInit {
       if (this.role === "admin") {
         this.loadAdminDashboard();
       }
+      if (this.role === "super_admin") {
+        this.loadSuperAdmin();
+      }
       if (this.role === "driver") {
         this.loadDeliveryOrders();
+      }
+      if (this.role === "restaurant") {
+        this.loadRestaurantAdmin();
+      }
+      if (this.role === "delivery_admin") {
+        this.loadDeliveryAdmin();
       }
     });
   }
@@ -83,6 +132,40 @@ class AppComponent implements AfterViewInit {
     this.api.createOrder().subscribe(order => {
       this.orderId.set(order.id);
       this.watchOrder(order.id);
+      this.loadOrderDetails();
+    });
+  }
+
+  loadOrderDetails() {
+    const orderId = this.orderId();
+    if (!orderId) {
+      return;
+    }
+
+    this.api.getOrder(orderId).subscribe(order => {
+      this.orderDetails.set(order);
+    });
+  }
+
+  editActiveOrder() {
+    const orderId = this.orderId();
+    if (!orderId) {
+      return;
+    }
+
+    this.api.editOrderBeforeConfirmation(orderId, this.editDeliveryAddress).subscribe(() => {
+      this.loadOrderDetails();
+    });
+  }
+
+  cancelActiveOrder() {
+    const orderId = this.orderId();
+    if (!orderId) {
+      return;
+    }
+
+    this.api.cancelOrder(orderId, this.cancelReason).subscribe(() => {
+      this.loadOrderDetails();
     });
   }
 
@@ -93,10 +176,118 @@ class AppComponent implements AfterViewInit {
     });
   }
 
+  requestRefund() {
+    const orderId = this.orderId();
+    if (!orderId) {
+      return;
+    }
+
+    this.api.requestRefund(orderId, this.refundReason).subscribe(response => {
+      console.log("Refund request", response);
+      alert("Refund request recorded.");
+    });
+  }
+
   loadAdminDashboard() {
     this.api.adminDashboard().subscribe(dashboard => {
       this.adminDashboard.set(dashboard);
     });
+  }
+
+  loadSuperAdmin() {
+    this.loadAdminDashboard();
+    this.api.adminRestaurants().subscribe(restaurants => this.adminRestaurants.set(restaurants));
+    this.api.adminUsers().subscribe(users => this.adminUsers.set(users));
+    this.api.adminAllOrders().subscribe(orders => this.adminAllOrders.set(orders));
+    this.api.paymentReports().subscribe(reports => this.paymentReports.set(reports));
+    this.api.platformAnalytics().subscribe(analytics => this.platformAnalytics.set(analytics));
+  }
+
+  updateRestaurantApproval(id: string, status: "approved" | "rejected" | "pending") {
+    this.api.updateRestaurantApproval(id, status).subscribe(() => this.loadSuperAdmin());
+  }
+
+  loadRestaurantAdmin() {
+    this.api.myRestaurants().subscribe(restaurants => {
+      this.restaurantAccounts.set(restaurants);
+      this.selectedRestaurantId = restaurants[0]?.id ?? "";
+      if (this.selectedRestaurantId) {
+        this.loadRestaurantOperations();
+      }
+    });
+  }
+
+  createRestaurant() {
+    this.api.onboardRestaurant({
+      name: this.restaurantName,
+      address: this.restaurantAddress,
+      contactName: this.restaurantContactName,
+      contactPhone: this.restaurantContactPhone,
+      cuisineType: this.restaurantCuisineType,
+      fssaiLicense: this.restaurantFssaiLicense || undefined,
+      gstNumber: this.restaurantGstNumber || undefined,
+      bankAccountLast4: this.restaurantBankAccountLast4 || undefined
+    }).subscribe(() => {
+      this.restaurantName = "";
+      this.restaurantAddress = "";
+      this.restaurantContactName = "";
+      this.restaurantContactPhone = "";
+      this.restaurantCuisineType = "";
+      this.restaurantFssaiLicense = "";
+      this.restaurantGstNumber = "";
+      this.restaurantBankAccountLast4 = "";
+      this.loadRestaurantAdmin();
+    });
+  }
+
+  loadRestaurantOperations() {
+    if (!this.selectedRestaurantId) {
+      return;
+    }
+    this.api.restaurantOrders(this.selectedRestaurantId).subscribe(orders => this.restaurantOrders.set(orders));
+    this.api.restaurantEarnings(this.selectedRestaurantId).subscribe(earnings => this.restaurantEarnings.set(earnings));
+  }
+
+  addMenuItem() {
+    if (!this.selectedRestaurantId) {
+      return;
+    }
+    this.api.createMenuItem(this.selectedRestaurantId, this.menuItemName, this.menuItemPricePaise).subscribe(() => {
+      this.menuItemName = "";
+      this.menuItemPricePaise = 0;
+    });
+  }
+
+  decideOrder(orderId: string, decision: "accepted" | "cancelled") {
+    this.api.decideRestaurantOrder(orderId, decision).subscribe(() => this.loadRestaurantOperations());
+  }
+
+  loadDeliveryAdmin() {
+    this.api.deliveryAdminOrders().subscribe(orders => this.deliveryAdminOrders.set(orders));
+    this.api.deliveryDrivers().subscribe(drivers => this.deliveryDrivers.set(drivers));
+  }
+
+  assignDriver(orderId: string) {
+    if (!this.selectedDriverId) {
+      return;
+    }
+    this.api.assignDriver(orderId, this.selectedDriverId).subscribe(() => this.loadDeliveryAdmin());
+  }
+
+  trackDeliveryAdminOrder(order: {
+    id: string;
+    last_driver_lat: string | null;
+    last_driver_lng: string | null;
+  }) {
+    this.orderId.set(order.id);
+    this.watchOrder(order.id);
+
+    if (order.last_driver_lat && order.last_driver_lng) {
+      const lat = Number(order.last_driver_lat);
+      const lng = Number(order.last_driver_lng);
+      this.latestLocation.set(`${lat}, ${lng}`);
+      this.updateMap(lat, lng);
+    }
   }
 
   loadDeliveryOrders() {
@@ -155,6 +346,7 @@ class AppComponent implements AfterViewInit {
     });
     socket.on("order:update", order => {
       console.log("Order update", order);
+      this.loadOrderDetails();
     });
   }
 

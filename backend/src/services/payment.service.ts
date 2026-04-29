@@ -74,6 +74,33 @@ export async function recordPaymentCallback(provider: string, transactionId: str
   );
 }
 
+export async function createRefund(orderId: string, reason: string) {
+  const payment = await query<{ id: string; provider: string; amount_paise: number }>(
+    `select id, provider, amount_paise
+     from payments
+     where order_id = $1
+     order by created_at desc
+     limit 1`,
+    [orderId]
+  );
+
+  if (!payment.rows[0]) {
+    throw new Error("No payment found for this order");
+  }
+
+  const refund = await query(
+    `insert into refunds (order_id, payment_id, provider, amount_paise, status, reason)
+     values ($1, $2, $3, $4, 'requested', $5)
+     returning *`,
+    [orderId, payment.rows[0].id, payment.rows[0].provider, payment.rows[0].amount_paise, reason]
+  );
+
+  return {
+    ...refund.rows[0],
+    note: "Refund request recorded. Connect Paytm/PhonePe refund APIs with merchant credentials to process automatically."
+  };
+}
+
 export async function verifyPhonePeTransaction(transactionId: string) {
   const path = `/pg/v1/status/${config.phonePe.merchantId}/${transactionId}`;
   const checksum = sha256(path + config.phonePe.saltKey) + "###" + config.phonePe.saltIndex;

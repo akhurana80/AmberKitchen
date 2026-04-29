@@ -1,15 +1,456 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>restaurant-panel</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AmberKitchen Restaurant Panel</title>
+  <style>
+    :root {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #1f2933;
+      background: #f7f4ef;
+    }
+
+    body {
+      margin: 0;
+    }
+
+    main {
+      min-height: 100vh;
+      padding: 32px;
+      display: grid;
+      place-items: start center;
+    }
+
+    .panel {
+      width: min(1040px, 100%);
+      display: grid;
+      gap: 20px;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 28px;
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+    }
+
+    h1,
+    h2 {
+      margin: 0;
+    }
+
+    .muted {
+      color: #64748b;
+      margin-top: 4px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-weight: 700;
+    }
+
+    input,
+    select,
+    button {
+      font: inherit;
+      border-radius: 6px;
+    }
+
+    input,
+    select {
+      border: 1px solid #cbd5e1;
+      padding: 11px;
+    }
+
+    button {
+      border: 0;
+      background: #0f766e;
+      color: #ffffff;
+      padding: 12px 14px;
+      cursor: pointer;
+      align-self: end;
+    }
+
+    button.secondary {
+      background: #334155;
+    }
+
+    button.danger {
+      background: #b91c1c;
+    }
+
+    .section {
+      display: grid;
+      gap: 14px;
+      padding-top: 18px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .metric {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .metric span {
+      display: block;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+
+    .metric strong {
+      font-size: 1.4rem;
+    }
+
+    .table {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1.3fr;
+      gap: 12px;
+      padding: 12px;
+      border-top: 1px solid #e5e7eb;
+      overflow-wrap: anywhere;
+    }
+
+    .row:first-child {
+      border-top: 0;
+    }
+
+    .head {
+      background: #f8fafc;
+      font-weight: 800;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 760px) {
+      main {
+        padding: 16px;
+      }
+
+      .grid,
+      .metrics,
+      .row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 <body>
-  <h1>restaurant-panel</h1>
-  <button onclick="placeOrder()">Place Order</button>
+  <main>
+    <section class="panel">
+      <header>
+        <h1>Restaurant Panel</h1>
+        <p class="muted">Separate restaurant login for onboarding, menu, orders, and earnings.</p>
+      </header>
+
+      <section class="section" id="loginSection">
+        <h2>Restaurant Login</h2>
+        <div class="grid">
+          <label>
+            API URL
+            <input id="apiUrl" value="http://localhost:8080">
+          </label>
+          <label>
+            Phone
+            <input id="phone" placeholder="+919999999999">
+          </label>
+          <button onclick="requestOtp()">Send OTP</button>
+          <label>
+            OTP
+            <input id="otp" placeholder="123456">
+          </label>
+          <button onclick="verifyOtp()">Verify Restaurant Login</button>
+        </div>
+      </section>
+
+      <section class="section hidden" id="workspace">
+        <div>
+          <h2>Restaurant Onboarding</h2>
+          <p class="muted">Submitted restaurants remain pending until Super Admin approval.</p>
+        </div>
+        <div class="grid">
+          <label>
+            Restaurant Name
+            <input id="restaurantName">
+          </label>
+          <label>
+            Address
+            <input id="restaurantAddress">
+          </label>
+          <label>
+            Contact Name
+            <input id="contactName">
+          </label>
+          <label>
+            Contact Phone
+            <input id="contactPhone">
+          </label>
+          <label>
+            Cuisine Type
+            <input id="cuisineType">
+          </label>
+          <label>
+            FSSAI License
+            <input id="fssaiLicense">
+          </label>
+          <label>
+            GST Number
+            <input id="gstNumber">
+          </label>
+          <label>
+            Bank Account Last 4
+            <input id="bankLast4" maxlength="4">
+          </label>
+          <button onclick="submitOnboarding()">Submit Onboarding</button>
+        </div>
+
+        <div class="section">
+          <h2>Restaurant Operations</h2>
+          <div class="grid">
+            <label>
+              Active Restaurant
+              <select id="restaurantSelect" onchange="loadRestaurantData()"></select>
+            </label>
+            <button class="secondary" onclick="loadRestaurants()">Refresh Restaurants</button>
+          </div>
+
+          <div class="grid">
+            <label>
+              Menu Item
+              <input id="menuName">
+            </label>
+            <label>
+              Price Paise
+              <input id="menuPrice" type="number">
+            </label>
+            <button onclick="addMenuItem()">Add Menu Item</button>
+          </div>
+
+          <div class="metrics">
+            <article class="metric">
+              <span>Delivered Orders</span>
+              <strong id="earningOrders">0</strong>
+            </article>
+            <article class="metric">
+              <span>Gross Earnings</span>
+              <strong id="grossEarnings">INR 0.00</strong>
+            </article>
+            <article class="metric">
+              <span>Estimated Payout</span>
+              <strong id="payoutEarnings">INR 0.00</strong>
+            </article>
+          </div>
+
+          <div class="table" id="ordersTable">
+            <div class="row head">
+              <span>Order</span>
+              <span>Status</span>
+              <span>Total</span>
+              <span>Actions</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
 
   <script>
-    function placeOrder() {
-      alert("Demo order placed!");
+    let token = "";
+
+    function apiBase() {
+      return document.getElementById("apiUrl").value.replace(/\/$/, "");
+    }
+
+    async function requestOtp() {
+      const phone = value("phone");
+      const response = await post("/api/auth/otp/request", { phone }, false);
+      alert(response.devCode ? `Dev OTP: ${response.devCode}` : "OTP sent");
+    }
+
+    async function verifyOtp() {
+      const response = await post("/api/auth/otp/verify", {
+        phone: value("phone"),
+        code: value("otp"),
+        role: "restaurant"
+      }, false);
+
+      token = response.token;
+      document.getElementById("workspace").classList.remove("hidden");
+      await loadRestaurants();
+    }
+
+    async function submitOnboarding() {
+      await post("/api/restaurants/onboarding", {
+        name: value("restaurantName"),
+        address: value("restaurantAddress"),
+        contactName: value("contactName"),
+        contactPhone: value("contactPhone"),
+        cuisineType: value("cuisineType"),
+        fssaiLicense: optionalValue("fssaiLicense"),
+        gstNumber: optionalValue("gstNumber"),
+        bankAccountLast4: optionalValue("bankLast4")
+      });
+
+      clearInputs("restaurantName", "restaurantAddress", "contactName", "contactPhone", "cuisineType", "fssaiLicense", "gstNumber", "bankLast4");
+      await loadRestaurants();
+      alert("Restaurant submitted for approval.");
+    }
+
+    async function loadRestaurants() {
+      const restaurants = await get("/api/restaurants/mine");
+      const select = document.getElementById("restaurantSelect");
+      select.innerHTML = restaurants.map(restaurant => (
+        `<option value="${restaurant.id}">${escapeHtml(restaurant.name)} - ${restaurant.onboarding_status}/${restaurant.approval_status}</option>`
+      )).join("");
+
+      if (restaurants.length > 0) {
+        await loadRestaurantData();
+      }
+    }
+
+    async function loadRestaurantData() {
+      const restaurantId = value("restaurantSelect");
+      if (!restaurantId) {
+        return;
+      }
+
+      const [orders, earnings] = await Promise.all([
+        get(`/api/restaurants/${restaurantId}/orders`),
+        get(`/api/restaurants/${restaurantId}/earnings`)
+      ]);
+
+      document.getElementById("earningOrders").textContent = earnings.orders ?? "0";
+      document.getElementById("grossEarnings").textContent = formatCurrency(Number(earnings.gross_paise ?? 0));
+      document.getElementById("payoutEarnings").textContent = formatCurrency(Number(earnings.estimated_payout_paise ?? 0));
+      renderOrders(orders);
+    }
+
+    async function addMenuItem() {
+      const restaurantId = value("restaurantSelect");
+      await post(`/api/restaurants/${restaurantId}/menu`, {
+        name: value("menuName"),
+        pricePaise: Number(value("menuPrice")),
+        isAvailable: true
+      });
+      clearInputs("menuName", "menuPrice");
+      alert("Menu item added.");
+    }
+
+    async function decideOrder(orderId, decision) {
+      await patch(`/api/restaurants/orders/${orderId}/decision`, { decision });
+      await loadRestaurantData();
+    }
+
+    function renderOrders(orders) {
+      const table = document.getElementById("ordersTable");
+      table.innerHTML = `
+        <div class="row head">
+          <span>Order</span>
+          <span>Status</span>
+          <span>Total</span>
+          <span>Actions</span>
+        </div>
+        ${orders.map(order => `
+          <div class="row">
+            <span>${escapeHtml(order.id)}</span>
+            <span>${escapeHtml(order.status)}</span>
+            <span>${formatCurrency(Number(order.total_paise))}</span>
+            <span>
+              <button onclick="decideOrder('${order.id}', 'accepted')">Accept</button>
+              <button class="danger" onclick="decideOrder('${order.id}', 'cancelled')">Reject</button>
+            </span>
+          </div>
+        `).join("")}
+      `;
+    }
+
+    async function get(path) {
+      return request(path, { method: "GET" });
+    }
+
+    async function post(path, body, authenticated = true) {
+      return request(path, {
+        method: "POST",
+        body: JSON.stringify(body)
+      }, authenticated);
+    }
+
+    async function patch(path, body) {
+      return request(path, {
+        method: "PATCH",
+        body: JSON.stringify(body)
+      });
+    }
+
+    async function request(path, options, authenticated = true) {
+      const headers = { "Content-Type": "application/json" };
+      if (authenticated) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${apiBase()}${path}`, {
+        ...options,
+        headers
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || "Request failed");
+      }
+      return data;
+    }
+
+    function value(id) {
+      return document.getElementById(id).value.trim();
+    }
+
+    function optionalValue(id) {
+      const current = value(id);
+      return current || undefined;
+    }
+
+    function clearInputs(...ids) {
+      for (const id of ids) {
+        document.getElementById(id).value = "";
+      }
+    }
+
+    function formatCurrency(paise) {
+      return new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        currencyDisplay: "code"
+      }).format(paise / 100);
+    }
+
+    function escapeHtml(text) {
+      return String(text ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#039;"
+      })[char]);
     }
   </script>
 </body>
