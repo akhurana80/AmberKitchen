@@ -45,6 +45,7 @@ export default function App() {
   const [location, setLocation] = useState({ lat: 28.6139, lng: 77.209 });
   const [restaurants, setRestaurants] = useState<RestaurantSearchResult[]>([]);
   const [trending, setTrending] = useState<TrendingRestaurant[]>([]);
+  const [googlePlaces, setGooglePlaces] = useState<Array<{ name: string; address: string; rating: number; lat: number; lng: number; photoUrl: string | null }>>([]);
   const [selectedRestaurantId, setSelectedRestaurantId] = useState("00000000-0000-0000-0000-000000000001");
   const [orderId, setOrderId] = useState("");
   const [order, setOrder] = useState<OrderSummary | null>(null);
@@ -64,6 +65,14 @@ export default function App() {
   const [driverLoad, setDriverLoad] = useState<Array<{ id: string; phone: string | null; active_orders: number; capacity_score: number }>>([]);
   const [deliveryOrders, setDeliveryOrders] = useState<Array<{ id: string; status: string; restaurant_name: string; last_driver_lat: string | null; last_driver_lng: string | null }>>([]);
   const [deliveryDrivers, setDeliveryDrivers] = useState<Array<{ id: string; phone: string | null; name: string | null }>>([]);
+  const [zones, setZones] = useState<Array<{ id: string; name: string; city: string; sla_minutes: number; surge_multiplier: string }>>([]);
+  const [offers, setOffers] = useState<Array<{ id: string; code: string; title: string; discount_type: string; discount_value: number }>>([]);
+  const [campaigns, setCampaigns] = useState<Array<{ id: string; name: string; channel: string; budget_paise: number; status: string; ai_creative: string | null }>>([]);
+  const [incentives, setIncentives] = useState<Array<{ id: string; title: string; target_deliveries: number; reward_paise: number; status: string }>>([]);
+  const [adminPayouts, setAdminPayouts] = useState<Array<{ id: string; amount_paise: number; method: string; status: string; phone: string | null; role: string }>>([]);
+  const [supportTickets, setSupportTickets] = useState<Array<{ id: string; category: string; subject: string; status: string }>>([]);
+  const [auditLogs, setAuditLogs] = useState<Array<{ id: string; method: string; path: string; status_code: number }>>([]);
+  const [verificationChecks, setVerificationChecks] = useState<Array<{ id: string; provider: string; check_type: string; status: string }>>([]);
 
   const authed = Boolean(token);
   const firstRestaurant = restaurants[0]?.restaurant_id ?? trending[0]?.id ?? selectedRestaurantId;
@@ -106,7 +115,9 @@ export default function App() {
         setLocation({ lat: Number(payload.lat), lng: Number(payload.lng) });
       }
     });
-    return () => socket.disconnect();
+    return () => {
+      socket.disconnect();
+    };
   }, [token, orderId]);
 
   async function saveToken(nextToken: string) {
@@ -161,12 +172,19 @@ export default function App() {
     });
   }
 
+  async function sendPushTest() {
+    if (!token) {
+      return;
+    }
+    await run("Sending test push", () => api.sendTestNotification(token));
+  }
+
   async function loadMarketplace() {
     if (!token) {
       return;
     }
     await run("Loading restaurants", async () => {
-      const [nearby, hot] = await Promise.all([
+      const [nearby, hot, places, activeOffers] = await Promise.all([
         api.searchRestaurants(token, {
           q: "",
           diet: "all",
@@ -175,10 +193,14 @@ export default function App() {
           lat: location.lat,
           lng: location.lng
         }),
-        api.trendingRestaurants(token, location.lat, location.lng)
+        api.trendingRestaurants(token, location.lat, location.lng),
+        api.googlePlacesDelhiNcr(token, 3),
+        api.marketplaceOffers(token)
       ]);
       setRestaurants(nearby);
       setTrending(hot);
+      setGooglePlaces(places.restaurants);
+      setOffers(activeOffers);
       setSelectedRestaurantId(nearby[0]?.restaurant_id ?? hot[0]?.id ?? selectedRestaurantId);
     });
   }
@@ -323,12 +345,41 @@ export default function App() {
     }));
   }
 
+  async function importMobileMenu() {
+    if (!token || !restaurantAccounts[0]?.id) {
+      return;
+    }
+    await run("Importing menu with photos", () => api.importMenuItems(token, restaurantAccounts[0].id, [
+      {
+        name: "Imported Mobile Thali",
+        description: "Imported menu item with cuisine, photo, veg flag, and rating",
+        pricePaise: 27900,
+        photoUrl: googlePlaces[0]?.photoUrl ?? "https://placehold.co/640x480?text=Imported+Thali",
+        isVeg: true,
+        cuisineType: "North Indian",
+        rating: 4.2,
+        googlePlaceId: googlePlaces[0]?.name
+      }
+    ]));
+  }
+
+  async function runVerificationChecks() {
+    if (!token) {
+      return;
+    }
+    await run("Running Azure verification checks", async () => {
+      await api.createAzureBlobAsset(token, "mobile-aadhaar.jpg", "image/jpeg", 250000);
+      await api.verifyAzureOcr(token, "https://example.com/aadhaar-front.jpg");
+      await api.verifyAzureFace(token, "https://example.com/selfie.jpg", "https://example.com/aadhaar-front.jpg");
+    });
+  }
+
   async function loadAdmin() {
     if (!token) {
       return;
     }
     await run("Loading admin operations", async () => {
-      const [dash, restaurantsList, users, orders, reports, liveOrders, drivers, load] = await Promise.all([
+      const [dash, restaurantsList, users, orders, reports, liveOrders, drivers, load, zoneList, offerList, campaignList, incentiveList, payouts, tickets, audits, checks] = await Promise.all([
         api.adminDashboard(token),
         api.adminRestaurants(token),
         api.adminUsers(token),
@@ -336,7 +387,15 @@ export default function App() {
         api.paymentReports(token),
         api.deliveryAdminOrders(token),
         api.deliveryDrivers(token),
-        api.driverLoadBalancing(token)
+        api.driverLoadBalancing(token),
+        api.marketplaceZones(token),
+        api.marketplaceOffers(token),
+        api.campaigns(token),
+        api.driverIncentives(token),
+        api.adminPayouts(token),
+        api.supportTickets(token),
+        api.auditLogs(token),
+        api.verificationChecks(token)
       ]);
       setDashboard(dash);
       setAdminRestaurants(restaurantsList);
@@ -346,6 +405,14 @@ export default function App() {
       setDeliveryOrders(liveOrders);
       setDeliveryDrivers(drivers);
       setDriverLoad(load);
+      setZones(zoneList);
+      setOffers(offerList);
+      setCampaigns(campaignList);
+      setIncentives(incentiveList);
+      setAdminPayouts(payouts);
+      setSupportTickets(tickets);
+      setAuditLogs(audits);
+      setVerificationChecks(checks);
     });
   }
 
@@ -377,6 +444,7 @@ export default function App() {
           <View style={styles.actions}>
             <Button label="Use Location" onPress={useCurrentLocation} />
             <Button label="Enable Push" onPress={enablePush} disabled={!authed} />
+            <Button label="Test Push" onPress={sendPushTest} disabled={!authed} />
           </View>
         </Card>
 
@@ -401,9 +469,19 @@ export default function App() {
               <Button label="Cancel" onPress={() => token && orderId && api.cancelOrder(token, orderId, "Mobile cancellation")} disabled={!orderId} />
               <Button label="Refund" onPress={() => token && orderId && api.requestRefund(token, orderId, "Mobile refund", 1000)} disabled={!orderId} />
               <Button label="Reorder" onPress={() => token && orderId && api.reorder(token, orderId)} disabled={!orderId} />
+              <Button label="Review" onPress={() => token && firstRestaurant && api.createRestaurantReview(token, firstRestaurant, 5, "Mobile review", orderId || undefined)} disabled={!authed} />
+              <Button label="Support" onPress={() => token && api.createSupportTicket(token, "order", "Mobile support", "Need help from mobile app", orderId || undefined)} disabled={!authed} />
             </View>
 
             <MobileMap location={location} order={order} routeLine={routeLine} />
+            <Text style={styles.sectionTitle}>Google Places Delhi NCR</Text>
+            {googlePlaces.slice(0, 3).map(item => (
+              <ListItem key={`${item.name}-${item.address}`} title={`${item.name} - ${item.rating}`} subtitle={item.address} />
+            ))}
+            <Text style={styles.sectionTitle}>Offers</Text>
+            {offers.slice(0, 3).map(item => (
+              <ListItem key={item.id} title={`${item.code} - ${item.title}`} subtitle={`${item.discount_type} ${item.discount_value}`} />
+            ))}
             <Text style={styles.sectionTitle}>Trending</Text>
             {trending.slice(0, 4).map(item => (
               <ListItem key={item.id} title={`${item.name} - ${item.predicted_eta_minutes} min`} subtitle={`${item.cuisine_type ?? "Cuisine"} | ${item.distance_km ?? "-"} km | score ${item.trending_score}`} onPress={() => setSelectedRestaurantId(item.id)} />
@@ -448,6 +526,8 @@ export default function App() {
               <Button label="Onboard Restaurant" onPress={onboardRestaurant} disabled={!authed} />
               <Button label="Load Panel" onPress={loadRestaurantPanel} disabled={!authed} />
               <Button label="Add Menu + Photo" onPress={addMenuItem} disabled={!restaurantAccounts[0]?.id} />
+              <Button label="Import Menu Photos" onPress={importMobileMenu} disabled={!restaurantAccounts[0]?.id} />
+              <Button label="OCR + Face Check" onPress={runVerificationChecks} disabled={!authed} />
             </View>
             {restaurantAccounts.map(item => <ListItem key={item.id} title={item.name} subtitle={`${item.approval_status} | ${item.onboarding_status}`} />)}
             {restaurantOrders.map(item => (
@@ -464,6 +544,10 @@ export default function App() {
               <Button label="AI Demand" onPress={() => token && run("Running AI demand prediction", () => api.runDemandPredictionJob(token))} disabled={!authed} />
               <Button label="Best Driver" onPress={() => token && orderId && api.assignBestDriver(token, orderId)} disabled={!orderId} />
               <Button label="Assign First Driver" onPress={() => token && orderId && deliveryDrivers[0]?.id && api.assignDriver(token, orderId, deliveryDrivers[0].id)} disabled={!orderId || !deliveryDrivers[0]} />
+              <Button label="Create Zone" onPress={() => token && api.createZone(token, "Mobile Zone", "Delhi NCR", location.lat, location.lng, 3, 20)} disabled={!authed} />
+              <Button label="Create Offer" onPress={() => token && api.createOffer(token, "MOBILE50", "Mobile Offer", "flat", 5000, 19900)} disabled={!authed} />
+              <Button label="Create Campaign" onPress={() => token && api.createCampaign(token, "Mobile Push Campaign", "push", 100000, "AI mobile lunch creative")} disabled={!authed} />
+              <Button label="Create Incentive" onPress={() => token && api.createDriverIncentive(token, "Mobile delivery bonus", 5, 7500)} disabled={!authed} />
             </View>
             {dashboard && <Summary title="Platform Analytics" lines={[`Users ${dashboard.users}`, `Revenue ${formatCurrency(dashboard.revenuePaise)}`, `${dashboard.recentOrders.length} recent orders`]} />}
             <Text style={styles.sectionTitle}>User Management</Text>
@@ -478,6 +562,15 @@ export default function App() {
             <Text style={styles.sectionTitle}>Live Tracking + Driver Load</Text>
             {deliveryOrders.slice(0, 3).map(item => <ListItem key={item.id} title={`${item.restaurant_name} ${item.status}`} subtitle={`${item.last_driver_lat ?? "-"}, ${item.last_driver_lng ?? "-"}`} />)}
             {driverLoad.slice(0, 3).map(item => <ListItem key={item.id} title={item.phone ?? item.id} subtitle={`Active ${item.active_orders} | capacity ${item.capacity_score}`} />)}
+            <Text style={styles.sectionTitle}>Zones, Campaigns, Incentives</Text>
+            {zones.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.name} ${item.city}`} subtitle={`SLA ${item.sla_minutes} min | surge ${item.surge_multiplier}`} />)}
+            {campaigns.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.name} ${item.channel}`} subtitle={`${item.status} | ${formatCurrency(item.budget_paise)}`} />)}
+            {incentives.slice(0, 2).map(item => <ListItem key={item.id} title={item.title} subtitle={`${item.target_deliveries} deliveries | ${formatCurrency(item.reward_paise)}`} />)}
+            <Text style={styles.sectionTitle}>Payouts, Support, Security</Text>
+            {adminPayouts.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.role} payout ${item.status}`} subtitle={`${item.phone ?? "-"} | ${formatCurrency(item.amount_paise)}`} onPress={() => token && api.updatePayoutApproval(token, item.id, "approved", "Approved from mobile admin")} />)}
+            {supportTickets.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.category} ${item.status}`} subtitle={item.subject} />)}
+            {auditLogs.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.method} ${item.path}`} subtitle={`HTTP ${item.status_code}`} />)}
+            {verificationChecks.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.provider} ${item.check_type}`} subtitle={item.status} />)}
           </Card>
         )}
       </ScrollView>
@@ -521,7 +614,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
-function Button({ label, onPress, disabled }: { label: string; onPress: () => void | Promise<void> | false | ""; disabled?: boolean }) {
+function Button({ label, onPress, disabled }: { label: string; onPress: () => unknown | Promise<unknown>; disabled?: boolean }) {
   return (
     <Pressable style={[styles.button, disabled && styles.buttonDisabled]} onPress={() => void onPress()} disabled={disabled}>
       <Text style={styles.buttonText}>{label}</Text>

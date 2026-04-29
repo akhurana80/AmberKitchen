@@ -12,7 +12,10 @@ The mobile app lives in `apps/mobile-react` and uses Expo React Native so one Re
 - Google Maps navigation handoff
 - Delivery partner app: onboarding, Aadhaar/selfie URLs, background check, available orders, accept, status updates, live location, wallet, earnings, and payout request
 - Restaurant panel: onboarding, menu item with photo URL, order accept/reject, and earnings
-- Admin and delivery admin: dashboard, restaurant approvals, order/payment monitoring, live tracking, AI demand prediction, driver load balancing, and best-driver assignment
+- Admin and delivery admin: dashboard, restaurant approvals, user management, order/payment monitoring, live tracking, driver assignment, AI demand prediction, driver load balancing, and best-driver assignment
+- Marketplace operations: zones, offers, campaigns, driver incentives, support tickets, and restaurant reviews
+- Azure launch integrations: blob asset records, OCR checks, face verification checks, audit logs, and verification check monitoring
+- Admin payout review and approval
 
 ## Install
 ```bash

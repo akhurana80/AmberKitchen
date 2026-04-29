@@ -71,6 +71,14 @@ export class ApiClient {
     );
   }
 
+  async createRestaurantReview(token: string, restaurantId: string, rating: number, comment?: string, orderId?: string) {
+    return this.post(`/api/v1/marketplace/restaurants/${restaurantId}/reviews`, { rating, comment, orderId }, { token });
+  }
+
+  async createSupportTicket(token: string, category: string, subject: string, message: string, orderId?: string) {
+    return this.post("/api/v1/marketplace/support/tickets", { category, subject, message, orderId }, { token });
+  }
+
   async createOrder(token: string, restaurantId: string, lat: number, lng: number) {
     return this.post<{ id: string; totalPaise: number; status: string; estimatedDeliveryAt: string }>(
       "/api/v1/orders",
@@ -193,6 +201,19 @@ export class ApiClient {
     return this.post(`/api/v1/restaurants/${restaurantId}/menu`, { ...item, isAvailable: true }, { token });
   }
 
+  async importMenuItems(token: string, restaurantId: string, items: Array<{
+    name: string;
+    pricePaise: number;
+    description?: string;
+    photoUrl?: string;
+    isVeg?: boolean;
+    cuisineType?: string;
+    rating?: number;
+    googlePlaceId?: string;
+  }>) {
+    return this.post(`/api/v1/restaurants/${restaurantId}/menu/import`, { items }, { token });
+  }
+
   async restaurantOrders(token: string, restaurantId: string) {
     return this.get<Array<{ id: string; status: string; total_paise: number }>>(`/api/v1/restaurants/${restaurantId}/orders`, { token });
   }
@@ -233,6 +254,10 @@ export class ApiClient {
     return this.get<{ dailyOrders: unknown[]; topRestaurants: unknown[]; driverStats: unknown[] }>("/api/v1/admin/analytics", { token });
   }
 
+  async supportTickets(token: string) {
+    return this.get<Array<{ id: string; category: string; subject: string; status: string; created_at: string }>>("/api/v1/marketplace/support/tickets", { token });
+  }
+
   async deliveryAdminOrders(token: string) {
     return this.get<Array<{ id: string; status: string; restaurant_name: string; last_driver_lat: string | null; last_driver_lng: string | null }>>(
       "/api/v1/delivery-admin/orders",
@@ -260,6 +285,44 @@ export class ApiClient {
     return this.post<{ predictions: unknown[] }>("/api/v1/operations/analytics/jobs/demand-prediction", {}, { token });
   }
 
+  async marketplaceZones(token: string) {
+    return this.get<Array<{ id: string; name: string; city: string; sla_minutes: number; surge_multiplier: string }>>("/api/v1/marketplace/zones", { token });
+  }
+
+  async createZone(token: string, name: string, city: string, centerLat: number, centerLng: number, radiusKm: number, slaMinutes: number) {
+    return this.post("/api/v1/marketplace/zones", { name, city, centerLat, centerLng, radiusKm, slaMinutes }, { token });
+  }
+
+  async marketplaceOffers(token: string) {
+    return this.get<Array<{ id: string; code: string; title: string; discount_type: string; discount_value: number }>>("/api/v1/marketplace/offers", { token });
+  }
+
+  async createOffer(token: string, code: string, title: string, discountType: "flat" | "percent", discountValue: number, minOrderPaise: number) {
+    return this.post("/api/v1/marketplace/offers", { code, title, discountType, discountValue, minOrderPaise }, { token });
+  }
+
+  async campaigns(token: string) {
+    return this.get<Array<{ id: string; name: string; channel: string; budget_paise: number; status: string; ai_creative: string | null }>>(
+      "/api/v1/marketplace/campaigns",
+      { token }
+    );
+  }
+
+  async createCampaign(token: string, name: string, channel: "push" | "email" | "whatsapp" | "ads", budgetPaise: number, aiCreative?: string) {
+    return this.post("/api/v1/marketplace/campaigns", { name, channel, budgetPaise, aiCreative }, { token });
+  }
+
+  async driverIncentives(token: string) {
+    return this.get<Array<{ id: string; title: string; target_deliveries: number; reward_paise: number; status: string }>>(
+      "/api/v1/marketplace/driver-incentives",
+      { token }
+    );
+  }
+
+  async createDriverIncentive(token: string, title: string, targetDeliveries: number, rewardPaise: number, driverId?: string) {
+    return this.post("/api/v1/marketplace/driver-incentives", { title, targetDeliveries, rewardPaise, driverId }, { token });
+  }
+
   async walletSummary(token: string) {
     return this.get<WalletSummary>("/api/v1/wallet/summary", { token });
   }
@@ -274,6 +337,37 @@ export class ApiClient {
 
   async requestPayout(token: string, amountPaise: number, method: "upi" | "bank", upiId?: string, bankAccountLast4?: string) {
     return this.post("/api/v1/wallet/payouts/request", { amountPaise, method, upiId, bankAccountLast4 }, { token });
+  }
+
+  async adminPayouts(token: string) {
+    return this.get<Array<{ id: string; amount_paise: number; method: string; status: string; phone: string | null; role: string; created_at: string }>>(
+      "/api/v1/wallet/payouts",
+      { token }
+    );
+  }
+
+  async updatePayoutApproval(token: string, id: string, status: "approved" | "paid" | "rejected", note?: string) {
+    return this.patch(`/api/v1/wallet/payouts/${id}/approval`, { status, note }, { token });
+  }
+
+  async createAzureBlobAsset(token: string, fileName: string, contentType: string, sizeBytes: number) {
+    return this.post("/api/v1/integrations/azure/blob/assets", { fileName, contentType, sizeBytes }, { token });
+  }
+
+  async verifyAzureOcr(token: string, imageUrl: string) {
+    return this.post("/api/v1/integrations/azure/ocr/verify", { imageUrl }, { token });
+  }
+
+  async verifyAzureFace(token: string, selfieUrl: string, documentUrl: string) {
+    return this.post("/api/v1/integrations/azure/face/verify", { selfieUrl, documentUrl }, { token });
+  }
+
+  async auditLogs(token: string) {
+    return this.get<Array<{ id: string; method: string; path: string; status_code: number; created_at: string }>>("/api/v1/integrations/audit-logs", { token });
+  }
+
+  async verificationChecks(token: string) {
+    return this.get<Array<{ id: string; provider: string; check_type: string; status: string; created_at: string }>>("/api/v1/integrations/verification-checks", { token });
   }
 
   private async get<T>(path: string, options?: RequestOptions) {
