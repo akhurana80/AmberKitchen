@@ -1,6 +1,7 @@
 import { randomInt } from "crypto";
 import { query } from "../db";
 import { config } from "../config";
+import { sendOtpSms } from "./sms.service";
 
 export async function createOtp(phone: string) {
   const code = randomInt(100000, 999999).toString();
@@ -10,7 +11,9 @@ export async function createOtp(phone: string) {
     [phone, code, config.otpTtlSeconds]
   );
 
-  if (config.nodeEnv !== "production") {
+  const sms = await sendOtpSms(phone, code);
+
+  if (sms.provider === "dev") {
     return { sent: true, devCode: code };
   }
 

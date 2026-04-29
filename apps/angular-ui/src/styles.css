@@ -73,6 +73,18 @@ label {
   border-radius: 6px;
 }
 
+.map {
+  height: 320px;
+  margin-top: 1.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(15, 118, 110, 0.08) 1px, transparent 1px),
+    linear-gradient(rgba(15, 118, 110, 0.08) 1px, transparent 1px),
+    #f8fafc;
+  background-size: 32px 32px;
+}
+
 @media (max-width: 640px) {
   .grid,
   .actions {

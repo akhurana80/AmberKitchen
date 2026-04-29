@@ -21,7 +21,11 @@ export const config = {
     saltIndex: process.env.PHONEPE_SALT_INDEX ?? "1",
     callbackUrl: process.env.PHONEPE_CALLBACK_URL ?? ""
   },
-  fcmServiceAccountJson: process.env.FCM_SERVICE_ACCOUNT_JSON ?? "{}"
+  fcmServiceAccountJson: process.env.FCM_SERVICE_ACCOUNT_JSON ?? "{}",
+  aws: {
+    region: process.env.AWS_REGION ?? "us-east-1",
+    snsSenderId: process.env.AWS_SNS_SENDER_ID ?? "AMBRKTCHN"
+  }
 };
 
 function required(name: string): string {
