@@ -61,6 +61,7 @@
 - Payment webhook replay protection for Paytm, PhonePe, and Razorpay callback processing
 - Migration folder, development seed data, smoke test, operations worker, Dockerfiles, OpenAPI contract, and launch/security runbooks
 - React Native mobile app in `apps/mobile-react/` for iPhone and Android with customer, driver, restaurant, admin, live tracking, payments, wallet, push notification, and operations flows
+- Flutter mobile app in `apps/flutter-mobile/` for iPhone and Android with matching web feature coverage and a full feature demo mode
 
 ## Local Run
 1. Copy `backend/.env.example` to `backend/.env` and fill provider credentials.
@@ -94,6 +95,7 @@
 - Launch runbook: `docs/launch-runbook.md`
 - Security checklist: `docs/security-checklist.md`
 - iOS/Android mobile app: `docs/mobile-app.md`
+- Flutter iOS/Android demo: `docs/flutter-mobile-demo.md`
 
 ## Mobile App
 ```bash
@@ -104,3 +106,12 @@ npm run mobile:android
 ```
 
 Use `apps/mobile-react/.env.example` to configure the backend URL for simulator, emulator, real device, or Azure.
+
+## Flutter Mobile App
+```bash
+npm run flutter:pub-get
+npm run flutter:ios
+npm run flutter:android
+```
+
+Flutter SDK is required locally. The Flutter app includes a Demo tab that walks through all customer, driver, restaurant, admin, analytics, wallet, payment, tracking, Azure, and marketplace features.
