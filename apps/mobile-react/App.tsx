@@ -50,8 +50,11 @@ export default function App() {
   const [orderId, setOrderId] = useState("");
   const [order, setOrder] = useState<OrderSummary | null>(null);
   const [eta, setEta] = useState<Awaited<ReturnType<typeof api.orderEta>> | null>(null);
+  const [etaLoop, setEtaLoop] = useState<Array<{ id: string; predicted_eta_minutes: number; distance_to_pickup_km: string | null; distance_to_dropoff_km: string | null; source: string; created_at: string }>>([]);
   const [driverOrders, setDriverOrders] = useState<DriverOrder[]>([]);
   const [driverApplication, setDriverApplication] = useState<DriverOnboardingApplication | null>(null);
+  const [driverApplications, setDriverApplications] = useState<DriverOnboardingApplication[]>([]);
+  const [driverReferrals, setDriverReferrals] = useState<Array<{ id: string; referral_code: string; status: string; reward_paise: number; referrer_phone: string | null; referred_phone: string | null }>>([]);
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [walletTransactions, setWalletTransactions] = useState<Array<{ id: string; type: string; amount_paise: number; status: string }>>([]);
   const [restaurantAccounts, setRestaurantAccounts] = useState<Array<{ id: string; name: string; approval_status: string; onboarding_status: string }>>([]);
@@ -73,6 +76,8 @@ export default function App() {
   const [supportTickets, setSupportTickets] = useState<Array<{ id: string; category: string; subject: string; status: string }>>([]);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; method: string; path: string; status_code: number }>>([]);
   const [verificationChecks, setVerificationChecks] = useState<Array<{ id: string; provider: string; check_type: string; status: string }>>([]);
+  const [analyticsJobs, setAnalyticsJobs] = useState<Array<{ id: string; job_type: string; status: string; summary: unknown; created_at: string }>>([]);
+  const [demandPredictions, setDemandPredictions] = useState<Array<{ id: string; zone_key: string; cuisine_type: string | null; hour_start: string; predicted_orders: number; confidence: string }>>([]);
 
   const authed = Boolean(token);
   const firstRestaurant = restaurants[0]?.restaurant_id ?? trending[0]?.id ?? selectedRestaurantId;
@@ -240,7 +245,14 @@ export default function App() {
     if (!token || !orderId) {
       return;
     }
-    const response = await run("Calculating ETA", () => api.orderEta(token, orderId));
+    const response = await run("Calculating ETA", async () => {
+      const [nextEta, loop] = await Promise.all([
+        api.orderEta(token, orderId),
+        api.orderEtaLoop(token, orderId)
+      ]);
+      setEtaLoop(loop);
+      return nextEta;
+    });
     if (response) {
       setEta(response as Awaited<ReturnType<typeof api.orderEta>>);
     }
@@ -256,16 +268,18 @@ export default function App() {
       return;
     }
     await run("Loading driver workspace", async () => {
-      const [available, application, walletSummary, transactions] = await Promise.all([
+      const [available, application, walletSummary, transactions, incentivesList] = await Promise.all([
         api.availableDeliveryOrders(token),
         api.myDriverOnboarding(token),
         api.walletSummary(token),
-        api.walletTransactions(token)
+        api.walletTransactions(token),
+        api.driverIncentives(token)
       ]);
       setDriverOrders(available);
       setDriverApplication(application);
       setWallet(walletSummary);
       setWalletTransactions(transactions);
+      setIncentives(incentivesList);
     });
   }
 
@@ -379,7 +393,7 @@ export default function App() {
       return;
     }
     await run("Loading admin operations", async () => {
-      const [dash, restaurantsList, users, orders, reports, liveOrders, drivers, load, zoneList, offerList, campaignList, incentiveList, payouts, tickets, audits, checks] = await Promise.all([
+      const [dash, restaurantsList, users, orders, reports, liveOrders, drivers, load, zoneList, offerList, campaignList, incentiveList, payouts, tickets, audits, checks, jobs, predictions, onboardingApps, referrals] = await Promise.all([
         api.adminDashboard(token),
         api.adminRestaurants(token),
         api.adminUsers(token),
@@ -395,7 +409,11 @@ export default function App() {
         api.adminPayouts(token),
         api.supportTickets(token),
         api.auditLogs(token),
-        api.verificationChecks(token)
+        api.verificationChecks(token),
+        api.analyticsJobs(token),
+        api.demandPredictions(token),
+        api.driverOnboardingApplications(token),
+        api.driverReferrals(token)
       ]);
       setDashboard(dash);
       setAdminRestaurants(restaurantsList);
@@ -413,6 +431,10 @@ export default function App() {
       setSupportTickets(tickets);
       setAuditLogs(audits);
       setVerificationChecks(checks);
+      setAnalyticsJobs(jobs);
+      setDemandPredictions(predictions);
+      setDriverApplications(onboardingApps);
+      setDriverReferrals(referrals);
     });
   }
 
@@ -492,6 +514,9 @@ export default function App() {
             ))}
             {order && <Summary title={`Order ${order.status}`} lines={[order.id, order.delivery_address, `Driver: ${order.driver_phone ?? "Not assigned"}`, `Total: ${formatCurrency(order.total_paise)}`]} />}
             {eta && <Summary title="Live ETA" lines={[`${eta.predictedEtaMinutes} minutes`, `${eta.route.distanceToPickupKm.toFixed(1)} km to pickup`, `${eta.route.distanceToDropoffKm.toFixed(1)} km to dropoff`]} />}
+            {etaLoop.slice(0, 3).map(item => (
+              <ListItem key={item.id} title={`ETA loop ${item.predicted_eta_minutes} min`} subtitle={`${item.distance_to_pickup_km ?? "-"} km pickup | ${item.distance_to_dropoff_km ?? "-"} km dropoff`} />
+            ))}
           </Card>
         )}
 
@@ -504,6 +529,7 @@ export default function App() {
               <Button label="Share Location" onPress={shareDriverLocation} disabled={!orderId} />
             </View>
             {driverApplication && <Summary title="Onboarding" lines={[driverApplication.full_name, `OCR: ${driverApplication.ocr_status}`, `Selfie: ${driverApplication.selfie_status}`, `Approval: ${driverApplication.approval_status}`]} />}
+            {incentives.slice(0, 2).map(item => <ListItem key={item.id} title={item.title} subtitle={`${item.target_deliveries} deliveries | ${formatCurrency(item.reward_paise)}`} />)}
             {driverOrders.map(item => (
               <ListItem key={item.id} title={`${item.restaurant_name} -> ${item.delivery_address}`} subtitle={`${item.status} | ${formatCurrency(item.total_paise)}`} onPress={() => {
                 setOrderId(item.id);
@@ -566,6 +592,13 @@ export default function App() {
             {zones.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.name} ${item.city}`} subtitle={`SLA ${item.sla_minutes} min | surge ${item.surge_multiplier}`} />)}
             {campaigns.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.name} ${item.channel}`} subtitle={`${item.status} | ${formatCurrency(item.budget_paise)}`} />)}
             {incentives.slice(0, 2).map(item => <ListItem key={item.id} title={item.title} subtitle={`${item.target_deliveries} deliveries | ${formatCurrency(item.reward_paise)}`} />)}
+            {analyticsJobs.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.job_type} ${item.status}`} subtitle={item.created_at} />)}
+            {demandPredictions.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.zone_key} ${item.predicted_orders} orders`} subtitle={`${item.cuisine_type ?? "all cuisines"} | confidence ${item.confidence}`} />)}
+            <Text style={styles.sectionTitle}>Driver Onboarding Admin</Text>
+            {driverApplications.slice(0, 2).map(item => (
+              <ListItem key={item.id} title={`${item.full_name} ${item.approval_status}`} subtitle={`OCR ${item.ocr_status} | Selfie ${item.selfie_status}`} onPress={() => token && api.updateDriverApplicationApproval(token, item.id, "approved", "Approved from mobile admin")} />
+            ))}
+            {driverReferrals.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.referral_code} ${item.status}`} subtitle={`${item.referrer_phone ?? "-"} -> ${item.referred_phone ?? "-"} | ${formatCurrency(item.reward_paise)}`} />)}
             <Text style={styles.sectionTitle}>Payouts, Support, Security</Text>
             {adminPayouts.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.role} payout ${item.status}`} subtitle={`${item.phone ?? "-"} | ${formatCurrency(item.amount_paise)}`} onPress={() => token && api.updatePayoutApproval(token, item.id, "approved", "Approved from mobile admin")} />)}
             {supportTickets.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.category} ${item.status}`} subtitle={item.subject} />)}

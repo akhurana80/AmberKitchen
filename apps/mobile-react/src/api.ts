@@ -135,6 +135,17 @@ export class ApiClient {
     }>(`/api/v1/tracking/orders/${orderId}/eta`, { token });
   }
 
+  async orderEtaLoop(token: string, orderId: string) {
+    return this.get<Array<{
+      id: string;
+      predicted_eta_minutes: number;
+      distance_to_pickup_km: string | null;
+      distance_to_dropoff_km: string | null;
+      source: string;
+      created_at: string;
+    }>>(`/api/v1/tracking/orders/${orderId}/eta-loop`, { token });
+  }
+
   async sendDriverLocation(token: string, orderId: string, lat: number, lng: number) {
     return this.post(`/api/v1/tracking/orders/${orderId}/location`, { lat, lng }, { token });
   }
@@ -170,6 +181,26 @@ export class ApiClient {
 
   async runDriverBackgroundCheck(token: string) {
     return this.post<DriverOnboardingApplication>("/api/v1/driver-onboarding/background-check", { consent: true }, { token });
+  }
+
+  async driverOnboardingApplications(token: string) {
+    return this.get<DriverOnboardingApplication[]>("/api/v1/driver-onboarding/admin/applications", { token });
+  }
+
+  async updateDriverApplicationApproval(token: string, id: string, status: "approved" | "rejected" | "pending", note?: string) {
+    return this.patch<DriverOnboardingApplication>(`/api/v1/driver-onboarding/admin/applications/${id}/approval`, { status, note }, { token });
+  }
+
+  async driverReferrals(token: string) {
+    return this.get<Array<{
+      id: string;
+      referral_code: string;
+      status: string;
+      reward_paise: number;
+      referrer_phone: string | null;
+      referred_phone: string | null;
+      created_at: string;
+    }>>("/api/v1/driver-onboarding/admin/referrals", { token });
   }
 
   async onboardRestaurant(token: string, input: {
@@ -283,6 +314,24 @@ export class ApiClient {
 
   async runDemandPredictionJob(token: string) {
     return this.post<{ predictions: unknown[] }>("/api/v1/operations/analytics/jobs/demand-prediction", {}, { token });
+  }
+
+  async analyticsJobs(token: string) {
+    return this.get<Array<{ id: string; job_type: string; status: string; summary: unknown; created_at: string }>>(
+      "/api/v1/operations/analytics/jobs",
+      { token }
+    );
+  }
+
+  async demandPredictions(token: string) {
+    return this.get<Array<{
+      id: string;
+      zone_key: string;
+      cuisine_type: string | null;
+      hour_start: string;
+      predicted_orders: number;
+      confidence: string;
+    }>>("/api/v1/operations/demand-predictions", { token });
   }
 
   async marketplaceZones(token: string) {
