@@ -8,6 +8,7 @@ export const config = {
   databaseUrl: required("DATABASE_URL"),
   jwtSecret: required("JWT_SECRET"),
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
+  googlePlacesApiKey: process.env.GOOGLE_PLACES_API_KEY ?? "",
   otpTtlSeconds: Number(process.env.OTP_TTL_SECONDS ?? 300),
   paytm: {
     mid: process.env.PAYTM_MID ?? "",

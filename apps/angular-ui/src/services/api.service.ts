@@ -201,6 +201,22 @@ export class ApiService {
     );
   }
 
+  googlePlacesDelhiNcrRestaurants(minRating = 3) {
+    return this.http.get<{
+      source: string;
+      region: string;
+      minRating: number;
+      restaurants: Array<{
+        googlePlaceId: string;
+        name: string;
+        address: string;
+        rating: number;
+        lat: number;
+        lng: number;
+      }>;
+    }>(`${this.baseUrl}/api/restaurants/google-places/delhi-ncr?minRating=${minRating}`, { headers: this.authHeaders() });
+  }
+
   createMenuItem(restaurantId: string, name: string, pricePaise: number) {
     return this.http.post(
       `${this.baseUrl}/api/restaurants/${restaurantId}/menu`,

@@ -300,6 +300,28 @@
           </select>
         </label>
 
+        <div class="admin-header">
+          <h3>Google Places Delhi NCR</h3>
+          <button (click)="loadDelhiNcrPlaces()">Load Rated Restaurants</button>
+        </div>
+
+        <div class="table">
+          <div class="row head">
+            <span>Name</span>
+            <span>Rating</span>
+            <span>Address</span>
+            <span>Location</span>
+          </div>
+          @for (place of delhiNcrPlaces(); track place.googlePlaceId) {
+            <div class="row">
+              <span>{{ place.name }}</span>
+              <span>{{ place.rating }}</span>
+              <span>{{ place.address }}</span>
+              <span>{{ place.lat }}, {{ place.lng }}</span>
+            </div>
+          }
+        </div>
+
         <div class="grid">
           <label>
             Menu Item

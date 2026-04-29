@@ -81,6 +81,14 @@ class AppComponent implements AfterViewInit {
   restaurantAccounts = signal<Array<{ id: string; name: string; address: string; approval_status: string; onboarding_status: string }>>([]);
   restaurantOrders = signal<Array<{ id: string; status: string; total_paise: number }>>([]);
   restaurantEarnings = signal<{ orders: string; gross_paise: string; estimated_payout_paise: string } | null>(null);
+  delhiNcrPlaces = signal<Array<{
+    googlePlaceId: string;
+    name: string;
+    address: string;
+    rating: number;
+    lat: number;
+    lng: number;
+  }>>([]);
   deliveryAdminOrders = signal<Array<{
     id: string;
     status: string;
@@ -363,6 +371,12 @@ class AppComponent implements AfterViewInit {
     }
     this.api.restaurantOrders(this.selectedRestaurantId).subscribe(orders => this.restaurantOrders.set(orders));
     this.api.restaurantEarnings(this.selectedRestaurantId).subscribe(earnings => this.restaurantEarnings.set(earnings));
+  }
+
+  loadDelhiNcrPlaces() {
+    this.api.googlePlacesDelhiNcrRestaurants(3).subscribe(response => {
+      this.delhiNcrPlaces.set(response.restaurants);
+    });
   }
 
   addMenuItem() {

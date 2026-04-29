@@ -38,6 +38,7 @@
 - Restaurant Admin module for menu management, order accept/reject, and earnings
 - Restaurant onboarding with business details, contact information, compliance IDs, bank reference, and Super Admin approval
 - Separate restaurant panel login in `apps/restaurant-panel/` for restaurant onboarding and operations
+- Google Places API integration for real Delhi NCR restaurants with rating filter, names, addresses, and lat/lng
 - Delivery Admin module for driver assignment and live order tracking
 - Live tracking dashboard for delivery admins with last known driver coordinates and realtime order tracking
 - Azure Container Apps deployment script

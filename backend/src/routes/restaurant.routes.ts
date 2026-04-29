@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth, requireRole } from "../auth";
 import { query } from "../db";
 import { emitOrderUpdate } from "../realtime";
+import { searchDelhiNcrRestaurants } from "../services/google-places.service";
 
 export const restaurantRoutes = Router();
 
@@ -92,6 +93,27 @@ restaurantRoutes.post("/onboarding", async (req, res, next) => {
     res.status(201).json({
       ...result.rows[0],
       nextStep: "Restaurant submitted for Super Admin approval"
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+restaurantRoutes.get("/google-places/delhi-ncr", requireRole("admin", "super_admin", "restaurant"), async (req, res, next) => {
+  try {
+    const query = z.object({
+      lat: z.coerce.number().optional(),
+      lng: z.coerce.number().optional(),
+      radiusMeters: z.coerce.number().optional(),
+      minRating: z.coerce.number().default(3),
+      limit: z.coerce.number().int().default(20)
+    }).parse(req.query);
+
+    res.json({
+      source: "google-places",
+      region: "Delhi NCR",
+      minRating: query.minRating,
+      restaurants: await searchDelhiNcrRestaurants(query)
     });
   } catch (error) {
     next(error);
