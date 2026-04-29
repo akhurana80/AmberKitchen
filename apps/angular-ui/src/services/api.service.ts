@@ -13,11 +13,11 @@ export class ApiService {
     return this.http.post<{ sent: boolean; devCode?: string }>(`${this.baseUrl}/api/auth/otp/request`, { phone });
   }
 
-  verifyOtp(phone: string, code: string) {
+  verifyOtp(phone: string, code: string, role: string) {
     return this.http.post<{ token: string; user: unknown }>(`${this.baseUrl}/api/auth/otp/verify`, {
       phone,
       code,
-      role: "customer"
+      role
     });
   }
 
@@ -41,6 +41,16 @@ export class ApiService {
       { provider, orderId, amountPaise: 24900 },
       { headers: this.authHeaders() }
     );
+  }
+
+  adminDashboard() {
+    return this.http.get<{
+      users: number;
+      ordersByStatus: Array<{ status: string; count: number }>;
+      revenuePaise: number;
+      payments: Array<{ provider: string; status: string; count: number }>;
+      recentOrders: Array<{ id: string; status: string; total_paise: number; restaurant_name: string; created_at: string }>;
+    }>(`${this.baseUrl}/api/admin/dashboard`, { headers: this.authHeaders() });
   }
 
   private authHeaders() {

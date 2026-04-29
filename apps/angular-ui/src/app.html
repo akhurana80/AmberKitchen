@@ -13,6 +13,15 @@
         OTP
         <input [(ngModel)]="otp" placeholder="123456">
       </label>
+      <label>
+        Role
+        <select [(ngModel)]="role">
+          <option value="customer">Customer</option>
+          <option value="driver">Driver</option>
+          <option value="restaurant">Restaurant</option>
+          <option value="admin">Admin</option>
+        </select>
+      </label>
       <button (click)="verifyOtp()">Verify OTP</button>
     </div>
 
@@ -28,5 +37,50 @@
     </div>
 
     <div #map class="map"></div>
+
+    @if (adminDashboard(); as dashboard) {
+      <section class="admin">
+        <div class="admin-header">
+          <h2>Admin Dashboard</h2>
+          <button (click)="loadAdminDashboard()">Refresh</button>
+        </div>
+
+        <div class="metrics">
+          <article>
+            <span>Users</span>
+            <strong>{{ dashboard.users }}</strong>
+          </article>
+          <article>
+            <span>Revenue</span>
+            <strong>{{ formatCurrency(dashboard.revenuePaise) }}</strong>
+          </article>
+          <article>
+            <span>Order States</span>
+            <strong>{{ dashboard.ordersByStatus.length }}</strong>
+          </article>
+          <article>
+            <span>Payment States</span>
+            <strong>{{ dashboard.payments.length }}</strong>
+          </article>
+        </div>
+
+        <div class="table">
+          <div class="row head">
+            <span>Order</span>
+            <span>Status</span>
+            <span>Restaurant</span>
+            <span>Total</span>
+          </div>
+          @for (order of dashboard.recentOrders; track order.id) {
+            <div class="row">
+              <span>{{ order.id }}</span>
+              <span>{{ order.status }}</span>
+              <span>{{ order.restaurant_name || "Unassigned" }}</span>
+              <span>{{ formatCurrency(order.total_paise) }}</span>
+            </div>
+          }
+        </div>
+      </section>
+    }
   </section>
 </main>

@@ -19,9 +19,17 @@ class AppComponent implements AfterViewInit {
   @ViewChild("map", { static: true }) mapElement!: ElementRef<HTMLDivElement>;
   phone = "";
   otp = "";
+  role = "customer";
   token = signal("");
   orderId = signal("");
   latestLocation = signal("Waiting for driver location");
+  adminDashboard = signal<{
+    users: number;
+    ordersByStatus: Array<{ status: string; count: number }>;
+    revenuePaise: number;
+    payments: Array<{ provider: string; status: string; count: number }>;
+    recentOrders: Array<{ id: string; status: string; total_paise: number; restaurant_name: string; created_at: string }>;
+  } | null>(null);
   private map?: google.maps.Map;
   private marker?: google.maps.Marker;
 
@@ -48,9 +56,12 @@ class AppComponent implements AfterViewInit {
   }
 
   verifyOtp() {
-    this.api.verifyOtp(this.phone, this.otp).subscribe(response => {
+    this.api.verifyOtp(this.phone, this.otp, this.role).subscribe(response => {
       this.token.set(response.token);
       this.api.token = response.token;
+      if (this.role === "admin") {
+        this.loadAdminDashboard();
+      }
     });
   }
 
@@ -66,6 +77,19 @@ class AppComponent implements AfterViewInit {
       console.log(response);
       alert(`${provider} payment initialized. Check console for gateway payload.`);
     });
+  }
+
+  loadAdminDashboard() {
+    this.api.adminDashboard().subscribe(dashboard => {
+      this.adminDashboard.set(dashboard);
+    });
+  }
+
+  formatCurrency(paise: number) {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR"
+    }).format(paise / 100);
   }
 
   watchOrder(orderId: string) {

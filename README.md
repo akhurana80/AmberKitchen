@@ -25,6 +25,7 @@
 - Google Maps-ready live tracking panel in Angular
 - Push notification plumbing through Firebase Cloud Messaging
 - Angular UI in `apps/angular-ui/`
+- Admin dashboard with platform metrics and recent orders
 - Azure Container Apps deployment script
 
 ## Local Run

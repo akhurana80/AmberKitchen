@@ -10,7 +10,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -28,10 +29,12 @@ button:disabled {
   cursor: not-allowed;
 }
 
-input {
+input,
+select {
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   padding: 0.7rem;
+  background: white;
 }
 
 .shell {
@@ -85,9 +88,76 @@ label {
   background-size: 32px 32px;
 }
 
+.admin {
+  margin-top: 1.5rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-header h2 {
+  margin: 0;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.metrics article {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.metrics span {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.metrics strong {
+  font-size: 1.4rem;
+}
+
+.table {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.5fr 1fr;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  border-top: 1px solid #e5e7eb;
+  overflow-wrap: anywhere;
+}
+
+.row:first-child {
+  border-top: 0;
+}
+
+.row.head {
+  background: #f8fafc;
+  font-weight: 700;
+}
+
 @media (max-width: 640px) {
   .grid,
-  .actions {
+  .actions,
+  .metrics,
+  .row {
     grid-template-columns: 1fr;
   }
 }
