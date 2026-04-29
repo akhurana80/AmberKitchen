@@ -74,7 +74,7 @@ export async function recordPaymentCallback(provider: string, transactionId: str
   );
 }
 
-export async function createRefund(orderId: string, reason: string) {
+export async function createRefund(orderId: string, reason: string, amountPaise?: number) {
   const payment = await query<{ id: string; provider: string; amount_paise: number }>(
     `select id, provider, amount_paise
      from payments
@@ -88,11 +88,24 @@ export async function createRefund(orderId: string, reason: string) {
     throw new Error("No payment found for this order");
   }
 
+  const previousRefunds = await query<{ refunded_paise: string }>(
+    `select coalesce(sum(amount_paise), 0) as refunded_paise
+     from refunds
+     where payment_id = $1
+       and status in ('requested', 'processing', 'completed')`,
+    [payment.rows[0].id]
+  );
+  const alreadyRefunded = Number(previousRefunds.rows[0]?.refunded_paise ?? 0);
+  const refundAmount = amountPaise ?? payment.rows[0].amount_paise;
+  if (alreadyRefunded + refundAmount > payment.rows[0].amount_paise) {
+    throw new Error("Refund amount cannot exceed remaining refundable payment amount");
+  }
+
   const refund = await query(
     `insert into refunds (order_id, payment_id, provider, amount_paise, status, reason)
      values ($1, $2, $3, $4, 'requested', $5)
      returning *`,
-    [orderId, payment.rows[0].id, payment.rows[0].provider, payment.rows[0].amount_paise, reason]
+    [orderId, payment.rows[0].id, payment.rows[0].provider, refundAmount, reason]
   );
 
   return {

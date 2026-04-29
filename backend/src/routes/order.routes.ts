@@ -24,10 +24,13 @@ orderRoutes.post("/", requireRole("customer", "admin"), async (req, res, next) =
 
     const result = await transaction(async client => {
       const totalPaise = body.items.reduce((sum, item) => sum + item.quantity * item.pricePaise, 0);
-      const order = await client.query<{ id: string }>(
-        `insert into orders (customer_id, restaurant_id, status, total_paise, delivery_address, delivery_lat, delivery_lng)
-         values ($1, $2, 'created', $3, $4, $5, $6)
-         returning id`,
+      const order = await client.query<{ id: string; estimated_delivery_at: string }>(
+        `insert into orders (
+           customer_id, restaurant_id, status, total_paise, delivery_address,
+           delivery_lat, delivery_lng, auto_cancel_at, estimated_delivery_at
+         )
+         values ($1, $2, 'created', $3, $4, $5, $6, now() + interval '10 minutes', now() + interval '45 minutes')
+         returning id, estimated_delivery_at`,
         [req.user!.id, body.restaurantId, totalPaise, body.deliveryAddress, body.deliveryLat, body.deliveryLng]
       );
 
@@ -45,7 +48,7 @@ orderRoutes.post("/", requireRole("customer", "admin"), async (req, res, next) =
         [order.rows[0].id, req.user!.id]
       );
 
-      return { id: order.rows[0].id, totalPaise, status: "created" };
+      return { id: order.rows[0].id, totalPaise, status: "created", estimatedDeliveryAt: order.rows[0].estimated_delivery_at };
     });
 
     res.status(201).json(result);
@@ -65,6 +68,31 @@ orderRoutes.get("/", async (req, res, next) => {
       [req.user!.id]
     );
     res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
+orderRoutes.post("/auto-cancel", requireRole("admin", "super_admin"), async (_req, res, next) => {
+  try {
+    const cancelled = await query<{ id: string }>(
+      `update orders
+       set status = 'cancelled',
+           cancellation_reason = 'Restaurant did not accept before auto-cancel deadline',
+           cancelled_at = now(),
+           updated_at = now()
+       where status = 'created'
+         and auto_cancel_at <= now()
+       returning id`
+    );
+
+    for (const order of cancelled.rows) {
+      await recordStatusHistory(order.id, "cancelled", null, "Auto-cancelled because restaurant did not accept");
+      await createRefundForPaidOrder(order.id, "Auto-cancel refund: restaurant did not accept");
+      emitOrderUpdate(order.id, { id: order.id, status: "cancelled" });
+    }
+
+    res.json({ cancelled: cancelled.rows.length, orderIds: cancelled.rows.map(order => order.id) });
   } catch (error) {
     next(error);
   }
@@ -92,8 +120,10 @@ orderRoutes.get("/:id", async (req, res, next) => {
   try {
     const [order, items, history] = await Promise.all([
       query(
-        `select * from orders
-         where id = $1
+        `select o.*, d.phone as driver_phone, d.name as driver_name
+         from orders o
+         left join users d on d.id = o.driver_id
+         where o.id = $1
            and (customer_id = $2 or driver_id = $2 or $3::text in ('admin', 'super_admin', 'delivery_admin')
              or restaurant_id in (select id from restaurants where owner_id = $2))`,
         [req.params.id, req.user!.id, req.user!.role]
@@ -107,6 +137,65 @@ orderRoutes.get("/:id", async (req, res, next) => {
     }
 
     res.json({ ...order.rows[0], items: items.rows, history: history.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+orderRoutes.post("/:id/reorder", requireRole("customer", "admin", "super_admin"), async (req, res, next) => {
+  try {
+    const original = await query<{
+      restaurant_id: string;
+      delivery_address: string;
+      delivery_lat: string;
+      delivery_lng: string;
+    }>(
+      `select restaurant_id, delivery_address, delivery_lat, delivery_lng
+       from orders
+       where id = $1
+         and (customer_id = $2 or $3::text in ('admin', 'super_admin'))`,
+      [req.params.id, req.user!.id, req.user!.role]
+    );
+    const source = original.rows[0];
+    if (!source) {
+      return res.status(404).json({ error: "Original order not found" });
+    }
+
+    const items = await query<{ name: string; quantity: number; price_paise: number }>(
+      "select name, quantity, price_paise from order_items where order_id = $1",
+      [req.params.id]
+    );
+    const totalPaise = items.rows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.price_paise), 0);
+
+    const created = await transaction(async client => {
+      const order = await client.query<{ id: string; estimated_delivery_at: string }>(
+        `insert into orders (
+           customer_id, restaurant_id, status, total_paise, delivery_address,
+           delivery_lat, delivery_lng, auto_cancel_at, estimated_delivery_at
+         )
+         values ($1, $2, 'created', $3, $4, $5, $6, now() + interval '10 minutes', now() + interval '45 minutes')
+         returning id, estimated_delivery_at`,
+        [req.user!.id, source.restaurant_id, totalPaise, source.delivery_address, source.delivery_lat, source.delivery_lng]
+      );
+
+      for (const item of items.rows) {
+        await client.query(
+          `insert into order_items (order_id, name, quantity, price_paise)
+           values ($1, $2, $3, $4)`,
+          [order.rows[0].id, item.name, item.quantity, item.price_paise]
+        );
+      }
+
+      await client.query(
+        `insert into order_status_history (order_id, status, changed_by, note)
+         values ($1, 'created', $2, $3)`,
+        [order.rows[0].id, req.user!.id, `Reordered from ${req.params.id}`]
+      );
+
+      return order.rows[0];
+    });
+
+    res.status(201).json({ id: created.id, totalPaise, status: "created", estimatedDeliveryAt: created.estimated_delivery_at });
   } catch (error) {
     next(error);
   }
@@ -260,11 +349,7 @@ orderRoutes.post("/:id/cancel", requireRole("customer", "restaurant", "admin", "
       );
 
       if (paidPayment.rows[0]) {
-        await client.query(
-          `insert into refunds (order_id, payment_id, provider, amount_paise, status, reason)
-           values ($1, $2, $3, $4, 'requested', $5)`,
-          [req.params.id, paidPayment.rows[0].id, paidPayment.rows[0].provider, paidPayment.rows[0].amount_paise, body.reason]
-        );
+        await createRefundForPaidOrder(req.params.id, body.reason);
       }
 
       return { statusCode: 200, body: updated.rows[0] };
@@ -286,7 +371,16 @@ orderRoutes.patch("/:id/status", requireRole("restaurant", "driver", "admin"), a
     }).parse(req.body);
 
     const result = await query(
-      `update orders set status = $1, updated_at = now()
+      `update orders
+       set status = $1,
+           estimated_delivery_at = case
+             when $1 = 'accepted' then coalesce(estimated_delivery_at, now() + interval '45 minutes')
+             when $1 = 'preparing' then coalesce(estimated_delivery_at, now() + interval '35 minutes')
+             when $1 = 'ready' then coalesce(estimated_delivery_at, now() + interval '25 minutes')
+             when $1 = 'picked_up' then now() + interval '20 minutes'
+             else estimated_delivery_at
+           end,
+           updated_at = now()
        where id = $2
          and ($3::text <> 'driver' or driver_id = $4)
        returning *`,
@@ -329,10 +423,32 @@ async function canCancelOrder(order: { customer_id: string; restaurant_id: strin
   return { ok: true };
 }
 
-async function recordStatusHistory(orderId: string, status: string, userId: string, note: string) {
+async function recordStatusHistory(orderId: string, status: string, userId: string | null, note: string) {
   await query(
     `insert into order_status_history (order_id, status, changed_by, note)
      values ($1, $2::order_status, $3, $4)`,
     [orderId, status, userId, note]
+  );
+}
+
+async function createRefundForPaidOrder(orderId: string, reason: string) {
+  const paidPayment = await query<{ id: string; provider: string; amount_paise: number }>(
+    `select id, provider, amount_paise
+     from payments
+     where order_id = $1
+       and lower(status) in ('paid', 'success', 'txn_success', 'payment_success', 'completed', 'captured')
+     order by created_at desc
+     limit 1`,
+    [orderId]
+  );
+
+  if (!paidPayment.rows[0]) {
+    return;
+  }
+
+  await query(
+    `insert into refunds (order_id, payment_id, provider, amount_paise, status, reason)
+     values ($1, $2, $3, $4, 'requested', $5)`,
+    [orderId, paidPayment.rows[0].id, paidPayment.rows[0].provider, paidPayment.rows[0].amount_paise, reason]
   );
 }

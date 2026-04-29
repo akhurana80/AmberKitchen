@@ -52,7 +52,13 @@
             Refund Reason
             <input [(ngModel)]="refundReason">
           </label>
+          <label>
+            Partial Refund Paise
+            <input type="number" [(ngModel)]="partialRefundAmountPaise">
+          </label>
           <button (click)="requestRefund()">Request Refund</button>
+          <button (click)="reorderActiveOrder()">Reorder</button>
+          <button [disabled]="!orderDetails()?.driver_phone" (click)="callDriver()">Call Driver</button>
         </div>
 
         @if (orderDetails(); as order) {
@@ -60,6 +66,8 @@
             <strong>Status:</strong> {{ order.status }}
             <strong>Address:</strong> {{ order.delivery_address }}
             <strong>Total:</strong> {{ formatCurrency(order.total_paise) }}
+            <strong>Estimated Delivery:</strong> {{ order.estimated_delivery_at || "Calculating" }}
+            <strong>Driver Contact:</strong> {{ order.driver_phone || "Not assigned" }}
           </div>
 
           <div class="table">

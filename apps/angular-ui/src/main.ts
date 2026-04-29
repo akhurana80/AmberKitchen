@@ -37,11 +37,15 @@ class AppComponent implements AfterViewInit {
   editDeliveryAddress = "Updated demo delivery address";
   cancelReason = "Customer requested cancellation";
   refundReason = "Order cancelled by customer";
+  partialRefundAmountPaise = 0;
   orderDetails = signal<{
     id: string;
     status: string;
     total_paise: number;
     delivery_address: string;
+    estimated_delivery_at: string | null;
+    driver_phone: string | null;
+    driver_name: string | null;
     history: Array<{ status: string; note: string; created_at: string }>;
   } | null>(null);
   latestLocation = signal("Waiting for driver location");
@@ -169,6 +173,19 @@ class AppComponent implements AfterViewInit {
     });
   }
 
+  reorderActiveOrder() {
+    const orderId = this.orderId();
+    if (!orderId) {
+      return;
+    }
+
+    this.api.reorder(orderId).subscribe(order => {
+      this.orderId.set(order.id);
+      this.watchOrder(order.id);
+      this.loadOrderDetails();
+    });
+  }
+
   startPayment(provider: "paytm" | "phonepe") {
     this.api.createPayment(provider, this.orderId()).subscribe(response => {
       console.log(response);
@@ -182,10 +199,18 @@ class AppComponent implements AfterViewInit {
       return;
     }
 
-    this.api.requestRefund(orderId, this.refundReason).subscribe(response => {
+    const amountPaise = this.partialRefundAmountPaise > 0 ? this.partialRefundAmountPaise : undefined;
+    this.api.requestRefund(orderId, this.refundReason, amountPaise).subscribe(response => {
       console.log("Refund request", response);
       alert("Refund request recorded.");
     });
+  }
+
+  callDriver() {
+    const phone = this.orderDetails()?.driver_phone;
+    if (phone) {
+      window.location.href = `tel:${phone}`;
+    }
   }
 
   loadAdminDashboard() {

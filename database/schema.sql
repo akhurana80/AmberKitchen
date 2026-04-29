@@ -92,6 +92,8 @@ create table if not exists orders (
   cancellation_reason text,
   cancelled_by uuid references users(id),
   cancelled_at timestamptz,
+  auto_cancel_at timestamptz,
+  estimated_delivery_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -99,6 +101,8 @@ create table if not exists orders (
 alter table orders add column if not exists cancellation_reason text;
 alter table orders add column if not exists cancelled_by uuid references users(id);
 alter table orders add column if not exists cancelled_at timestamptz;
+alter table orders add column if not exists auto_cancel_at timestamptz;
+alter table orders add column if not exists estimated_delivery_at timestamptz;
 
 create table if not exists order_items (
   id uuid primary key default uuid_generate_v4(),

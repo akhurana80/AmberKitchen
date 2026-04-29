@@ -53,7 +53,8 @@ paymentRoutes.post("/refunds", requireAuth, async (req, res, next) => {
   try {
     const body = z.object({
       orderId: z.string().uuid(),
-      reason: z.string().min(3).max(500)
+      reason: z.string().min(3).max(500),
+      amountPaise: z.number().int().positive().optional()
     }).parse(req.body);
 
     const allowed = await query(
@@ -66,7 +67,7 @@ paymentRoutes.post("/refunds", requireAuth, async (req, res, next) => {
       return res.status(403).json({ error: "Refund can be requested only by the customer or an admin" });
     }
 
-    res.status(201).json(await createRefund(body.orderId, body.reason));
+    res.status(201).json(await createRefund(body.orderId, body.reason, body.amountPaise));
   } catch (error) {
     next(error);
   }

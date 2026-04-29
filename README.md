@@ -29,6 +29,7 @@
 - Delivery partner app with available orders, order acceptance, status updates, and live location sharing
 - Place order, edit order before restaurant confirmation, rules-based cancellation, status history, and refund request handling
 - Customer order lifecycle: place order, edit before confirmation, cancel by rules, live tracking, status updates, and refunds
+- Auto-cancel for unaccepted restaurant orders, partial refunds, estimated delivery time, driver contact, and reorder support
 - Role-based access control (RBAC) for customer, driver, restaurant, admin, super admin, and delivery admin roles
 - Super Admin module for restaurant approvals, all orders, user management, Paytm/PhonePe reports, and analytics
 - Restaurant approval system with pending, approved, and rejected states

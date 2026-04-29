@@ -22,7 +22,7 @@ export class ApiService {
   }
 
   createOrder() {
-    return this.http.post<{ id: string; totalPaise: number; status: string }>(
+    return this.http.post<{ id: string; totalPaise: number; status: string; estimatedDeliveryAt: string }>(
       `${this.baseUrl}/api/orders`,
       {
         restaurantId: "00000000-0000-0000-0000-000000000001",
@@ -41,6 +41,9 @@ export class ApiService {
       status: string;
       total_paise: number;
       delivery_address: string;
+      estimated_delivery_at: string | null;
+      driver_phone: string | null;
+      driver_name: string | null;
       history: Array<{ status: string; note: string; created_at: string }>;
     }>(`${this.baseUrl}/api/orders/${orderId}`, { headers: this.authHeaders() });
   }
@@ -61,6 +64,14 @@ export class ApiService {
     return this.http.post(`${this.baseUrl}/api/orders/${orderId}/cancel`, { reason }, { headers: this.authHeaders() });
   }
 
+  reorder(orderId: string) {
+    return this.http.post<{ id: string; totalPaise: number; status: string; estimatedDeliveryAt: string }>(
+      `${this.baseUrl}/api/orders/${orderId}/reorder`,
+      {},
+      { headers: this.authHeaders() }
+    );
+  }
+
   createPayment(provider: "paytm" | "phonepe", orderId: string) {
     return this.http.post(
       `${this.baseUrl}/api/payments/create`,
@@ -69,8 +80,8 @@ export class ApiService {
     );
   }
 
-  requestRefund(orderId: string, reason: string) {
-    return this.http.post(`${this.baseUrl}/api/payments/refunds`, { orderId, reason }, { headers: this.authHeaders() });
+  requestRefund(orderId: string, reason: string, amountPaise?: number) {
+    return this.http.post(`${this.baseUrl}/api/payments/refunds`, { orderId, reason, amountPaise }, { headers: this.authHeaders() });
   }
 
   availableDeliveryOrders() {
