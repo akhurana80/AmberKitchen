@@ -1,0 +1,7 @@
+{
+  "name": "cloud-kitchen",
+  "private": true,
+  "scripts": {
+    "start": "echo 'Start services individually'"
+  }
+}
