@@ -6,6 +6,9 @@
     <div class="status compact">
       <strong>Login:</strong> {{ authNotice() }}
     </div>
+    <div class="status compact">
+      <strong>Push:</strong> {{ pushNotice() }}
+    </div>
 
     <div class="grid">
       <label>
@@ -40,6 +43,8 @@
       <button [disabled]="!orderId()" (click)="loadOrderDetails()">Status Updates</button>
       <button [disabled]="!orderId()" (click)="startPayment('phonepe')">PhonePe</button>
       <button [disabled]="!orderId()" (click)="startPayment('paytm')">Paytm</button>
+      <button [disabled]="!token()" (click)="enablePushNotifications()">Enable Push</button>
+      <button [disabled]="!token()" (click)="sendTestNotification()">Test Push</button>
     </div>
 
     @if (orderId()) {

@@ -25,6 +25,7 @@
 - Live order tracking with Socket.IO
 - Google Maps-ready live tracking panel in Angular
 - Push notification plumbing through Firebase Cloud Messaging
+- Angular web push registration with Firebase Cloud Messaging device tokens
 - Angular UI in `apps/angular-ui/`
 - Admin dashboard with platform metrics and recent orders
 - Delivery partner app with available orders, order acceptance, status updates, and live location sharing
@@ -43,12 +44,13 @@
 
 ## Local Run
 1. Copy `backend/.env.example` to `backend/.env` and fill provider credentials.
-2. Add your Google Maps browser key and Google web client ID to `apps/angular-ui/src/environments/environment.ts`.
-3. Start PostgreSQL and backend dependencies:
+2. Add your Google Maps browser key, Google web client ID, and Firebase web push config to `apps/angular-ui/src/environments/environment.ts`.
+3. Add the same Firebase web config to `apps/angular-ui/src/firebase-messaging-sw.js`.
+4. Start PostgreSQL and backend dependencies:
    ```bash
    docker compose -f infra/docker-compose.yml up --build
    ```
-4. Run the Angular UI:
+5. Run the Angular UI:
    ```bash
    npm install
    npm run ui:start

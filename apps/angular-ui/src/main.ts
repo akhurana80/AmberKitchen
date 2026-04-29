@@ -3,6 +3,8 @@ import { provideHttpClient } from "@angular/common/http";
 import { AfterViewInit, Component, ElementRef, ViewChild, inject, signal } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { Loader } from "@googlemaps/js-api-loader";
+import { getApps, initializeApp } from "firebase/app";
+import { getMessaging, getToken, isSupported } from "firebase/messaging";
 import { io } from "socket.io-client";
 import { ApiService } from "./services/api.service";
 import { environment } from "./environments/environment";
@@ -23,6 +25,7 @@ class AppComponent implements AfterViewInit {
   role = "customer";
   authNotice = signal("Use OTP or Google Sign-In to continue.");
   mapNotice = signal("Add a Google Maps browser key to enable the live delivery map.");
+  pushNotice = signal("Enable push notifications after login.");
   restaurantName = "";
   restaurantAddress = "";
   restaurantContactName = "";
@@ -180,6 +183,45 @@ class AppComponent implements AfterViewInit {
     if (this.role === "delivery_admin") {
       this.loadDeliveryAdmin();
     }
+  }
+
+  async enablePushNotifications() {
+    if (!this.token()) {
+      this.pushNotice.set("Log in before enabling push notifications.");
+      return;
+    }
+    if (!environment.firebaseVapidKey || !environment.firebase.projectId) {
+      this.pushNotice.set("Add Firebase web config and VAPID key to enable push notifications.");
+      return;
+    }
+    if (!(await isSupported())) {
+      this.pushNotice.set("This browser does not support Firebase web messaging.");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      this.pushNotice.set("Push notification permission was not granted.");
+      return;
+    }
+
+    const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+    const app = getApps()[0] ?? initializeApp(environment.firebase);
+    const messaging = getMessaging(app);
+    const deviceToken = await getToken(messaging, {
+      vapidKey: environment.firebaseVapidKey,
+      serviceWorkerRegistration: registration
+    });
+
+    this.api.registerDeviceToken(deviceToken).subscribe(() => {
+      this.pushNotice.set("Push notifications enabled for this browser.");
+    });
+  }
+
+  sendTestNotification() {
+    this.api.sendTestNotification().subscribe(() => {
+      this.pushNotice.set("Test push notification sent.");
+    });
   }
 
   createDemoOrder() {

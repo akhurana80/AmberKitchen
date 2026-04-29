@@ -91,6 +91,14 @@ export class ApiService {
     return this.http.post(`${this.baseUrl}/api/payments/refunds`, { orderId, reason, amountPaise }, { headers: this.authHeaders() });
   }
 
+  registerDeviceToken(token: string) {
+    return this.http.post(`${this.baseUrl}/api/notifications/device-token`, { token, platform: "web" }, { headers: this.authHeaders() });
+  }
+
+  sendTestNotification() {
+    return this.http.post(`${this.baseUrl}/api/notifications/test`, {}, { headers: this.authHeaders() });
+  }
+
   availableDeliveryOrders() {
     return this.http.get<Array<{
       id: string;
