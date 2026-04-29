@@ -230,6 +230,88 @@ create index if not exists driver_onboarding_approval_idx on driver_onboarding (
 create index if not exists driver_referrals_code_idx on driver_referrals (referral_code);
 create unique index if not exists driver_referrals_referred_uidx on driver_referrals (referred_driver_id) where referred_driver_id is not null;
 
+create table if not exists wallet_accounts (
+  user_id uuid primary key references users(id) on delete cascade,
+  balance_paise integer not null default 0,
+  total_earnings_paise integer not null default 0,
+  total_payouts_paise integer not null default 0,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists wallet_transactions (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references users(id) on delete cascade,
+  type text not null check (type in ('earning', 'payout', 'refund', 'adjustment')),
+  amount_paise integer not null,
+  reference_type text,
+  reference_id uuid,
+  status text not null default 'posted' check (status in ('pending', 'posted', 'failed', 'reversed')),
+  metadata jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists driver_earnings (
+  id uuid primary key default uuid_generate_v4(),
+  driver_id uuid not null references users(id),
+  order_id uuid not null references orders(id),
+  amount_paise integer not null,
+  status text not null default 'earned' check (status in ('earned', 'paid', 'reversed')),
+  created_at timestamptz not null default now(),
+  unique (order_id)
+);
+
+create table if not exists payouts (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references users(id),
+  amount_paise integer not null,
+  method text not null check (method in ('upi', 'bank')),
+  upi_id text,
+  bank_account_last4 text,
+  status text not null default 'requested' check (status in ('requested', 'approved', 'processing', 'paid', 'rejected')),
+  admin_note text,
+  approved_by uuid references users(id),
+  processed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists analytics_jobs (
+  id uuid primary key default uuid_generate_v4(),
+  job_type text not null,
+  status text not null default 'queued' check (status in ('queued', 'running', 'completed', 'failed')),
+  summary jsonb,
+  started_at timestamptz,
+  finished_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists demand_predictions (
+  id uuid primary key default uuid_generate_v4(),
+  zone_key text not null,
+  cuisine_type text,
+  hour_start timestamptz not null,
+  predicted_orders integer not null,
+  confidence numeric(5, 2) not null,
+  source_job_id uuid references analytics_jobs(id),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists eta_prediction_events (
+  id uuid primary key default uuid_generate_v4(),
+  order_id uuid not null references orders(id) on delete cascade,
+  predicted_eta_minutes integer not null,
+  distance_to_pickup_km numeric(8, 2),
+  distance_to_dropoff_km numeric(8, 2),
+  source text not null default 'eta-loop',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists wallet_transactions_user_created_idx on wallet_transactions (user_id, created_at desc);
+create index if not exists driver_earnings_driver_created_idx on driver_earnings (driver_id, created_at desc);
+create index if not exists payouts_status_created_idx on payouts (status, created_at desc);
+create index if not exists demand_predictions_hour_zone_idx on demand_predictions (hour_start desc, zone_key);
+create index if not exists eta_prediction_events_order_created_idx on eta_prediction_events (order_id, created_at desc);
+
 create table if not exists device_tokens (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null references users(id) on delete cascade,

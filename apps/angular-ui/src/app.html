@@ -220,6 +220,25 @@
             }
           </div>
 
+          @if (etaLoopEvents().length > 0) {
+            <div class="table">
+              <div class="row eta-row head">
+                <span>ETA</span>
+                <span>Pickup KM</span>
+                <span>Dropoff KM</span>
+                <span>Time</span>
+              </div>
+              @for (event of etaLoopEvents(); track event.id) {
+                <div class="row eta-row">
+                  <span>{{ event.predicted_eta_minutes }} min</span>
+                  <span>{{ event.distance_to_pickup_km || "-" }}</span>
+                  <span>{{ event.distance_to_dropoff_km || "-" }}</span>
+                  <span>{{ event.created_at }}</span>
+                </div>
+              }
+            </div>
+          }
+
           <div class="table">
             <div class="row head">
               <span>Status</span>
@@ -356,6 +375,62 @@
               <span>{{ order.delivery_address }}</span>
               <span>{{ formatCurrency(order.total_paise) }}</span>
               <button (click)="acceptDelivery(order.id)">Accept</button>
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="driver">
+        <div class="admin-header">
+          <h2>Wallet & Earnings</h2>
+          <button (click)="loadWallet()">Refresh Wallet</button>
+        </div>
+
+        @if (walletSummary(); as summary) {
+          <div class="metrics">
+            <article><span>Balance</span><strong>{{ formatCurrency(summary.wallet.balance_paise) }}</strong></article>
+            <article><span>Total Earnings</span><strong>{{ formatCurrency(summary.wallet.total_earnings_paise) }}</strong></article>
+            <article><span>Payouts</span><strong>{{ formatCurrency(summary.wallet.total_payouts_paise) }}</strong></article>
+            <article><span>Deliveries</span><strong>{{ summary.earnings.deliveries }}</strong></article>
+          </div>
+        }
+
+        <div class="grid">
+          <label>
+            Payout Amount Paise
+            <input type="number" [(ngModel)]="payoutAmountPaise">
+          </label>
+          <label>
+            Method
+            <select [(ngModel)]="payoutMethod">
+              <option value="upi">UPI</option>
+              <option value="bank">Bank</option>
+            </select>
+          </label>
+          <label>
+            UPI ID
+            <input [(ngModel)]="payoutUpiId">
+          </label>
+          <label>
+            Bank Last 4
+            <input maxlength="4" [(ngModel)]="payoutBankLast4">
+          </label>
+          <button (click)="requestWalletPayout()">Request Payout</button>
+        </div>
+
+        <div class="table">
+          <div class="row wallet-row head">
+            <span>Type</span>
+            <span>Amount</span>
+            <span>Status</span>
+            <span>Time</span>
+          </div>
+          @for (tx of walletTransactions(); track tx.id) {
+            <div class="row wallet-row">
+              <span>{{ tx.type }}</span>
+              <span>{{ formatCurrency(tx.amount_paise) }}</span>
+              <span>{{ tx.status }}</span>
+              <span>{{ tx.created_at }}</span>
             </div>
           }
         </div>
@@ -672,6 +747,27 @@
           }
         </div>
 
+        <h3>Driver Load Balancing</h3>
+        <button (click)="loadDriverLoad()">Refresh Driver Load</button>
+        <div class="table">
+          <div class="row load-row head">
+            <span>Driver</span>
+            <span>Active</span>
+            <span>Delivered</span>
+            <span>Capacity</span>
+            <span>Location</span>
+          </div>
+          @for (driver of driverLoad(); track driver.id) {
+            <div class="row load-row">
+              <span>{{ driver.name || driver.phone || driver.id }}</span>
+              <span>{{ driver.active_orders }}</span>
+              <span>{{ driver.delivered_today }}</span>
+              <span>{{ driver.capacity_score }}</span>
+              <span>{{ driver.last_lat && driver.last_lng ? driver.last_lat + ", " + driver.last_lng : "-" }}</span>
+            </div>
+          }
+        </div>
+
         <label>
           Driver
           <select [(ngModel)]="selectedDriverId">
@@ -703,6 +799,7 @@
               </span>
               <span>
                 <button (click)="assignDriver(order.id)">Assign</button>
+                <button (click)="assignBestDriver(order.id)">Best Driver</button>
                 <button (click)="trackDeliveryAdminOrder(order)">Track</button>
               </span>
             </div>
@@ -750,6 +847,65 @@
               <span>{{ order.status }}</span>
               <span>{{ order.restaurant_name || "Unassigned" }}</span>
               <span>{{ formatCurrency(order.total_paise) }}</span>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    @if ((role === "admin" || role === "super_admin") && token()) {
+      <section class="admin">
+        <div class="admin-header">
+          <h2>Operations Intelligence</h2>
+          <div class="actions-inline">
+            <button (click)="runDemandPredictionJob()">Run AI Demand Job</button>
+            <button (click)="loadOperationsConsole()">Refresh</button>
+          </div>
+        </div>
+
+        <div class="table">
+          <div class="row demand-row head">
+            <span>Zone</span>
+            <span>Cuisine</span>
+            <span>Predicted</span>
+            <span>Confidence</span>
+            <span>Hour</span>
+          </div>
+          @for (prediction of demandPredictions(); track prediction.id) {
+            <div class="row demand-row">
+              <span>{{ prediction.zone_key }}</span>
+              <span>{{ prediction.cuisine_type || "mixed" }}</span>
+              <span>{{ prediction.predicted_orders }}</span>
+              <span>{{ prediction.confidence }}%</span>
+              <span>{{ prediction.hour_start }}</span>
+            </div>
+          }
+        </div>
+
+        <h3>Payout System</h3>
+        <label>
+          Payout Note
+          <input [(ngModel)]="payoutApprovalNote">
+        </label>
+        <div class="table">
+          <div class="row payout-row head">
+            <span>User</span>
+            <span>Role</span>
+            <span>Amount</span>
+            <span>Status</span>
+            <span>Actions</span>
+          </div>
+          @for (payout of adminPayouts(); track payout.id) {
+            <div class="row payout-row">
+              <span>{{ payout.phone || payout.id }}</span>
+              <span>{{ payout.role }}</span>
+              <span>{{ formatCurrency(payout.amount_paise) }}</span>
+              <span>{{ payout.status }}</span>
+              <span>
+                <button (click)="updatePayout(payout.id, 'approved')">Approve</button>
+                <button (click)="updatePayout(payout.id, 'paid')">Paid</button>
+                <button (click)="updatePayout(payout.id, 'rejected')">Reject</button>
+              </span>
             </div>
           }
         </div>

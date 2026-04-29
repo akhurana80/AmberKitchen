@@ -170,7 +170,47 @@ class AppComponent implements AfterViewInit {
       distanceToDropoffKm: number;
     };
   } | null>(null);
+  etaLoopEvents = signal<Array<{
+    id: string;
+    predicted_eta_minutes: number;
+    distance_to_pickup_km: string | null;
+    distance_to_dropoff_km: string | null;
+    source: string;
+    created_at: string;
+  }>>([]);
   navigationNotice = signal("Route navigation will appear after an order is active.");
+  walletSummary = signal<{
+    wallet: { balance_paise: number; total_earnings_paise: number; total_payouts_paise: number };
+    earnings: { earned_paise: string; deliveries: string };
+    pendingPayouts: { requested_paise: string; requests: string };
+  } | null>(null);
+  walletTransactions = signal<Array<{ id: string; type: string; amount_paise: number; status: string; created_at: string }>>([]);
+  driverEarnings = signal<Array<{ id: string; order_id: string; amount_paise: number; status: string; created_at: string }>>([]);
+  payoutAmountPaise = 0;
+  payoutMethod: "upi" | "bank" = "upi";
+  payoutUpiId = "";
+  payoutBankLast4 = "";
+  adminPayouts = signal<Array<{ id: string; amount_paise: number; method: string; status: string; phone: string | null; role: string; created_at: string }>>([]);
+  payoutApprovalNote = "";
+  demandPredictions = signal<Array<{
+    id: string;
+    zone_key: string;
+    cuisine_type: string | null;
+    hour_start: string;
+    predicted_orders: number;
+    confidence: string;
+  }>>([]);
+  analyticsJobs = signal<Array<{ id: string; job_type: string; status: string; summary: unknown; created_at: string }>>([]);
+  driverLoad = signal<Array<{
+    id: string;
+    phone: string | null;
+    name: string | null;
+    active_orders: number;
+    delivered_today: number;
+    last_lat: string | null;
+    last_lng: string | null;
+    capacity_score: number;
+  }>>([]);
   deliveryAdminOrders = signal<Array<{
     id: string;
     status: string;
@@ -265,14 +305,19 @@ class AppComponent implements AfterViewInit {
     this.authNotice.set(notice);
     if (this.role === "admin") {
       this.loadAdminDashboard();
+      this.loadOperationsConsole();
+      this.loadDriverLoad();
     }
     if (this.role === "super_admin") {
       this.loadSuperAdmin();
       this.loadDriverApplications();
+      this.loadOperationsConsole();
+      this.loadDriverLoad();
     }
     if (this.role === "driver") {
       this.loadDeliveryOrders();
       this.loadDriverOnboarding();
+      this.loadWallet();
     }
     if (this.role === "restaurant") {
       this.loadRestaurantAdmin();
@@ -280,6 +325,7 @@ class AppComponent implements AfterViewInit {
     if (this.role === "delivery_admin") {
       this.loadDeliveryAdmin();
       this.loadDriverApplications();
+      this.loadDriverLoad();
     }
     if (this.role === "admin") {
       this.loadDriverApplications();
@@ -326,6 +372,59 @@ class AppComponent implements AfterViewInit {
   sendTestNotification() {
     this.api.sendTestNotification().subscribe(() => {
       this.pushNotice.set("Test push notification sent.");
+    });
+  }
+
+  loadWallet() {
+    this.api.walletSummary().subscribe(summary => this.walletSummary.set(summary));
+    this.api.walletTransactions().subscribe(transactions => this.walletTransactions.set(transactions));
+    if (this.role === "driver") {
+      this.api.driverEarnings().subscribe(earnings => this.driverEarnings.set(earnings));
+    }
+  }
+
+  requestWalletPayout() {
+    this.api.requestPayout(
+      this.payoutAmountPaise,
+      this.payoutMethod,
+      this.payoutUpiId || undefined,
+      this.payoutBankLast4 || undefined
+    ).subscribe(() => {
+      this.payoutAmountPaise = 0;
+      this.loadWallet();
+    });
+  }
+
+  loadAdminPayouts() {
+    this.api.adminPayouts().subscribe(payouts => this.adminPayouts.set(payouts));
+  }
+
+  updatePayout(id: string, status: "approved" | "paid" | "rejected") {
+    this.api.updatePayoutApproval(id, status, this.payoutApprovalNote || undefined).subscribe(() => {
+      this.loadAdminPayouts();
+    });
+  }
+
+  loadOperationsConsole() {
+    this.api.demandPredictions().subscribe(predictions => this.demandPredictions.set(predictions));
+    this.api.analyticsJobs().subscribe(jobs => this.analyticsJobs.set(jobs));
+    this.loadAdminPayouts();
+  }
+
+  runDemandPredictionJob() {
+    this.api.runDemandPredictionJob().subscribe(() => {
+      this.loadOperationsConsole();
+    });
+  }
+
+  loadDriverLoad() {
+    this.api.driverLoadBalancing().subscribe(load => this.driverLoad.set(load));
+  }
+
+  assignBestDriver(orderId: string) {
+    this.api.assignBestDriver(orderId).subscribe(() => {
+      this.loadDeliveryAdmin();
+      this.loadDriverLoad();
     });
   }
 
@@ -617,6 +716,17 @@ class AppComponent implements AfterViewInit {
     this.api.orderEta(orderId).subscribe(eta => {
       this.routeEta.set(eta);
       this.navigationNotice.set(`Predicted delivery ETA: ${eta.predictedEtaMinutes} minutes.`);
+      this.loadEtaLoop();
+    });
+  }
+
+  loadEtaLoop() {
+    const orderId = this.orderId();
+    if (!orderId) {
+      return;
+    }
+    this.api.orderEtaLoop(orderId).subscribe(events => {
+      this.etaLoopEvents.set(events);
     });
   }
 
@@ -713,6 +823,7 @@ class AppComponent implements AfterViewInit {
     }
 
     this.api.updateOrderStatus(orderId, status).subscribe(() => {
+      this.loadWallet();
       if (status === "delivered") {
         this.activeDeliveryOrder.set("");
       }

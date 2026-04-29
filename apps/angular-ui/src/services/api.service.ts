@@ -210,6 +210,17 @@ export class ApiService {
     }>(`${this.baseUrl}/api/tracking/orders/${orderId}/eta`, { headers: this.authHeaders() });
   }
 
+  orderEtaLoop(orderId: string) {
+    return this.http.get<Array<{
+      id: string;
+      predicted_eta_minutes: number;
+      distance_to_pickup_km: string | null;
+      distance_to_dropoff_km: string | null;
+      source: string;
+      created_at: string;
+    }>>(`${this.baseUrl}/api/tracking/orders/${orderId}/eta-loop`, { headers: this.authHeaders() });
+  }
+
   adminDashboard() {
     return this.http.get<{
       users: number;
@@ -257,6 +268,32 @@ export class ApiService {
       `${this.baseUrl}/api/admin/analytics`,
       { headers: this.authHeaders() }
     );
+  }
+
+  runDemandPredictionJob() {
+    return this.http.post<{ job: unknown; predictions: unknown[] }>(
+      `${this.baseUrl}/api/operations/analytics/jobs/demand-prediction`,
+      {},
+      { headers: this.authHeaders() }
+    );
+  }
+
+  analyticsJobs() {
+    return this.http.get<Array<{ id: string; job_type: string; status: string; summary: unknown; created_at: string }>>(
+      `${this.baseUrl}/api/operations/analytics/jobs`,
+      { headers: this.authHeaders() }
+    );
+  }
+
+  demandPredictions() {
+    return this.http.get<Array<{
+      id: string;
+      zone_key: string;
+      cuisine_type: string | null;
+      hour_start: string;
+      predicted_orders: number;
+      confidence: string;
+    }>>(`${this.baseUrl}/api/operations/demand-predictions`, { headers: this.authHeaders() });
   }
 
   onboardRestaurant(input: {
@@ -428,6 +465,70 @@ export class ApiService {
 
   assignDriver(orderId: string, driverId: string) {
     return this.http.patch(`${this.baseUrl}/api/delivery-admin/orders/${orderId}/assign-driver`, { driverId }, { headers: this.authHeaders() });
+  }
+
+  driverLoadBalancing() {
+    return this.http.get<Array<{
+      id: string;
+      phone: string | null;
+      name: string | null;
+      active_orders: number;
+      delivered_today: number;
+      last_lat: string | null;
+      last_lng: string | null;
+      last_location_at: string | null;
+      capacity_score: number;
+    }>>(`${this.baseUrl}/api/operations/driver-load`, { headers: this.authHeaders() });
+  }
+
+  assignBestDriver(orderId: string) {
+    return this.http.post(`${this.baseUrl}/api/operations/orders/${orderId}/assign-best-driver`, {}, { headers: this.authHeaders() });
+  }
+
+  walletSummary() {
+    return this.http.get<{
+      wallet: { balance_paise: number; total_earnings_paise: number; total_payouts_paise: number };
+      earnings: { earned_paise: string; deliveries: string };
+      pendingPayouts: { requested_paise: string; requests: string };
+    }>(`${this.baseUrl}/api/wallet/summary`, { headers: this.authHeaders() });
+  }
+
+  walletTransactions() {
+    return this.http.get<Array<{ id: string; type: string; amount_paise: number; status: string; created_at: string }>>(
+      `${this.baseUrl}/api/wallet/transactions`,
+      { headers: this.authHeaders() }
+    );
+  }
+
+  driverEarnings() {
+    return this.http.get<Array<{ id: string; order_id: string; amount_paise: number; status: string; created_at: string }>>(
+      `${this.baseUrl}/api/wallet/earnings`,
+      { headers: this.authHeaders() }
+    );
+  }
+
+  requestPayout(amountPaise: number, method: "upi" | "bank", upiId?: string, bankAccountLast4?: string) {
+    return this.http.post(
+      `${this.baseUrl}/api/wallet/payouts/request`,
+      { amountPaise, method, upiId, bankAccountLast4 },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  adminPayouts() {
+    return this.http.get<Array<{
+      id: string;
+      amount_paise: number;
+      method: string;
+      status: string;
+      phone: string | null;
+      role: string;
+      created_at: string;
+    }>>(`${this.baseUrl}/api/wallet/payouts`, { headers: this.authHeaders() });
+  }
+
+  updatePayoutApproval(id: string, status: "approved" | "paid" | "rejected", note?: string) {
+    return this.http.patch(`${this.baseUrl}/api/wallet/payouts/${id}/approval`, { status, note }, { headers: this.authHeaders() });
   }
 
   private authHeaders() {

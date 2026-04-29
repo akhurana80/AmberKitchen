@@ -110,6 +110,14 @@ trackingRoutes.get("/orders/:orderId/eta", async (req, res, next) => {
     const distanceToDropoffKm = distanceKm(restaurant, dropoff);
     const predictedEtaMinutes = predictDeliveryEta(distanceToPickupKm, distanceToDropoffKm, Boolean(order.driver_lat));
 
+    await query(
+      `insert into eta_prediction_events (
+         order_id, predicted_eta_minutes, distance_to_pickup_km, distance_to_dropoff_km, source
+       )
+       values ($1, $2, $3, $4, 'eta-loop')`,
+      [orderId, predictedEtaMinutes, distanceToPickupKm, distanceToDropoffKm]
+    );
+
     res.json({
       orderId,
       status: order.status,
@@ -125,6 +133,25 @@ trackingRoutes.get("/orders/:orderId/eta", async (req, res, next) => {
       },
       driverLocationAt: order.driver_location_at
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+trackingRoutes.get("/orders/:orderId/eta-loop", async (req, res, next) => {
+  try {
+    const result = await query(
+      `select e.*
+       from eta_prediction_events e
+       join orders o on o.id = e.order_id
+       where e.order_id = $1
+         and (o.customer_id = $2 or o.driver_id = $2 or $3::text in ('admin', 'super_admin', 'delivery_admin')
+           or o.restaurant_id in (select id from restaurants where owner_id = $2))
+       order by e.created_at desc
+       limit 50`,
+      [routeParam(req.params.orderId), req.user!.id, req.user!.role]
+    );
+    res.json(result.rows);
   } catch (error) {
     next(error);
   }

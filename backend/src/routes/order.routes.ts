@@ -397,11 +397,45 @@ orderRoutes.patch("/:id/status", requireRole("restaurant", "driver", "admin"), a
 
     emitOrderUpdate(routeParam(req.params.id), result.rows[0]);
     await recordStatusHistory(routeParam(req.params.id), body.status, req.user!.id, `Status changed to ${body.status}`);
+    if (body.status === "delivered" && result.rows[0].driver_id) {
+      await recordDriverEarning(result.rows[0].driver_id, routeParam(req.params.id), Number(result.rows[0].total_paise));
+    }
     res.json(result.rows[0]);
   } catch (error) {
     next(error);
   }
 });
+
+async function recordDriverEarning(driverId: string, orderId: string, totalPaise: number) {
+  const amountPaise = Math.max(3000, Math.round(totalPaise * 0.12));
+  await query(
+    `insert into wallet_accounts (user_id, balance_paise, total_earnings_paise)
+     values ($1, $2, $2)
+     on conflict (user_id) do nothing`,
+    [driverId, 0]
+  );
+  await query(
+    `with earning as (
+       insert into driver_earnings (driver_id, order_id, amount_paise)
+       values ($1, $2, $3)
+       on conflict (order_id) do nothing
+       returning driver_id, order_id, amount_paise
+     ),
+     wallet_update as (
+       update wallet_accounts wa
+       set balance_paise = balance_paise + earning.amount_paise,
+           total_earnings_paise = total_earnings_paise + earning.amount_paise,
+           updated_at = now()
+       from earning
+       where wa.user_id = earning.driver_id
+       returning earning.driver_id, earning.order_id, earning.amount_paise
+     )
+     insert into wallet_transactions (user_id, type, amount_paise, reference_type, reference_id, status)
+     select driver_id, 'earning', amount_paise, 'order', order_id, 'posted'
+     from wallet_update`,
+    [driverId, orderId, amountPaise]
+  );
+}
 
 async function canCancelOrder(order: { customer_id: string; restaurant_id: string; status: string; created_at: string }, userId: string, role: string) {
   if (["cancelled", "picked_up", "delivered"].includes(order.status)) {

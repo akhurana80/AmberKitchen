@@ -43,9 +43,13 @@
 - Google Places API integration for real Delhi NCR restaurants with rating filter, names, addresses, photos, and lat/lng
 - Restaurant/menu search by keyword, cuisine, veg/non-veg, minimum rating, max price, distance, and price sorting
 - Trending restaurant ranking with recent order demand, ratings, nearby distance, and delivery ETA predictions
+- AI demand prediction jobs with zone/cuisine/hour forecasts and job history
+- Driver load balancing with capacity scoring and best-driver assignment
+- Wallet system with driver earnings, transaction history, payout requests, and admin payout processing
 - Delivery Admin module for driver assignment and live order tracking
 - Live tracking dashboard for delivery admins with last known driver coordinates and realtime order tracking
 - Real Google Maps route navigation with pickup/dropoff routing, route drawing, and external navigation links
+- ETA loop that records prediction events as live route estimates are refreshed
 - Azure Container Apps deployment script
 
 ## Local Run
