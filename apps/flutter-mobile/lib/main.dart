@@ -148,7 +148,7 @@ class _AmberKitchenHomeState extends State<AmberKitchenHome> {
         TextField(controller: phone, decoration: const InputDecoration(labelText: 'Phone')),
         TextField(controller: otp, decoration: const InputDecoration(labelText: 'OTP')),
         DropdownButtonFormField<String>(
-          value: role,
+          initialValue: role,
           decoration: const InputDecoration(labelText: 'Role'),
           items: const ['customer', 'driver', 'restaurant', 'admin', 'super_admin', 'delivery_admin']
               .map((value) => DropdownMenuItem(value: value, child: Text(value)))
@@ -205,13 +205,13 @@ class _AmberKitchenHomeState extends State<AmberKitchenHome> {
           height: 260,
           child: GoogleMap(
             initialCameraPosition: const CameraPosition(target: delhi, zoom: 11),
-            markers: const {
-              Marker(markerId: MarkerId('driver'), position: delhi),
-              Marker(markerId: MarkerId('pickup'), position: pickup),
-              Marker(markerId: MarkerId('dropoff'), position: dropoff),
+            markers: {
+              const Marker(markerId: MarkerId('driver'), position: delhi),
+              const Marker(markerId: MarkerId('pickup'), position: pickup),
+              const Marker(markerId: MarkerId('dropoff'), position: dropoff),
             },
-            polylines: const {
-              Polyline(polylineId: PolylineId('route'), points: [delhi, pickup, dropoff], width: 4, color: Color(0xff0f766e)),
+            polylines: {
+              const Polyline(polylineId: PolylineId('route'), points: [delhi, pickup, dropoff], width: 4, color: Color(0xff0f766e)),
             },
           ),
         ),
