@@ -98,6 +98,31 @@ export async function recordPaymentCallback(provider: string, transactionId: str
   );
 }
 
+export function verifyRazorpayWebhook(rawBody: Buffer | undefined, signature: string | undefined) {
+  if (!config.razorpay.webhookSecret) {
+    return true;
+  }
+  if (!rawBody || !signature) {
+    return false;
+  }
+  const expected = crypto
+    .createHmac("sha256", config.razorpay.webhookSecret)
+    .update(rawBody)
+    .digest("hex");
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+}
+
+export function verifyPhonePeWebhook(rawBody: Buffer | undefined, checksum: string | undefined) {
+  if (!config.phonePe.saltKey) {
+    return true;
+  }
+  if (!rawBody || !checksum) {
+    return false;
+  }
+  const expected = sha256(rawBody.toString("utf8") + config.phonePe.saltKey) + "###" + config.phonePe.saltIndex;
+  return expected === checksum;
+}
+
 export async function createRefund(orderId: string, reason: string, amountPaise?: number) {
   const payment = await query<{ id: string; provider: string; amount_paise: number }>(
     `select id, provider, amount_paise

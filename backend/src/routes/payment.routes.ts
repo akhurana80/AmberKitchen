@@ -1,7 +1,15 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, requireRole } from "../auth";
-import { createPayment, createRefund, PaymentProvider, recordPaymentCallback, verifyPhonePeTransaction } from "../services/payment.service";
+import {
+  createPayment,
+  createRefund,
+  PaymentProvider,
+  recordPaymentCallback,
+  verifyPhonePeTransaction,
+  verifyPhonePeWebhook,
+  verifyRazorpayWebhook
+} from "../services/payment.service";
 import { query } from "../db";
 
 export const paymentRoutes = Router();
@@ -26,6 +34,9 @@ paymentRoutes.post("/create", requireAuth, async (req, res, next) => {
 
 paymentRoutes.post("/razorpay/callback", async (req, res, next) => {
   try {
+    if (!verifyRazorpayWebhook(req.rawBody, req.header("x-razorpay-signature"))) {
+      return res.status(401).json({ error: "Invalid Razorpay webhook signature" });
+    }
     const transactionId = req.body.payload?.order?.entity?.receipt ?? req.body.receipt ?? req.body.order_id;
     const status = req.body.event ?? req.body.status ?? "unknown";
     await recordPaymentCallback("razorpay", transactionId, status, req.body);
@@ -46,6 +57,9 @@ paymentRoutes.post("/paytm/callback", async (req, res, next) => {
 
 paymentRoutes.post("/phonepe/callback", async (req, res, next) => {
   try {
+    if (!verifyPhonePeWebhook(req.rawBody, req.header("x-verify"))) {
+      return res.status(401).json({ error: "Invalid PhonePe webhook signature" });
+    }
     const transactionId = req.body.data?.merchantTransactionId ?? req.body.merchantTransactionId;
     const status = req.body.code ?? req.body.status ?? "unknown";
     await recordPaymentCallback("phonepe", transactionId, status, req.body);

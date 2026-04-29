@@ -10,6 +10,8 @@
     "backend:dev": "npm --workspace backend run dev",
     "backend:build": "npm --workspace backend run build",
     "ui:start": "npm --workspace apps/angular-ui run start",
-    "ui:build": "npm --workspace apps/angular-ui run build"
+    "ui:build": "npm --workspace apps/angular-ui run build",
+    "test:load": "node infra/scripts/load-test.js",
+    "db:backup": "bash infra/scripts/postgres-backup.sh"
   }
 }

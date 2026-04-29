@@ -54,6 +54,7 @@
 - Real Google Maps route navigation with pickup/dropoff routing, route drawing, and external navigation links
 - ETA loop that records prediction events as live route estimates are refreshed
 - Azure integration event tracking for WhatsApp, email, blob storage, OCR, face verification, Mapbox/OpenStreetMap routing, and missed-call OTP fallback
+- Launch-readiness hardening: request IDs, CORS allow-list, in-memory rate limits, audit logs, DB-backed health checks, webhook signature verification, migration runner, CI workflow, Azure deploy workflow, backup script, and load-test script
 - Azure Container Apps deployment script
 
 ## Local Run
@@ -68,4 +69,11 @@
    ```bash
    npm install
    npm run ui:start
+   ```
+6. Run launch-readiness checks:
+   ```bash
+   npm --workspace backend run build
+   npm --workspace apps/angular-ui exec -- tsc -p tsconfig.app.json --noEmit
+   npm run test:load
+   npm run db:backup
    ```

@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm --workspace backend run build
+      - run: npm --workspace apps/angular-ui exec -- tsc -p tsconfig.app.json --noEmit
+      - run: npm --workspace apps/angular-ui exec -- ngc -p tsconfig.app.json

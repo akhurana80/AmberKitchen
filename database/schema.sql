@@ -407,6 +407,52 @@ create index if not exists support_tickets_status_idx on support_tickets (status
 create index if not exists campaigns_status_idx on campaigns (status, created_at desc);
 create index if not exists integration_events_provider_idx on integration_events (provider, created_at desc);
 
+create table if not exists audit_logs (
+  id uuid primary key default uuid_generate_v4(),
+  request_id text,
+  user_id uuid references users(id),
+  method text not null,
+  path text not null,
+  status_code integer,
+  ip text,
+  user_agent text,
+  duration_ms integer,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists file_assets (
+  id uuid primary key default uuid_generate_v4(),
+  owner_id uuid references users(id),
+  provider text not null default 'azure-blob',
+  container_name text not null,
+  blob_name text not null,
+  content_type text,
+  size_bytes integer,
+  url text,
+  metadata jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists verification_checks (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references users(id),
+  check_type text not null check (check_type in ('azure-ocr', 'azure-face', 'background')),
+  status text not null default 'pending' check (status in ('pending', 'verified', 'failed', 'manual_review')),
+  confidence numeric(5, 2),
+  provider text not null,
+  raw_response jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists schema_migrations (
+  id text primary key,
+  applied_at timestamptz not null default now()
+);
+
+create index if not exists audit_logs_created_idx on audit_logs (created_at desc);
+create index if not exists file_assets_owner_idx on file_assets (owner_id, created_at desc);
+create index if not exists verification_checks_user_idx on verification_checks (user_id, created_at desc);
+
 create table if not exists device_tokens (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null references users(id) on delete cascade,
