@@ -22,6 +22,7 @@
 - Real OTP login through Azure Communication Services and Google Sign-In in the Angular UI
 - Production OTP SMS delivery through Azure Communication Services
 - PhonePe and Paytm payment adapter routes
+- Razorpay payment adapter route alongside PhonePe and Paytm
 - Live order tracking with Socket.IO
 - Google Maps-ready live tracking panel in Angular
 - Push notification plumbing through Firebase Cloud Messaging
@@ -38,18 +39,21 @@
 - Restaurant approval system with pending, approved, and rejected states
 - Restaurant Admin module for menu management, order accept/reject, and earnings
 - Menu management with item photos, veg/non-veg flags, cuisine metadata, ratings, and bulk import
+- Customer offers, restaurant ratings/reviews, and support ticket APIs
 - Restaurant onboarding with business details, contact information, compliance IDs, bank reference, and Super Admin approval
 - Separate restaurant panel login in `apps/restaurant-panel/` for restaurant onboarding and operations
 - Google Places API integration for real Delhi NCR restaurants with rating filter, names, addresses, photos, and lat/lng
 - Restaurant/menu search by keyword, cuisine, veg/non-veg, minimum rating, max price, distance, and price sorting
 - Trending restaurant ranking with recent order demand, ratings, nearby distance, and delivery ETA predictions
 - AI demand prediction jobs with zone/cuisine/hour forecasts and job history
+- Zone management, SLA settings, campaign management, AI creative tracking, and driver incentives
 - Driver load balancing with capacity scoring and best-driver assignment
 - Wallet system with driver earnings, transaction history, payout requests, and admin payout processing
 - Delivery Admin module for driver assignment and live order tracking
 - Live tracking dashboard for delivery admins with last known driver coordinates and realtime order tracking
 - Real Google Maps route navigation with pickup/dropoff routing, route drawing, and external navigation links
 - ETA loop that records prediction events as live route estimates are refreshed
+- Azure integration event tracking for WhatsApp, email, blob storage, OCR, face verification, Mapbox/OpenStreetMap routing, and missed-call OTP fallback
 - Azure Container Apps deployment script
 
 ## Local Run

@@ -139,7 +139,7 @@ create table if not exists order_status_history (
 create table if not exists payments (
   id uuid primary key,
   order_id uuid not null references orders(id),
-  provider text not null check (provider in ('paytm', 'phonepe')),
+  provider text not null check (provider in ('paytm', 'phonepe', 'razorpay')),
   amount_paise integer not null,
   status text not null,
   raw_callback jsonb,
@@ -151,7 +151,7 @@ create table if not exists refunds (
   id uuid primary key default uuid_generate_v4(),
   order_id uuid not null references orders(id),
   payment_id uuid references payments(id),
-  provider text not null check (provider in ('paytm', 'phonepe')),
+  provider text not null check (provider in ('paytm', 'phonepe', 'razorpay')),
   amount_paise integer not null,
   status refund_status not null default 'requested',
   reason text,
@@ -159,6 +159,13 @@ create table if not exists refunds (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+do $$ begin
+  alter table payments drop constraint if exists payments_provider_check;
+  alter table payments add constraint payments_provider_check check (provider in ('paytm', 'phonepe', 'razorpay'));
+  alter table refunds drop constraint if exists refunds_provider_check;
+  alter table refunds add constraint refunds_provider_check check (provider in ('paytm', 'phonepe', 'razorpay'));
+end $$;
 
 create table if not exists driver_locations (
   id uuid primary key default uuid_generate_v4(),
@@ -311,6 +318,94 @@ create index if not exists driver_earnings_driver_created_idx on driver_earnings
 create index if not exists payouts_status_created_idx on payouts (status, created_at desc);
 create index if not exists demand_predictions_hour_zone_idx on demand_predictions (hour_start desc, zone_key);
 create index if not exists eta_prediction_events_order_created_idx on eta_prediction_events (order_id, created_at desc);
+
+create table if not exists zones (
+  id uuid primary key default uuid_generate_v4(),
+  name text not null,
+  city text not null,
+  center_lat numeric(10, 7) not null,
+  center_lng numeric(10, 7) not null,
+  radius_km numeric(6, 2) not null default 3,
+  sla_minutes integer not null default 25,
+  surge_multiplier numeric(4, 2) not null default 1.00,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists restaurant_reviews (
+  id uuid primary key default uuid_generate_v4(),
+  restaurant_id uuid not null references restaurants(id) on delete cascade,
+  customer_id uuid not null references users(id),
+  order_id uuid references orders(id),
+  rating integer not null check (rating between 1 and 5),
+  comment text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists offers (
+  id uuid primary key default uuid_generate_v4(),
+  code text not null unique,
+  title text not null,
+  description text,
+  discount_type text not null check (discount_type in ('flat', 'percent')),
+  discount_value integer not null,
+  min_order_paise integer not null default 0,
+  starts_at timestamptz not null default now(),
+  ends_at timestamptz,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists support_tickets (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references users(id),
+  order_id uuid references orders(id),
+  category text not null,
+  subject text not null,
+  message text not null,
+  status text not null default 'open' check (status in ('open', 'in_progress', 'resolved', 'closed')),
+  admin_note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists driver_incentives (
+  id uuid primary key default uuid_generate_v4(),
+  driver_id uuid references users(id),
+  title text not null,
+  target_deliveries integer not null,
+  reward_paise integer not null,
+  starts_at timestamptz not null default now(),
+  ends_at timestamptz,
+  status text not null default 'active' check (status in ('active', 'earned', 'paid', 'expired')),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists campaigns (
+  id uuid primary key default uuid_generate_v4(),
+  name text not null,
+  zone_id uuid references zones(id),
+  channel text not null check (channel in ('push', 'email', 'whatsapp', 'ads')),
+  budget_paise integer not null default 0,
+  ai_creative text,
+  status text not null default 'draft' check (status in ('draft', 'active', 'paused', 'completed')),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists integration_events (
+  id uuid primary key default uuid_generate_v4(),
+  provider text not null,
+  event_type text not null,
+  status text not null default 'queued' check (status in ('queued', 'sent', 'failed')),
+  payload jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists zones_city_idx on zones (city);
+create index if not exists restaurant_reviews_restaurant_idx on restaurant_reviews (restaurant_id, created_at desc);
+create index if not exists offers_active_idx on offers (is_active, starts_at, ends_at);
+create index if not exists support_tickets_status_idx on support_tickets (status, created_at desc);
+create index if not exists campaigns_status_idx on campaigns (status, created_at desc);
+create index if not exists integration_events_provider_idx on integration_events (provider, created_at desc);
 
 create table if not exists device_tokens (
   id uuid primary key default uuid_generate_v4(),

@@ -81,7 +81,7 @@ export class ApiService {
     );
   }
 
-  createPayment(provider: "paytm" | "phonepe", orderId: string) {
+  createPayment(provider: "paytm" | "phonepe" | "razorpay", orderId: string) {
     return this.http.post(
       `${this.baseUrl}/api/payments/create`,
       { provider, orderId, amountPaise: 24900 },
@@ -529,6 +529,82 @@ export class ApiService {
 
   updatePayoutApproval(id: string, status: "approved" | "paid" | "rejected", note?: string) {
     return this.http.patch(`${this.baseUrl}/api/wallet/payouts/${id}/approval`, { status, note }, { headers: this.authHeaders() });
+  }
+
+  marketplaceZones() {
+    return this.http.get<Array<{ id: string; name: string; city: string; sla_minutes: number; surge_multiplier: string }>>(
+      `${this.baseUrl}/api/marketplace/zones`,
+      { headers: this.authHeaders() }
+    );
+  }
+
+  createZone(name: string, city: string, centerLat: number, centerLng: number, radiusKm: number, slaMinutes: number) {
+    return this.http.post(
+      `${this.baseUrl}/api/marketplace/zones`,
+      { name, city, centerLat, centerLng, radiusKm, slaMinutes },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  marketplaceOffers() {
+    return this.http.get<Array<{ id: string; code: string; title: string; discount_type: string; discount_value: number }>>(
+      `${this.baseUrl}/api/marketplace/offers`,
+      { headers: this.authHeaders() }
+    );
+  }
+
+  createOffer(code: string, title: string, discountType: "flat" | "percent", discountValue: number, minOrderPaise: number) {
+    return this.http.post(
+      `${this.baseUrl}/api/marketplace/offers`,
+      { code, title, discountType, discountValue, minOrderPaise },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  createRestaurantReview(restaurantId: string, rating: number, comment?: string, orderId?: string) {
+    return this.http.post(
+      `${this.baseUrl}/api/marketplace/restaurants/${restaurantId}/reviews`,
+      { rating, comment, orderId },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  createSupportTicket(category: string, subject: string, message: string, orderId?: string) {
+    return this.http.post(
+      `${this.baseUrl}/api/marketplace/support/tickets`,
+      { category, subject, message, orderId },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  createCampaign(name: string, channel: "push" | "email" | "whatsapp" | "ads", budgetPaise: number, aiCreative?: string) {
+    return this.http.post(
+      `${this.baseUrl}/api/marketplace/campaigns`,
+      { name, channel, budgetPaise, aiCreative },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  campaigns() {
+    return this.http.get<Array<{ id: string; name: string; channel: string; budget_paise: number; status: string; ai_creative: string | null }>>(
+      `${this.baseUrl}/api/marketplace/campaigns`,
+      { headers: this.authHeaders() }
+    );
+  }
+
+  createDriverIncentive(title: string, targetDeliveries: number, rewardPaise: number, driverId?: string) {
+    return this.http.post(
+      `${this.baseUrl}/api/marketplace/driver-incentives`,
+      { title, targetDeliveries, rewardPaise, driverId },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  driverIncentives() {
+    return this.http.get<Array<{ id: string; title: string; target_deliveries: number; reward_paise: number; status: string }>>(
+      `${this.baseUrl}/api/marketplace/driver-incentives`,
+      { headers: this.authHeaders() }
+    );
   }
 
   private authHeaders() {

@@ -22,10 +22,20 @@ export const config = {
     saltIndex: process.env.PHONEPE_SALT_INDEX ?? "1",
     callbackUrl: process.env.PHONEPE_CALLBACK_URL ?? ""
   },
+  razorpay: {
+    keyId: process.env.RAZORPAY_KEY_ID ?? "",
+    keySecret: process.env.RAZORPAY_KEY_SECRET ?? "",
+    callbackUrl: process.env.RAZORPAY_CALLBACK_URL ?? ""
+  },
   fcmServiceAccountJson: process.env.FCM_SERVICE_ACCOUNT_JSON ?? "{}",
   azure: {
     communicationConnectionString: process.env.AZURE_COMMUNICATION_CONNECTION_STRING ?? "",
-    smsFrom: process.env.AZURE_SMS_FROM ?? ""
+    smsFrom: process.env.AZURE_SMS_FROM ?? "",
+    emailFrom: process.env.AZURE_EMAIL_FROM ?? "",
+    whatsappFrom: process.env.AZURE_WHATSAPP_FROM ?? "",
+    storageConnectionString: process.env.AZURE_STORAGE_CONNECTION_STRING ?? "",
+    computerVisionEndpoint: process.env.AZURE_COMPUTER_VISION_ENDPOINT ?? "",
+    faceEndpoint: process.env.AZURE_FACE_ENDPOINT ?? ""
   }
 };
 

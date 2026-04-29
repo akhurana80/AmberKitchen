@@ -201,6 +201,32 @@ class AppComponent implements AfterViewInit {
     confidence: string;
   }>>([]);
   analyticsJobs = signal<Array<{ id: string; job_type: string; status: string; summary: unknown; created_at: string }>>([]);
+  zones = signal<Array<{ id: string; name: string; city: string; sla_minutes: number; surge_multiplier: string }>>([]);
+  offers = signal<Array<{ id: string; code: string; title: string; discount_type: string; discount_value: number }>>([]);
+  campaigns = signal<Array<{ id: string; name: string; channel: string; budget_paise: number; status: string; ai_creative: string | null }>>([]);
+  driverIncentives = signal<Array<{ id: string; title: string; target_deliveries: number; reward_paise: number; status: string }>>([]);
+  zoneName = "Delhi Zone 1";
+  zoneCity = "Delhi NCR";
+  zoneLat = 28.6139;
+  zoneLng = 77.209;
+  zoneRadiusKm = 3;
+  zoneSlaMinutes = 15;
+  offerCode = "AMBER50";
+  offerTitle = "Welcome Offer";
+  offerDiscountValue = 5000;
+  campaignName = "Micro-zone Push Campaign";
+  campaignChannel: "push" | "email" | "whatsapp" | "ads" = "push";
+  campaignBudgetPaise = 100000;
+  campaignCreative = "AI creative for nearby lunch demand";
+  incentiveTitle = "Peak hour bonus";
+  incentiveTargetDeliveries = 5;
+  incentiveRewardPaise = 7500;
+  supportCategory = "order";
+  supportSubject = "";
+  supportMessage = "";
+  reviewRestaurantId = "";
+  reviewRating = 5;
+  reviewComment = "";
   driverLoad = signal<Array<{
     id: string;
     phone: string | null;
@@ -408,7 +434,59 @@ class AppComponent implements AfterViewInit {
   loadOperationsConsole() {
     this.api.demandPredictions().subscribe(predictions => this.demandPredictions.set(predictions));
     this.api.analyticsJobs().subscribe(jobs => this.analyticsJobs.set(jobs));
+    this.loadMarketplaceOps();
     this.loadAdminPayouts();
+  }
+
+  loadMarketplaceOps() {
+    this.api.marketplaceZones().subscribe(zones => this.zones.set(zones));
+    this.api.marketplaceOffers().subscribe(offers => this.offers.set(offers));
+    this.api.driverIncentives().subscribe(incentives => this.driverIncentives.set(incentives));
+    if (this.role === "admin" || this.role === "super_admin") {
+      this.api.campaigns().subscribe(campaigns => this.campaigns.set(campaigns));
+    }
+  }
+
+  createZone() {
+    this.api.createZone(this.zoneName, this.zoneCity, this.zoneLat, this.zoneLng, this.zoneRadiusKm, this.zoneSlaMinutes).subscribe(() => {
+      this.loadMarketplaceOps();
+    });
+  }
+
+  createOffer() {
+    this.api.createOffer(this.offerCode, this.offerTitle, "flat", this.offerDiscountValue, 0).subscribe(() => {
+      this.loadMarketplaceOps();
+    });
+  }
+
+  createCampaign() {
+    this.api.createCampaign(this.campaignName, this.campaignChannel, this.campaignBudgetPaise, this.campaignCreative).subscribe(() => {
+      this.loadMarketplaceOps();
+    });
+  }
+
+  createIncentive() {
+    this.api.createDriverIncentive(this.incentiveTitle, this.incentiveTargetDeliveries, this.incentiveRewardPaise).subscribe(() => {
+      this.loadMarketplaceOps();
+    });
+  }
+
+  submitSupportTicket() {
+    this.api.createSupportTicket(this.supportCategory, this.supportSubject, this.supportMessage, this.orderId() || undefined).subscribe(() => {
+      this.supportSubject = "";
+      this.supportMessage = "";
+      alert("Support ticket created.");
+    });
+  }
+
+  submitReview() {
+    if (!this.reviewRestaurantId) {
+      return;
+    }
+    this.api.createRestaurantReview(this.reviewRestaurantId, this.reviewRating, this.reviewComment, this.orderId() || undefined).subscribe(() => {
+      this.reviewComment = "";
+      alert("Review submitted.");
+    });
   }
 
   runDemandPredictionJob() {
@@ -549,7 +627,7 @@ class AppComponent implements AfterViewInit {
     });
   }
 
-  startPayment(provider: "paytm" | "phonepe") {
+  startPayment(provider: "paytm" | "phonepe" | "razorpay") {
     this.api.createPayment(provider, this.orderId()).subscribe(response => {
       console.log(response);
       alert(`${provider} payment initialized. Check console for gateway payload.`);

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, requireRole } from "../auth";
-import { createPayment, createRefund, recordPaymentCallback, verifyPhonePeTransaction } from "../services/payment.service";
+import { createPayment, createRefund, PaymentProvider, recordPaymentCallback, verifyPhonePeTransaction } from "../services/payment.service";
 import { query } from "../db";
 
 export const paymentRoutes = Router();
@@ -13,12 +13,23 @@ function routeParam(value: string | string[] | undefined) {
 paymentRoutes.post("/create", requireAuth, async (req, res, next) => {
   try {
     const body = z.object({
-      provider: z.enum(["paytm", "phonepe"]),
+      provider: z.enum(["paytm", "phonepe", "razorpay"]),
       orderId: z.string().uuid(),
       amountPaise: z.number().int().positive()
     }).parse(req.body);
 
-    res.status(201).json(await createPayment(body.provider, body.orderId, body.amountPaise));
+    res.status(201).json(await createPayment(body.provider as PaymentProvider, body.orderId, body.amountPaise));
+  } catch (error) {
+    next(error);
+  }
+});
+
+paymentRoutes.post("/razorpay/callback", async (req, res, next) => {
+  try {
+    const transactionId = req.body.payload?.order?.entity?.receipt ?? req.body.receipt ?? req.body.order_id;
+    const status = req.body.event ?? req.body.status ?? "unknown";
+    await recordPaymentCallback("razorpay", transactionId, status, req.body);
+    res.json({ ok: true });
   } catch (error) {
     next(error);
   }

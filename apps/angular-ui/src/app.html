@@ -42,6 +42,7 @@
       <button [disabled]="!token()" (click)="createDemoOrder()">Create Demo Order</button>
       <button [disabled]="!orderId()" (click)="loadOrderDetails()">Status Updates</button>
       <button [disabled]="!orderId()" (click)="startPayment('phonepe')">PhonePe</button>
+      <button [disabled]="!orderId()" (click)="startPayment('razorpay')">Razorpay</button>
       <button [disabled]="!orderId()" (click)="startPayment('paytm')">Paytm</button>
       <button [disabled]="!token()" (click)="enablePushNotifications()">Enable Push</button>
       <button [disabled]="!token()" (click)="sendTestNotification()">Test Push</button>
@@ -749,6 +750,21 @@
 
         <h3>Driver Load Balancing</h3>
         <button (click)="loadDriverLoad()">Refresh Driver Load</button>
+        <div class="grid">
+          <label>
+            Incentive Title
+            <input [(ngModel)]="incentiveTitle">
+          </label>
+          <label>
+            Target Deliveries
+            <input type="number" [(ngModel)]="incentiveTargetDeliveries">
+          </label>
+          <label>
+            Reward Paise
+            <input type="number" [(ngModel)]="incentiveRewardPaise">
+          </label>
+          <button (click)="createIncentive()">Create Incentive</button>
+        </div>
         <div class="table">
           <div class="row load-row head">
             <span>Driver</span>
@@ -880,6 +896,107 @@
               <span>{{ prediction.hour_start }}</span>
             </div>
           }
+        </div>
+
+        <h3>Zones, Offers & Campaigns</h3>
+        <div class="grid">
+          <label>
+            Zone Name
+            <input [(ngModel)]="zoneName">
+          </label>
+          <label>
+            City
+            <input [(ngModel)]="zoneCity">
+          </label>
+          <label>
+            Zone Latitude
+            <input type="number" [(ngModel)]="zoneLat">
+          </label>
+          <label>
+            Zone Longitude
+            <input type="number" [(ngModel)]="zoneLng">
+          </label>
+          <label>
+            Radius KM
+            <input type="number" [(ngModel)]="zoneRadiusKm">
+          </label>
+          <label>
+            SLA Minutes
+            <input type="number" [(ngModel)]="zoneSlaMinutes">
+          </label>
+          <button (click)="createZone()">Create Zone</button>
+          <label>
+            Offer Code
+            <input [(ngModel)]="offerCode">
+          </label>
+          <label>
+            Offer Title
+            <input [(ngModel)]="offerTitle">
+          </label>
+          <label>
+            Discount Paise
+            <input type="number" [(ngModel)]="offerDiscountValue">
+          </label>
+          <button (click)="createOffer()">Create Offer</button>
+          <label>
+            Campaign
+            <input [(ngModel)]="campaignName">
+          </label>
+          <label>
+            Campaign Channel
+            <select [(ngModel)]="campaignChannel">
+              <option value="push">Push</option>
+              <option value="email">Email</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="ads">Ads</option>
+            </select>
+          </label>
+          <label>
+            Budget Paise
+            <input type="number" [(ngModel)]="campaignBudgetPaise">
+          </label>
+          <label>
+            AI Creative
+            <input [(ngModel)]="campaignCreative">
+          </label>
+          <button (click)="createCampaign()">Create Campaign</button>
+        </div>
+
+        <div class="metrics">
+          <article><span>Zones</span><strong>{{ zones().length }}</strong></article>
+          <article><span>Offers</span><strong>{{ offers().length }}</strong></article>
+          <article><span>Campaigns</span><strong>{{ campaigns().length }}</strong></article>
+          <article><span>Incentives</span><strong>{{ driverIncentives().length }}</strong></article>
+        </div>
+
+        <h3>Support & Reviews</h3>
+        <div class="grid">
+          <label>
+            Support Category
+            <input [(ngModel)]="supportCategory">
+          </label>
+          <label>
+            Support Subject
+            <input [(ngModel)]="supportSubject">
+          </label>
+          <label>
+            Support Message
+            <input [(ngModel)]="supportMessage">
+          </label>
+          <button (click)="submitSupportTicket()">Create Support Ticket</button>
+          <label>
+            Review Restaurant ID
+            <input [(ngModel)]="reviewRestaurantId">
+          </label>
+          <label>
+            Review Rating
+            <input type="number" min="1" max="5" [(ngModel)]="reviewRating">
+          </label>
+          <label>
+            Review Comment
+            <input [(ngModel)]="reviewComment">
+          </label>
+          <button (click)="submitReview()">Submit Review</button>
         </div>
 
         <h3>Payout System</h3>

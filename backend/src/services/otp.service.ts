@@ -12,6 +12,13 @@ export async function createOtp(phone: string) {
   );
 
   const sms = await sendOtpSms(phone, code);
+  await query(
+    `insert into integration_events (provider, event_type, status, payload)
+     values ('azure-whatsapp', 'otp-fallback-ready', 'queued', $1::jsonb),
+            ('missed-call', 'otp-primary-ready', 'queued', $1::jsonb)
+     on conflict do nothing`,
+    [JSON.stringify({ phoneMasked: phone.slice(-4), channelStrategy: "missed-call-primary-whatsapp-fallback-sms-last" })]
+  );
 
   if (sms.provider === "dev") {
     return { sent: true, devCode: code };

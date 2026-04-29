@@ -4,7 +4,9 @@ import { v4 as uuid } from "uuid";
 import { config } from "../config";
 import { query } from "../db";
 
-export async function createPayment(provider: "paytm" | "phonepe", orderId: string, amountPaise: number) {
+export type PaymentProvider = "paytm" | "phonepe" | "razorpay";
+
+export async function createPayment(provider: PaymentProvider, orderId: string, amountPaise: number) {
   const transactionId = uuid();
 
   await query(
@@ -15,6 +17,9 @@ export async function createPayment(provider: "paytm" | "phonepe", orderId: stri
 
   if (provider === "phonepe") {
     return createPhonePePayment(transactionId, amountPaise);
+  }
+  if (provider === "razorpay") {
+    return createRazorpayPayment(transactionId, amountPaise);
   }
 
   return createPaytmPayment(transactionId, amountPaise);
@@ -62,6 +67,25 @@ async function createPhonePePayment(transactionId: string, amountPaise: number) 
     request: { request: encoded },
     headers: { "X-VERIFY": checksum },
     note: "POST request to PhonePe pay endpoint when live credentials are configured."
+  };
+}
+
+async function createRazorpayPayment(transactionId: string, amountPaise: number) {
+  const payload = {
+    amount: amountPaise,
+    currency: "INR",
+    receipt: transactionId,
+    notes: { platform: "AmberKitchen" },
+    callbackUrl: config.razorpay.callbackUrl
+  };
+
+  const auth = Buffer.from(`${config.razorpay.keyId}:${config.razorpay.keySecret}`).toString("base64");
+  return {
+    provider: "razorpay",
+    transactionId,
+    payload,
+    headers: { Authorization: `Basic ${auth}` },
+    note: "POST this payload to Razorpay Orders API when live credentials are configured."
   };
 }
 

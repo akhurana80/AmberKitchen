@@ -14,6 +14,7 @@ import { deliveryAdminRoutes } from "./routes/delivery-admin.routes";
 import { driverOnboardingRoutes } from "./routes/driver-onboarding.routes";
 import { walletRoutes } from "./routes/wallet.routes";
 import { operationsRoutes } from "./routes/operations.routes";
+import { marketplaceRoutes } from "./routes/marketplace.routes";
 import { attachRealtime } from "./realtime";
 
 const app = express();
@@ -37,6 +38,7 @@ app.use("/api/delivery-admin", deliveryAdminRoutes);
 app.use("/api/driver-onboarding", driverOnboardingRoutes);
 app.use("/api/wallet", walletRoutes);
 app.use("/api/operations", operationsRoutes);
+app.use("/api/marketplace", marketplaceRoutes);
 
 const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   const status = error.name === "ZodError" ? 400 : 500;
