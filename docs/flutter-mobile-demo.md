@@ -12,7 +12,7 @@ The Flutter app in `apps/flutter-mobile` is now the production customer app for 
 - Persistent same-restaurant cart with quantity controls, item modifiers, coupon application, taxes/fees, delivery fee, address selection, and final checkout review
 - Checkout from real backend menu data with backend-authoritative pricing
 - Edit order before restaurant confirmation
-- PhonePe, Paytm, and Razorpay payment handoff
+- PhonePe, Paytm, and Razorpay payment method selection with deep-link return handling, pending/success/failure states, retry, and refund status display
 - Live order tracking with Socket.IO plus ETA polling fallback
 - Google Maps route display and external navigation
 - Driver call button when assigned
@@ -36,4 +36,4 @@ For Android emulator, use `http://10.0.2.2:4000` for a local backend. For iOS si
 
 ## Store Readiness
 
-The repo contains native iOS and Android Flutter scaffolds. Remaining manual release steps are provider and store setup: Android SDK/Play signing, full Xcode/CocoaPods/Apple signing, Firebase/APNs push credentials, Google OAuth clients, Google Maps keys, and payment gateway production credentials on the Azure backend.
+The repo contains native iOS and Android Flutter scaffolds. Remaining manual release steps are provider and store setup: Android SDK/Play signing, full Xcode/CocoaPods/Apple signing, Firebase/APNs push credentials, Google OAuth clients, Google Maps keys, payment gateway production credentials on the Azure backend, and provider return URL registration for `amberkitchen://payment-callback`.

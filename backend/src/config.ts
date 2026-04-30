@@ -17,20 +17,24 @@ export const config = {
     mid: process.env.PAYTM_MID ?? "",
     merchantKey: process.env.PAYTM_MERCHANT_KEY ?? "",
     website: process.env.PAYTM_WEBSITE ?? "WEBSTAGING",
-    callbackUrl: process.env.PAYTM_CALLBACK_URL ?? ""
+    callbackUrl: process.env.PAYTM_CALLBACK_URL ?? "",
+    paymentUrl: process.env.PAYTM_PAYMENT_URL ?? ""
   },
   phonePe: {
     merchantId: process.env.PHONEPE_MERCHANT_ID ?? "",
     saltKey: process.env.PHONEPE_SALT_KEY ?? "",
     saltIndex: process.env.PHONEPE_SALT_INDEX ?? "1",
-    callbackUrl: process.env.PHONEPE_CALLBACK_URL ?? ""
+    callbackUrl: process.env.PHONEPE_CALLBACK_URL ?? "",
+    paymentUrl: process.env.PHONEPE_PAYMENT_URL ?? ""
   },
   razorpay: {
     keyId: process.env.RAZORPAY_KEY_ID ?? "",
     keySecret: process.env.RAZORPAY_KEY_SECRET ?? "",
     callbackUrl: process.env.RAZORPAY_CALLBACK_URL ?? "",
+    checkoutUrl: process.env.RAZORPAY_CHECKOUT_URL ?? "",
     webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET ?? ""
   },
+  mobilePaymentReturnUrl: process.env.MOBILE_PAYMENT_RETURN_URL ?? "amberkitchen://payment-callback",
   fcmServiceAccountJson: process.env.FCM_SERVICE_ACCOUNT_JSON ?? "{}",
   azure: {
     communicationConnectionString: process.env.AZURE_COMMUNICATION_CONNECTION_STRING ?? "",

@@ -11,28 +11,59 @@ export async function createPayment(provider: PaymentProvider, orderId: string, 
 
   await query(
     `insert into payments (id, order_id, provider, amount_paise, status)
-     values ($1, $2, $3, $4, 'created')`,
+     values ($1, $2, $3, $4, 'pending')`,
     [transactionId, orderId, provider, amountPaise]
   );
 
   if (provider === "phonepe") {
-    return createPhonePePayment(transactionId, amountPaise);
+    return createPhonePePayment(transactionId, orderId, amountPaise);
   }
   if (provider === "razorpay") {
-    return createRazorpayPayment(transactionId, amountPaise);
+    return createRazorpayPayment(transactionId, orderId, amountPaise);
   }
 
-  return createPaytmPayment(transactionId, amountPaise);
+  return createPaytmPayment(transactionId, orderId, amountPaise);
 }
 
-async function createPaytmPayment(transactionId: string, amountPaise: number) {
+function appendQuery(url: string, params: Record<string, string>) {
+  if (!url) {
+    return "";
+  }
+  const parsed = new URL(url);
+  for (const [key, value] of Object.entries(params)) {
+    parsed.searchParams.set(key, value);
+  }
+  return parsed.toString();
+}
+
+function paymentReturnUrl(provider: PaymentProvider, transactionId: string, orderId: string, status = "pending") {
+  return appendQuery(config.mobilePaymentReturnUrl, {
+    provider,
+    transactionId,
+    orderId,
+    status
+  });
+}
+
+function configuredLaunchUrl(provider: PaymentProvider, transactionId: string, orderId: string) {
+  const url = provider === "phonepe"
+    ? config.phonePe.paymentUrl
+    : provider === "razorpay"
+      ? config.razorpay.checkoutUrl
+      : config.paytm.paymentUrl;
+  return appendQuery(url, { transactionId, orderId });
+}
+
+async function createPaytmPayment(transactionId: string, orderId: string, amountPaise: number) {
   const amount = (amountPaise / 100).toFixed(2);
+  const returnUrl = paymentReturnUrl("paytm", transactionId, orderId);
   const body = {
     requestType: "Payment",
     mid: config.paytm.mid,
     websiteName: config.paytm.website,
     orderId: transactionId,
     callbackUrl: config.paytm.callbackUrl,
+    returnUrl,
     txnAmount: { value: amount, currency: "INR" },
     userInfo: { custId: "amber-customer" }
   };
@@ -40,19 +71,27 @@ async function createPaytmPayment(transactionId: string, amountPaise: number) {
   return {
     provider: "paytm",
     transactionId,
+    orderId,
+    status: "pending",
+    amountPaise,
     amount,
+    redirectUrl: configuredLaunchUrl("paytm", transactionId, orderId) || undefined,
+    callbackUrl: config.paytm.callbackUrl,
+    returnUrl,
     payload: body,
     note: "Send this payload to Paytm Initiate Transaction API after adding checksum with merchant key."
   };
 }
 
-async function createPhonePePayment(transactionId: string, amountPaise: number) {
+async function createPhonePePayment(transactionId: string, orderId: string, amountPaise: number) {
+  const returnUrl = paymentReturnUrl("phonepe", transactionId, orderId);
   const payload = {
     merchantId: config.phonePe.merchantId,
     merchantTransactionId: transactionId,
     merchantUserId: "amber-customer",
     amount: amountPaise,
-    redirectMode: "POST",
+    redirectMode: "REDIRECT",
+    redirectUrl: returnUrl,
     callbackUrl: config.phonePe.callbackUrl,
     paymentInstrument: { type: "PAY_PAGE" }
   };
@@ -64,25 +103,39 @@ async function createPhonePePayment(transactionId: string, amountPaise: number) 
   return {
     provider: "phonepe",
     transactionId,
+    orderId,
+    status: "pending",
+    amountPaise,
+    redirectUrl: configuredLaunchUrl("phonepe", transactionId, orderId) || undefined,
+    callbackUrl: config.phonePe.callbackUrl,
+    returnUrl,
     request: { request: encoded },
     headers: { "X-VERIFY": checksum },
     note: "POST request to PhonePe pay endpoint when live credentials are configured."
   };
 }
 
-async function createRazorpayPayment(transactionId: string, amountPaise: number) {
+async function createRazorpayPayment(transactionId: string, orderId: string, amountPaise: number) {
+  const returnUrl = paymentReturnUrl("razorpay", transactionId, orderId);
   const payload = {
     amount: amountPaise,
     currency: "INR",
     receipt: transactionId,
     notes: { platform: "AmberKitchen" },
-    callbackUrl: config.razorpay.callbackUrl
+    callbackUrl: config.razorpay.callbackUrl,
+    returnUrl
   };
 
   const auth = Buffer.from(`${config.razorpay.keyId}:${config.razorpay.keySecret}`).toString("base64");
   return {
     provider: "razorpay",
     transactionId,
+    orderId,
+    status: "pending",
+    amountPaise,
+    redirectUrl: configuredLaunchUrl("razorpay", transactionId, orderId) || undefined,
+    callbackUrl: config.razorpay.callbackUrl,
+    returnUrl,
     payload,
     headers: { Authorization: `Basic ${auth}` },
     note: "POST this payload to Razorpay Orders API when live credentials are configured."

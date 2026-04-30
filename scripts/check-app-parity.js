@@ -160,6 +160,16 @@ const requiredFlutterCartFeatures = [
   "Final checkout review"
 ];
 
+const requiredFlutterPaymentFeatures = [
+  "package:app_links/app_links.dart",
+  "handlePaymentCallback",
+  "refreshPaymentStatus",
+  "class PaymentStateBanner",
+  "class RefundStatusSection",
+  "Retry payment",
+  "paymentStage"
+];
+
 function read(path) {
   return fs.readFileSync(path, "utf8");
 }
@@ -249,6 +259,12 @@ for (const screen of requiredFlutterCustomerScreens) {
 for (const feature of requiredFlutterCartFeatures) {
   if (!sources.flutterUi.includes(feature)) {
     flutterProductionIssues.push(`Flutter customer cart is missing ${feature}`);
+  }
+}
+
+for (const feature of requiredFlutterPaymentFeatures) {
+  if (!sources.flutterUi.includes(feature)) {
+    flutterProductionIssues.push(`Flutter customer payment UX is missing ${feature}`);
   }
 }
 

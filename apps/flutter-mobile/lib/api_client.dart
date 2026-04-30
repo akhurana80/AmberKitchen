@@ -207,13 +207,20 @@ class AmberApiClient {
     return PaymentStart.fromJson(Map<String, dynamic>.from(response as Map));
   }
 
-  Future<void> requestRefund(String orderId, String reason,
+  Future<PaymentStatusSnapshot> paymentStatus(String orderId) async {
+    final response = await _get('/api/v1/payments/orders/$orderId/status');
+    return PaymentStatusSnapshot.fromJson(
+        Map<String, dynamic>.from(response as Map));
+  }
+
+  Future<RefundRecord> requestRefund(String orderId, String reason,
       {int? amountPaise}) async {
-    await _post('/api/v1/payments/refunds', {
+    final response = await _post('/api/v1/payments/refunds', {
       'orderId': orderId,
       'reason': reason,
       if (amountPaise != null) 'amountPaise': amountPaise,
     });
+    return RefundRecord.fromJson(Map<String, dynamic>.from(response as Map));
   }
 
   Future<OrderEta> orderEta(String orderId) async {
@@ -648,27 +655,158 @@ class OrderHistoryEvent {
 }
 
 class PaymentStart {
-  PaymentStart(
-      {required this.provider,
-      this.redirectUrl,
-      this.paymentUrl,
-      this.transactionId});
+  PaymentStart({
+    required this.provider,
+    this.status,
+    this.orderId,
+    this.amountPaise,
+    this.redirectUrl,
+    this.paymentUrl,
+    this.deepLinkUrl,
+    this.intentUrl,
+    this.callbackUrl,
+    this.returnUrl,
+    this.transactionId,
+    this.note,
+  });
 
   final String provider;
+  final String? status;
+  final String? orderId;
+  final int? amountPaise;
   final String? redirectUrl;
   final String? paymentUrl;
+  final String? deepLinkUrl;
+  final String? intentUrl;
+  final String? callbackUrl;
+  final String? returnUrl;
   final String? transactionId;
+  final String? note;
 
-  String? get launchUrl => redirectUrl ?? paymentUrl;
+  String? get launchUrl =>
+      deepLinkUrl ?? intentUrl ?? redirectUrl ?? paymentUrl;
 
   factory PaymentStart.fromJson(Map<String, dynamic> json) => PaymentStart(
         provider: valueAsString(json['provider']),
+        status: json['status']?.toString(),
+        orderId: json['orderId']?.toString() ?? json['order_id']?.toString(),
+        amountPaise: json['amountPaise'] == null && json['amount_paise'] == null
+            ? null
+            : valueAsInt(json['amountPaise'] ?? json['amount_paise']),
         redirectUrl:
             json['redirectUrl']?.toString() ?? json['redirect_url']?.toString(),
         paymentUrl:
             json['paymentUrl']?.toString() ?? json['payment_url']?.toString(),
+        deepLinkUrl: json['deepLinkUrl']?.toString() ??
+            json['deep_link_url']?.toString(),
+        intentUrl:
+            json['intentUrl']?.toString() ?? json['intent_url']?.toString(),
+        callbackUrl:
+            json['callbackUrl']?.toString() ?? json['callback_url']?.toString(),
+        returnUrl:
+            json['returnUrl']?.toString() ?? json['return_url']?.toString(),
         transactionId: json['transactionId']?.toString() ??
             json['transaction_id']?.toString(),
+        note: json['note']?.toString(),
+      );
+}
+
+class PaymentStatusSnapshot {
+  const PaymentStatusSnapshot({
+    required this.orderId,
+    required this.state,
+    this.payment,
+    this.refunds = const [],
+  });
+
+  final String orderId;
+  final String state;
+  final PaymentRecord? payment;
+  final List<RefundRecord> refunds;
+
+  bool get isPending => state == 'pending';
+  bool get isSuccess => state == 'success';
+  bool get isFailure => state == 'failure';
+  bool get isNotStarted => state == 'not_started';
+
+  factory PaymentStatusSnapshot.fromJson(Map<String, dynamic> json) =>
+      PaymentStatusSnapshot(
+        orderId: valueAsString(json['orderId'] ?? json['order_id']),
+        state: valueAsString(json['state']).isEmpty
+            ? 'not_started'
+            : valueAsString(json['state']),
+        payment: json['payment'] == null
+            ? null
+            : PaymentRecord.fromJson(
+                Map<String, dynamic>.from(json['payment'] as Map)),
+        refunds: ((json['refunds'] as List?) ?? const [])
+            .map((item) =>
+                RefundRecord.fromJson(Map<String, dynamic>.from(item as Map)))
+            .toList(),
+      );
+}
+
+class PaymentRecord {
+  const PaymentRecord({
+    required this.id,
+    required this.provider,
+    required this.amountPaise,
+    required this.status,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String id;
+  final String provider;
+  final int amountPaise;
+  final String status;
+  final String? createdAt;
+  final String? updatedAt;
+
+  factory PaymentRecord.fromJson(Map<String, dynamic> json) => PaymentRecord(
+        id: valueAsString(json['id']),
+        provider: valueAsString(json['provider']),
+        amountPaise: valueAsInt(json['amount_paise'] ?? json['amountPaise']),
+        status: valueAsString(json['status']),
+        createdAt:
+            json['created_at']?.toString() ?? json['createdAt']?.toString(),
+        updatedAt:
+            json['updated_at']?.toString() ?? json['updatedAt']?.toString(),
+      );
+}
+
+class RefundRecord {
+  const RefundRecord({
+    required this.id,
+    required this.provider,
+    required this.amountPaise,
+    required this.status,
+    this.reason,
+    this.note,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String id;
+  final String provider;
+  final int amountPaise;
+  final String status;
+  final String? reason;
+  final String? note;
+  final String? createdAt;
+  final String? updatedAt;
+
+  factory RefundRecord.fromJson(Map<String, dynamic> json) => RefundRecord(
+        id: valueAsString(json['id']),
+        provider: valueAsString(json['provider']),
+        amountPaise: valueAsInt(json['amount_paise'] ?? json['amountPaise']),
+        status: valueAsString(json['status']),
+        reason: json['reason']?.toString(),
+        note: json['note']?.toString(),
+        createdAt:
+            json['created_at']?.toString() ?? json['createdAt']?.toString(),
+        updatedAt:
+            json['updated_at']?.toString() ?? json['updatedAt']?.toString(),
       );
 }
 

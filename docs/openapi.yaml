@@ -91,6 +91,16 @@ paths:
       responses:
         "201":
           description: Payment created.
+  /payments/orders/{id}/status:
+    get:
+      summary: Get customer payment and refund status for an order.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderId"
+      responses:
+        "200":
+          description: Payment and refund status returned.
   /payments/paytm/callback:
     post:
       summary: Paytm payment webhook.

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:app_links/app_links.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -67,7 +68,7 @@ class _AmberKitchenFlutterAppState extends State<AmberKitchenFlutterApp> {
   }
 }
 
-class CustomerAppState extends ChangeNotifier {
+class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
   CustomerAppState({required this.api, required this.storage});
 
   static const tokenStorageKey = 'amberkitchen.customer.token';
@@ -76,6 +77,7 @@ class CustomerAppState extends ChangeNotifier {
 
   final AmberApiClient api;
   final FlutterSecureStorage storage;
+  final AppLinks paymentLinks = AppLinks();
   final filters = RestaurantFilters();
   final cart = CustomerCart();
 
@@ -101,8 +103,13 @@ class CustomerAppState extends ChangeNotifier {
   GeoPoint? liveDriverLocation;
   String trackingStatus = 'Tracking starts after checkout.';
   String paymentStatus = '';
+  String paymentStage = 'not_started';
+  PaymentStart? activePaymentStart;
+  PaymentStatusSnapshot? paymentSnapshot;
   io.Socket? socket;
   Timer? trackingTimer;
+  Timer? paymentStatusTimer;
+  StreamSubscription<Uri>? paymentLinkSubscription;
 
   bool get signedIn => api.token.isNotEmpty;
   int get cartTotalPaise => cartPricing.totalPaise;
@@ -280,6 +287,7 @@ class CustomerAppState extends ChangeNotifier {
       return;
     }
 
+    WidgetsBinding.instance.addObserver(this);
     await _initializeGoogleSignIn();
     await _restoreCart();
     final savedToken = await storage.read(key: tokenStorageKey);
@@ -287,6 +295,7 @@ class CustomerAppState extends ChangeNotifier {
     if (savedToken != null && savedToken.isNotEmpty) {
       api.token = savedToken;
       await refreshCustomerData(orderId: savedOrderId);
+      await _initializePaymentLinks();
     }
     initialized = true;
     notifyListeners();
@@ -305,6 +314,88 @@ class CustomerAppState extends ChangeNotifier {
     }
   }
 
+  Future<void> _initializePaymentLinks() async {
+    if (paymentLinkSubscription != null || !signedIn) {
+      return;
+    }
+    try {
+      final initialLink = await paymentLinks.getInitialLink();
+      if (initialLink != null) {
+        await handlePaymentCallback(initialLink);
+      }
+      paymentLinkSubscription = paymentLinks.uriLinkStream.listen(
+        (uri) => unawaited(handlePaymentCallback(uri)),
+        onError: (_) {
+          paymentStatus = 'Payment return link could not be read.';
+          notifyListeners();
+        },
+      );
+    } catch (_) {
+      paymentStatus =
+          'Payment return links need Android and iOS URL scheme setup.';
+      notifyListeners();
+    }
+  }
+
+  bool _isPaymentCallback(Uri uri) {
+    return uri.scheme == 'amberkitchen' &&
+        (uri.host == 'payment-callback' || uri.path.contains('payment'));
+  }
+
+  bool _isPaymentSuccess(String status) {
+    return {
+      'paid',
+      'success',
+      'txn_success',
+      'payment_success',
+      'completed',
+      'captured',
+      'authorized',
+      'order.paid',
+      'payment.captured',
+      'payment.authorized',
+    }.contains(status);
+  }
+
+  bool _isPaymentFailure(String status) {
+    return {
+      'failed',
+      'failure',
+      'txn_failure',
+      'payment_failed',
+      'payment.failed',
+      'declined',
+      'cancelled',
+      'canceled',
+      'expired',
+      'timed_out',
+      'user_dropped',
+    }.contains(status);
+  }
+
+  Future<void> handlePaymentCallback(Uri uri) async {
+    if (!_isPaymentCallback(uri)) {
+      return;
+    }
+    final status = uri.queryParameters['status']?.toLowerCase();
+    if (status != null && _isPaymentSuccess(status)) {
+      paymentStage = 'success';
+      paymentStatus = 'Payment confirmed by gateway return.';
+    } else if (status != null && _isPaymentFailure(status)) {
+      paymentStage = 'failure';
+      paymentStatus = 'Payment was not completed. You can retry.';
+    } else {
+      paymentStage = 'pending';
+      paymentStatus = 'Returned from payment gateway. Checking status...';
+    }
+    final orderId = uri.queryParameters['orderId'] ?? activeOrder?.id;
+    if (orderId != null && orderId.isNotEmpty) {
+      await refreshPaymentStatus(orderId: orderId, silent: true);
+    }
+    tabIndex = 3;
+    notifyListeners();
+  }
+
   Future<void> requestOtp(String phone) async {
     await guard('OTP sent', () => api.requestOtp(phone.trim()));
   }
@@ -315,6 +406,7 @@ class CustomerAppState extends ChangeNotifier {
     if (session?.token != null) {
       await _persistToken(session!.token!);
       await refreshCustomerData();
+      await _initializePaymentLinks();
     }
   }
 
@@ -334,6 +426,7 @@ class CustomerAppState extends ChangeNotifier {
       if (session.token != null) {
         await _persistToken(session.token!);
         await refreshCustomerData();
+        await _initializePaymentLinks();
       }
       return session;
     });
@@ -363,10 +456,17 @@ class CustomerAppState extends ChangeNotifier {
   Future<void> logout() async {
     socket?.dispose();
     trackingTimer?.cancel();
+    paymentStatusTimer?.cancel();
+    await paymentLinkSubscription?.cancel();
+    paymentLinkSubscription = null;
     api.token = '';
     cart.clear();
     activeOrder = null;
     activeEta = null;
+    activePaymentStart = null;
+    paymentSnapshot = null;
+    paymentStage = 'not_started';
+    paymentStatus = '';
     orders = [];
     menuItems = [];
     trending = [];
@@ -584,6 +684,9 @@ class CustomerAppState extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    paymentStage = 'pending';
+    paymentStatus = 'Creating secure payment request...';
+    notifyListeners();
     final payment = await guard<PaymentStart>('Payment initialized', () {
       return api.createPayment(
         provider: selectedPaymentProvider,
@@ -591,18 +694,86 @@ class CustomerAppState extends ChangeNotifier {
         amountPaise: activeOrder!.totalPaise,
       );
     });
+    activePaymentStart = payment;
     final url = payment?.launchUrl;
     if (url == null || url.isEmpty) {
-      paymentStatus = 'Payment created. Gateway did not return a redirect URL.';
+      paymentStage = 'pending';
+      paymentStatus =
+          'Payment request is ready. Open it with the configured provider SDK or gateway URL.';
+      _startPaymentStatusPolling(activeOrder!.id);
       notifyListeners();
       return;
     }
     final launched =
         await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    paymentStatus = launched
-        ? 'Payment opened in the secure gateway.'
-        : 'Could not open the payment gateway.';
+    if (launched) {
+      paymentStage = 'pending';
+      paymentStatus = 'Waiting for secure gateway confirmation.';
+      _startPaymentStatusPolling(activeOrder!.id);
+    } else {
+      paymentStage = 'failure';
+      paymentStatus = 'Could not open the payment gateway. Please retry.';
+    }
     notifyListeners();
+  }
+
+  Future<void> refreshPaymentStatus(
+      {String? orderId, bool silent = false}) async {
+    final targetOrderId = orderId ?? activeOrder?.id;
+    if (!signedIn || targetOrderId == null || targetOrderId.isEmpty) {
+      return;
+    }
+    if (!silent) {
+      busy = true;
+      error = null;
+      notifyListeners();
+    }
+    try {
+      final snapshot = await api.paymentStatus(targetOrderId);
+      _applyPaymentSnapshot(snapshot);
+      if (!silent) {
+        notice = 'Payment status refreshed.';
+      }
+    } on ApiException catch (exception) {
+      if (!silent) {
+        offline = exception.offline;
+        error = exception.message;
+      }
+    } catch (exception) {
+      if (!silent) {
+        error = exception.toString();
+      }
+    } finally {
+      if (!silent) {
+        busy = false;
+      }
+      notifyListeners();
+    }
+  }
+
+  void _applyPaymentSnapshot(PaymentStatusSnapshot snapshot) {
+    paymentSnapshot = snapshot;
+    paymentStage = snapshot.state;
+    if (snapshot.isSuccess) {
+      paymentStatus = 'Payment successful.';
+      paymentStatusTimer?.cancel();
+    } else if (snapshot.isFailure) {
+      paymentStatus = 'Payment failed or expired. Please retry.';
+      paymentStatusTimer?.cancel();
+    } else if (snapshot.isPending) {
+      paymentStatus = 'Payment pending. Waiting for gateway confirmation.';
+    } else {
+      paymentStatus = 'No payment has been started for this order.';
+      paymentStatusTimer?.cancel();
+    }
+  }
+
+  void _startPaymentStatusPolling(String orderId) {
+    paymentStatusTimer?.cancel();
+    paymentStatusTimer = Timer.periodic(
+      const Duration(seconds: 8),
+      (_) => unawaited(refreshPaymentStatus(orderId: orderId, silent: true)),
+    );
   }
 
   Future<void> loadOrders() async {
@@ -624,6 +795,7 @@ class CustomerAppState extends ChangeNotifier {
       activeEta = await api.orderEta(orderId);
       etaEvents = await api.orderEtaLoop(orderId);
       await storage.write(key: lastOrderStorageKey, value: orderId);
+      await refreshPaymentStatus(orderId: orderId, silent: true);
       connectTracking(orderId);
       return true;
     }, quietSuccess: true);
@@ -706,10 +878,13 @@ class CustomerAppState extends ChangeNotifier {
     if (activeOrder == null) {
       return;
     }
-    await guard(
+    final refund = await guard<RefundRecord>(
         'Refund request submitted',
         () => api.requestRefund(activeOrder!.id, reason,
             amountPaise: amountPaise));
+    if (refund != null) {
+      await refreshPaymentStatus(orderId: activeOrder!.id, silent: true);
+    }
   }
 
   Future<void> openNavigation() async {
@@ -806,9 +981,19 @@ class CustomerAppState extends ChangeNotifier {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && paymentStage == 'pending') {
+      unawaited(refreshPaymentStatus(silent: true));
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     socket?.dispose();
     trackingTimer?.cancel();
+    paymentStatusTimer?.cancel();
+    unawaited(paymentLinkSubscription?.cancel() ?? Future<void>.value());
     super.dispose();
   }
 }
@@ -1992,6 +2177,8 @@ class PaymentStatusScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final order = state.activeOrder;
+    final snapshot = state.paymentSnapshot;
+    final payment = snapshot?.payment;
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2005,34 +2192,216 @@ class PaymentStatusScreen extends StatelessWidget {
           if (order == null)
             const Text('Place an order to start payment.')
           else ...[
+            PaymentStateBanner(stage: state.paymentStage),
+            const SizedBox(height: 12),
             SummaryRow(label: 'Order', value: shortId(order.id)),
             SummaryRow(
                 label: 'Amount', value: formatCurrency(order.totalPaise)),
-            SummaryRow(label: 'Status', value: titleCase(order.status)),
+            SummaryRow(
+                label: 'Payment',
+                value: payment == null
+                    ? titleCase(state.paymentStage)
+                    : titleCase(payment.status)),
+            if (payment != null) ...[
+              SummaryRow(label: 'Provider', value: titleCase(payment.provider)),
+              SummaryRow(label: 'Transaction', value: shortId(payment.id)),
+            ],
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: state.selectedPaymentProvider,
-              decoration: const InputDecoration(labelText: 'Payment provider'),
-              items: const [
-                DropdownMenuItem(value: 'phonepe', child: Text('PhonePe')),
-                DropdownMenuItem(value: 'paytm', child: Text('Paytm')),
-                DropdownMenuItem(value: 'razorpay', child: Text('Razorpay')),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final method in const [
+                  (
+                    provider: 'phonepe',
+                    label: 'PhonePe',
+                    icon: Icons.account_balance_wallet_outlined
+                  ),
+                  (
+                    provider: 'paytm',
+                    label: 'Paytm',
+                    icon: Icons.payments_outlined
+                  ),
+                  (
+                    provider: 'razorpay',
+                    label: 'Razorpay',
+                    icon: Icons.credit_card
+                  ),
+                ])
+                  PaymentMethodChip(
+                    provider: method.provider,
+                    label: method.label,
+                    icon: method.icon,
+                    selected: state.selectedPaymentProvider == method.provider,
+                    enabled: state.paymentStage != 'pending',
+                    onSelected: () => state.setPaymentProvider(method.provider),
+                  ),
               ],
-              onChanged: (value) =>
-                  state.setPaymentProvider(value ?? 'phonepe'),
             ),
             const SizedBox(height: 12),
-            FilledButton.icon(
-                onPressed: state.startPayment,
-                icon: const Icon(Icons.payment),
-                label: const Text('Pay or retry')),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                    onPressed: state.paymentStage == 'pending'
+                        ? null
+                        : state.startPayment,
+                    icon: Icon(state.paymentStage == 'failure'
+                        ? Icons.refresh
+                        : Icons.payment),
+                    label: Text(state.paymentStage == 'failure'
+                        ? 'Retry payment'
+                        : 'Pay securely')),
+                OutlinedButton.icon(
+                    onPressed: () => state.refreshPaymentStatus(),
+                    icon: const Icon(Icons.sync),
+                    label: const Text('Refresh')),
+              ],
+            ),
             if (state.paymentStatus.isNotEmpty)
               Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(state.paymentStatus)),
+            if (state.activePaymentStart?.returnUrl != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Return link ready for ${titleCase(state.activePaymentStart!.provider)}.',
+                ),
+              ),
+            const Divider(height: 24),
+            RefundStatusSection(snapshot: snapshot),
           ],
         ],
       ),
+    );
+  }
+}
+
+class PaymentStateBanner extends StatelessWidget {
+  const PaymentStateBanner({required this.stage, super.key});
+
+  final String stage;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = switch (stage) {
+      'success' => (
+          icon: Icons.check_circle_outline,
+          color: const Color(0xff065f46),
+          bg: const Color(0xffecfdf5),
+          title: 'Payment successful',
+          body: 'Your order payment is confirmed.'
+        ),
+      'failure' => (
+          icon: Icons.error_outline,
+          color: const Color(0xff9f1239),
+          bg: const Color(0xfffff1f2),
+          title: 'Payment failed',
+          body: 'No charge was confirmed. You can retry safely.'
+        ),
+      'pending' => (
+          icon: Icons.hourglass_top,
+          color: const Color(0xff854d0e),
+          bg: const Color(0xfffffbeb),
+          title: 'Payment pending',
+          body: 'Waiting for gateway confirmation.'
+        ),
+      _ => (
+          icon: Icons.payments_outlined,
+          color: const Color(0xff334155),
+          bg: const Color(0xfff1f5f9),
+          title: 'Payment not started',
+          body: 'Choose a method and continue.'
+        )
+    };
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: style.bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(style.icon, color: style.color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(style.title,
+                    style: TextStyle(
+                        color: style.color, fontWeight: FontWeight.w800)),
+                Text(style.body, style: TextStyle(color: style.color)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PaymentMethodChip extends StatelessWidget {
+  const PaymentMethodChip({
+    required this.provider,
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.enabled,
+    required this.onSelected,
+    super.key,
+  });
+
+  final String provider;
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      avatar: Icon(icon, size: 18),
+      label: Text(label),
+      selected: selected,
+      onSelected: enabled ? (_) => onSelected() : null,
+    );
+  }
+}
+
+class RefundStatusSection extends StatelessWidget {
+  const RefundStatusSection({required this.snapshot, super.key});
+
+  final PaymentStatusSnapshot? snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    final refunds = snapshot?.refunds ?? const <RefundRecord>[];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Refund status',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        if (refunds.isEmpty)
+          const Text('No refund requested for this order.')
+        else
+          ...refunds.map((refund) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.currency_rupee),
+                title: Text(
+                    '${formatCurrency(refund.amountPaise)} - ${titleCase(refund.status)}'),
+                subtitle: Text(refund.reason ?? 'Refund request'),
+                trailing: Text(titleCase(refund.provider)),
+              )),
+      ],
     );
   }
 }
