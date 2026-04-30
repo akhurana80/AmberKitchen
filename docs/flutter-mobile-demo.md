@@ -1,45 +1,38 @@
-# AmberKitchen Flutter Mobile Demo
+# AmberKitchen Flutter Customer App
 
-The Flutter app lives in `apps/flutter-mobile` and is designed for iPhone and Android.
+The Flutter app in `apps/flutter-mobile` is now the production customer app for iPhone and Android.
 
-## Feature Parity With Web
-- OTP login, Google login, role selection, push registration, and test push
-- Customer app: restaurant search, cuisine/diet/rating/distance/price filters, Google Places Delhi NCR, trending restaurants, ETA prediction, place/edit/cancel/refund/reorder, PhonePe, Paytm, Razorpay, live tracking map, ETA loop, reviews, support tickets, and route navigation
-- Driver app: signup, Aadhaar URL capture, OCR verification hook, selfie face verification hook, background check, available orders, accept order, status updates, live location, wallet, earnings, payout request, and incentives
-- Restaurant panel: onboarding, separate operations flow, menu add with photo URL, menu import with photos, order accept/reject, and earnings
-- Admin dashboard: users, restaurants, approvals, all orders, payment reports, platform analytics, delivery admin live tracking, driver assignment, driver load balancing, best-driver assignment, AI demand prediction, analytics jobs, demand prediction history, zones, offers, campaigns, driver incentives, driver onboarding approval, referrals, payouts, Azure Blob/OCR/Face checks, audit logs, and verification logs
+## Customer Features
 
-## Run Locally
-Flutter SDK is required on the machine.
+- Customer-only OTP and Google Sign-In
+- Secure persistent auth with `flutter_secure_storage`
+- Restaurant search with cuisine, veg/non-veg, rating, distance, and price sorting
+- Trending restaurants and customer offers
+- Same-restaurant cart with quantity controls
+- Checkout from real backend menu data
+- Edit order before restaurant confirmation
+- PhonePe, Paytm, and Razorpay payment handoff
+- Live order tracking with Socket.IO plus ETA polling fallback
+- Google Maps route display and external navigation
+- Driver call button when assigned
+- Cancel, refund, reorder, support, review, and push registration
+- Offline, timeout, loading, and configuration error states
 
-```bash
-npm run flutter:pub-get
-npm run flutter:ios
-npm run flutter:android
-```
+## Intentionally Not Exposed
 
-Use iOS simulator with:
+This Flutter app does not expose admin, delivery partner, or restaurant tools. Those remain in the Angular web app and React Native all-role operations app.
 
-```bash
-flutter run --dart-define=API_BASE_URL=http://localhost:4000
-```
-
-Use Android emulator with:
+## Run
 
 ```bash
-flutter run --dart-define=API_BASE_URL=http://10.0.2.2:4000
+cd apps/flutter-mobile
+GOOGLE_MAPS_API_KEY=your-google-maps-key flutter run \
+  --dart-define=API_BASE_URL=https://your-azure-backend.example.com \
+  --dart-define=GOOGLE_SERVER_CLIENT_ID=your-web-oauth-client-id
 ```
 
-Use a real phone with the deployed Azure backend URL or your computer LAN IP.
+For Android emulator, use `http://10.0.2.2:4000` for a local backend. For iOS simulator, use `http://localhost:4000`.
 
-## Demo Mode
-Open the `Demo` tab and tap `Run complete mobile demo`. It displays every major feature area in one walkthrough without needing provider credentials. The Customer, Driver, Restaurant, and Admin tabs also contain live API action buttons for connected backend testing.
+## Store Readiness
 
-## Native Project Generation
-If native folders are not present yet, run this inside `apps/flutter-mobile` after installing Flutter:
-
-```bash
-flutter create . --platforms=ios,android
-```
-
-Then add production app icons, signing, Google Maps keys, Firebase/APNs push credentials, and App Store/Play Store metadata.
+The repo contains native iOS and Android Flutter scaffolds. Remaining manual release steps are provider and store setup: Android SDK/Play signing, full Xcode/CocoaPods/Apple signing, Firebase/APNs push credentials, Google OAuth clients, Google Maps keys, and payment gateway production credentials on the Azure backend.

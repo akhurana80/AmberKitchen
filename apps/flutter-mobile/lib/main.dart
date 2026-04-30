@@ -1,335 +1,1447 @@
+import 'dart:async';
+
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:url_launcher/url_launcher.dart';
 
 import 'api_client.dart';
+
+const apiBaseUrl = String.fromEnvironment('API_BASE_URL');
+const googleClientId = String.fromEnvironment('GOOGLE_CLIENT_ID');
+const googleServerClientId = String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
 
 void main() {
   runApp(const AmberKitchenFlutterApp());
 }
 
-class AmberKitchenFlutterApp extends StatelessWidget {
+class AmberKitchenFlutterApp extends StatefulWidget {
   const AmberKitchenFlutterApp({super.key});
+
+  @override
+  State<AmberKitchenFlutterApp> createState() => _AmberKitchenFlutterAppState();
+}
+
+class _AmberKitchenFlutterAppState extends State<AmberKitchenFlutterApp> {
+  late final CustomerAppState appState;
+
+  @override
+  void initState() {
+    super.initState();
+    appState = CustomerAppState(
+      api: AmberApiClient(baseUrl: apiBaseUrl),
+      storage: const FlutterSecureStorage(),
+    );
+    unawaited(appState.initialize());
+  }
+
+  @override
+  void dispose() {
+    appState.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AmberKitchen Flutter',
+      title: 'AmberKitchen',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff0f766e)),
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xfff7f4ef),
+        inputDecorationTheme:
+            const InputDecorationTheme(border: OutlineInputBorder()),
       ),
-      home: const AmberKitchenHome(),
+      home: AnimatedBuilder(
+        animation: appState,
+        builder: (context, _) => CustomerShell(state: appState),
+      ),
     );
   }
 }
 
-class AmberKitchenHome extends StatefulWidget {
-  const AmberKitchenHome({super.key});
+class CustomerAppState extends ChangeNotifier {
+  CustomerAppState({required this.api, required this.storage});
 
-  @override
-  State<AmberKitchenHome> createState() => _AmberKitchenHomeState();
-}
+  static const tokenStorageKey = 'amberkitchen.customer.token';
+  static const lastOrderStorageKey = 'amberkitchen.customer.lastOrderId';
 
-class _AmberKitchenHomeState extends State<AmberKitchenHome> {
-  final api = AmberApiClient(baseUrl: const String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:4000'));
-  final phone = TextEditingController(text: '+919999000001');
-  final otp = TextEditingController();
-  final googleToken = TextEditingController();
-  String role = 'customer';
-  int tab = 0;
-  String notice = 'Flutter iOS/Android app ready. Use Demo to preview all features.';
-  String orderId = '';
-  String restaurantId = '00000000-0000-0000-0000-000000000001';
-  final demoEvents = <String>[];
+  final AmberApiClient api;
+  final FlutterSecureStorage storage;
+  final filters = RestaurantFilters();
+  final cart = CustomerCart();
 
-  static const delhi = LatLng(28.6139, 77.2090);
-  static const pickup = LatLng(28.6315, 77.2167);
-  static const dropoff = LatLng(28.5890, 77.2210);
+  bool initialized = false;
+  bool busy = false;
+  bool offline = false;
+  String? error;
+  String? notice;
+  String? configError;
+  int tabIndex = 0;
+  double? currentLat;
+  double? currentLng;
+  String deliveryAddress = '';
+  String selectedPaymentProvider = 'phonepe';
+  List<MenuSearchItem> menuItems = [];
+  List<TrendingRestaurant> trending = [];
+  List<Offer> offers = [];
+  List<OrderSummary> orders = [];
+  OrderDetails? activeOrder;
+  OrderEta? activeEta;
+  List<EtaEvent> etaEvents = [];
+  GeoPoint? liveDriverLocation;
+  String trackingStatus = 'Tracking starts after checkout.';
+  String paymentStatus = '';
+  io.Socket? socket;
+  Timer? trackingTimer;
 
-  Future<void> runApi(String label, Future<dynamic> Function() work) async {
-    setState(() => notice = '$label...');
+  bool get signedIn => api.token.isNotEmpty;
+  int get cartTotalPaise => cart.totalPaise;
+  bool get canCheckout =>
+      cart.lines.isNotEmpty &&
+      deliveryAddress.trim().length >= 5 &&
+      currentLat != null &&
+      currentLng != null;
+  bool get hasConfig => configError == null;
+
+  void selectTab(int index) {
+    tabIndex = index;
+    notifyListeners();
+  }
+
+  void setMinRating(double value) {
+    filters.minRating = value;
+    notifyListeners();
+  }
+
+  void setPaymentProvider(String value) {
+    selectedPaymentProvider = value;
+    notifyListeners();
+  }
+
+  Future<void> initialize() async {
+    if (api.baseUrl.trim().isEmpty) {
+      configError =
+          'Set API_BASE_URL at build time before releasing this customer app.';
+      initialized = true;
+      notifyListeners();
+      return;
+    }
+
+    await _initializeGoogleSignIn();
+    final savedToken = await storage.read(key: tokenStorageKey);
+    final savedOrderId = await storage.read(key: lastOrderStorageKey);
+    if (savedToken != null && savedToken.isNotEmpty) {
+      api.token = savedToken;
+      await refreshCustomerData(orderId: savedOrderId);
+    }
+    initialized = true;
+    notifyListeners();
+  }
+
+  Future<void> _initializeGoogleSignIn() async {
     try {
-      final result = await work();
-      if (result is Map<String, dynamic>) {
-        if (result['token'] is String) {
-          api.token = result['token'] as String;
-        }
-        if (result['id'] is String) {
-          orderId = result['id'] as String;
-        }
-      }
-      setState(() => notice = '$label complete.');
+      await GoogleSignIn.instance.initialize(
+        clientId: googleClientId.isEmpty ? null : googleClientId,
+        serverClientId:
+            googleServerClientId.isEmpty ? null : googleServerClientId,
+      );
     } catch (error) {
-      setState(() => notice = '$label failed: $error');
+      notice =
+          'Google Sign-In needs native OAuth configuration before release.';
     }
   }
 
-  void runFullDemo() {
-    const events = [
-      'OTP login and Google login',
-      'Restaurant search with cuisine, veg/non-veg, rating, distance, price sorting',
-      'Google Places Delhi NCR restaurant import',
-      'Trending restaurants and ETA prediction',
-      'Place order, edit before confirmation, cancel, refund, reorder',
-      'PhonePe, Paytm, and Razorpay payment start flows',
-      'Push notification registration and test push',
-      'Live tracking map, ETA loop, route navigation',
-      'Driver signup, Aadhaar URL upload, OCR, selfie face check, background check',
-      'Driver order acceptance, status updates, live location, wallet, earnings, payout request',
-      'Restaurant onboarding, separate panel, menu add/import with photos, accept/reject orders, earnings',
-      'Super admin dashboard, users, restaurant approvals, all orders, payment reports',
-      'Delivery admin live tracking, driver assignment, load balancing, best-driver assignment',
-      'AI demand prediction, analytics jobs, demand prediction history',
-      'Zones, offers, campaigns, driver incentives, reviews, support tickets',
-      'Azure Blob, Azure OCR, Azure Face checks, audit logs, verification monitoring',
-      'Admin payout approval',
-    ];
-    setState(() {
-      demoEvents
-        ..clear()
-        ..addAll(events);
-      notice = 'Demo loaded with every web feature represented on Flutter mobile.';
+  Future<void> requestOtp(String phone) async {
+    await guard('OTP sent', () => api.requestOtp(phone.trim()));
+  }
+
+  Future<void> verifyOtp(String phone, String otp) async {
+    final session = await guard<AuthSession>(
+        'Signed in', () => api.verifyOtp(phone.trim(), otp.trim()));
+    if (session?.token != null) {
+      await _persistToken(session!.token!);
+      await refreshCustomerData();
+    }
+  }
+
+  Future<void> signInWithGoogle() async {
+    await guard('Google sign-in complete', () async {
+      if (!GoogleSignIn.instance.supportsAuthenticate()) {
+        throw const ApiException(
+            'Google Sign-In is not available on this platform build.');
+      }
+      final account = await GoogleSignIn.instance.authenticate();
+      final idToken = account.authentication.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw const ApiException(
+            'Google did not return an ID token. Check OAuth client setup.');
+      }
+      final session = await api.googleLogin(idToken);
+      if (session.token != null) {
+        await _persistToken(session.token!);
+        await refreshCustomerData();
+      }
+      return session;
     });
   }
 
+  Future<void> _persistToken(String token) async {
+    api.token = token;
+    await storage.write(key: tokenStorageKey, value: token);
+  }
+
+  Future<void> logout() async {
+    socket?.dispose();
+    trackingTimer?.cancel();
+    api.token = '';
+    cart.clear();
+    activeOrder = null;
+    activeEta = null;
+    orders = [];
+    menuItems = [];
+    trending = [];
+    offers = [];
+    await storage.delete(key: tokenStorageKey);
+    await storage.delete(key: lastOrderStorageKey);
+    try {
+      await GoogleSignIn.instance.signOut();
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  Future<void> refreshCustomerData({String? orderId}) async {
+    if (!signedIn) {
+      return;
+    }
+    await guard('Customer data refreshed', () async {
+      await Future.wait([
+        loadLocation(silent: true),
+        loadRestaurants(),
+        loadOrders(),
+      ]);
+      final nextOrderId =
+          orderId?.isNotEmpty == true ? orderId : orders.firstOrNull?.id;
+      if (nextOrderId != null && nextOrderId.isNotEmpty) {
+        await loadOrder(nextOrderId);
+      }
+      return true;
+    }, quietSuccess: true);
+  }
+
+  Future<void> loadLocation({bool silent = false}) async {
+    await guard(silent ? null : 'Location updated', () async {
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) {
+        throw const ApiException(
+            'Turn on location services to show nearby restaurants and delivery tracking.');
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw const ApiException(
+            'Location permission is required for nearby restaurants, checkout, and tracking.');
+      }
+      final position = await Geolocator.getCurrentPosition();
+      currentLat = position.latitude;
+      currentLng = position.longitude;
+      filters.lat = currentLat;
+      filters.lng = currentLng;
+      return true;
+    }, quietSuccess: silent);
+  }
+
+  Future<void> loadRestaurants() async {
+    if (!signedIn) {
+      return;
+    }
+    await guard('Restaurants updated', () async {
+      final responses = await Future.wait([
+        api.searchRestaurants(filters),
+        api.trendingRestaurants(lat: currentLat, lng: currentLng),
+        api.marketplaceOffers(),
+      ]);
+      menuItems = responses[0] as List<MenuSearchItem>;
+      trending = responses[1] as List<TrendingRestaurant>;
+      offers = responses[2] as List<Offer>;
+      return true;
+    }, quietSuccess: true);
+  }
+
+  void addToCart(MenuSearchItem item) {
+    error = null;
+    try {
+      cart.add(item);
+      notice = '${item.menuItemName} added to cart.';
+    } on ApiException catch (exception) {
+      error = exception.message;
+    }
+    notifyListeners();
+  }
+
+  void incrementCart(String menuItemId) {
+    cart.increment(menuItemId);
+    notifyListeners();
+  }
+
+  void decrementCart(String menuItemId) {
+    cart.decrement(menuItemId);
+    notifyListeners();
+  }
+
+  void removeFromCart(String menuItemId) {
+    cart.remove(menuItemId);
+    notifyListeners();
+  }
+
+  Future<void> checkout() async {
+    if (!canCheckout) {
+      error =
+          'Add items, allow location, and enter a delivery address before checkout.';
+      notifyListeners();
+      return;
+    }
+    final restaurantId = cart.restaurantId;
+    if (restaurantId == null) {
+      error = 'Your cart is missing a restaurant. Add items again.';
+      notifyListeners();
+      return;
+    }
+
+    final created = await guard<CreateOrderResponse>('Order placed', () {
+      return api.createOrder(
+        restaurantId: restaurantId,
+        deliveryAddress: deliveryAddress.trim(),
+        deliveryLat: currentLat!,
+        deliveryLng: currentLng!,
+        items: cart.toOrderItems(),
+      );
+    });
+
+    if (created != null) {
+      cart.clear();
+      await storage.write(key: lastOrderStorageKey, value: created.id);
+      await loadOrder(created.id);
+      tabIndex = 2;
+      notifyListeners();
+    }
+  }
+
+  Future<void> editActiveOrderFromCart() async {
+    if (activeOrder == null || !canCheckout) {
+      return;
+    }
+    await guard('Order updated', () async {
+      await api.editOrderBeforeConfirmation(
+        orderId: activeOrder!.id,
+        deliveryAddress: deliveryAddress.trim(),
+        deliveryLat: currentLat!,
+        deliveryLng: currentLng!,
+        items: cart.toOrderItems(),
+      );
+      await loadOrder(activeOrder!.id);
+      return true;
+    });
+  }
+
+  Future<void> startPayment() async {
+    if (activeOrder == null) {
+      error = 'Place an order before starting payment.';
+      notifyListeners();
+      return;
+    }
+    final payment = await guard<PaymentStart>('Payment initialized', () {
+      return api.createPayment(
+        provider: selectedPaymentProvider,
+        orderId: activeOrder!.id,
+        amountPaise: activeOrder!.totalPaise,
+      );
+    });
+    final url = payment?.launchUrl;
+    if (url == null || url.isEmpty) {
+      paymentStatus = 'Payment created. Gateway did not return a redirect URL.';
+      notifyListeners();
+      return;
+    }
+    final launched =
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    paymentStatus = launched
+        ? 'Payment opened in the secure gateway.'
+        : 'Could not open the payment gateway.';
+    notifyListeners();
+  }
+
+  Future<void> loadOrders() async {
+    if (!signedIn) {
+      return;
+    }
+    await guard(null, () async {
+      orders = await api.orders();
+      return true;
+    }, quietSuccess: true);
+  }
+
+  Future<void> loadOrder(String orderId) async {
+    if (!signedIn) {
+      return;
+    }
+    await guard(null, () async {
+      activeOrder = await api.getOrder(orderId);
+      activeEta = await api.orderEta(orderId);
+      etaEvents = await api.orderEtaLoop(orderId);
+      await storage.write(key: lastOrderStorageKey, value: orderId);
+      connectTracking(orderId);
+      return true;
+    }, quietSuccess: true);
+  }
+
+  void connectTracking(String orderId) {
+    socket?.dispose();
+    trackingTimer?.cancel();
+    trackingStatus = 'Connecting to live tracking...';
+    final options = io.OptionBuilder()
+        .setTransports(['websocket'])
+        .setAuth({'token': api.token})
+        .enableReconnection()
+        .disableAutoConnect()
+        .build();
+    final nextSocket = io.io(api.baseUrl, options);
+    socket = nextSocket;
+    nextSocket.onConnect((_) {
+      trackingStatus = 'Live tracking connected.';
+      nextSocket.emit('order:join', orderId);
+      notifyListeners();
+    });
+    nextSocket.onConnectError((_) {
+      trackingStatus =
+          'Live tracking reconnecting. Latest ETA will continue to refresh.';
+      notifyListeners();
+    });
+    nextSocket.on('order:update', (_) => unawaited(loadOrder(orderId)));
+    nextSocket.on('driver:location', (payload) {
+      final data = payload is Map
+          ? Map<String, dynamic>.from(payload)
+          : <String, dynamic>{};
+      final lat = valueAsDouble(data['lat']);
+      final lng = valueAsDouble(data['lng']);
+      if (lat != null && lng != null) {
+        liveDriverLocation = GeoPoint(lat: lat, lng: lng);
+        trackingStatus = 'Driver location updated live.';
+        notifyListeners();
+      }
+    });
+    nextSocket.connect();
+    trackingTimer = Timer.periodic(const Duration(seconds: 20),
+        (_) => unawaited(refreshTracking(orderId)));
+  }
+
+  Future<void> refreshTracking(String orderId) async {
+    if (!signedIn) {
+      return;
+    }
+    await guard(null, () async {
+      activeOrder = await api.getOrder(orderId);
+      activeEta = await api.orderEta(orderId);
+      etaEvents = await api.orderEtaLoop(orderId);
+      return true;
+    }, quietSuccess: true);
+  }
+
+  Future<void> cancelActiveOrder(String reason) async {
+    if (activeOrder == null) {
+      return;
+    }
+    await guard('Order cancelled', () async {
+      await api.cancelOrder(activeOrder!.id, reason);
+      await loadOrder(activeOrder!.id);
+      return true;
+    });
+  }
+
+  Future<void> reorder(OrderSummary order) async {
+    final created = await guard<CreateOrderResponse>(
+        'Reorder placed', () => api.reorder(order.id));
+    if (created != null) {
+      await loadOrder(created.id);
+      tabIndex = 2;
+      notifyListeners();
+    }
+  }
+
+  Future<void> requestRefund(String reason, {int? amountPaise}) async {
+    if (activeOrder == null) {
+      return;
+    }
+    await guard(
+        'Refund request submitted',
+        () => api.requestRefund(activeOrder!.id, reason,
+            amountPaise: amountPaise));
+  }
+
+  Future<void> openNavigation() async {
+    final eta = activeEta;
+    if (eta == null) {
+      error = 'Load an active order before opening navigation.';
+      notifyListeners();
+      return;
+    }
+    final origin = '${eta.origin.lat},${eta.origin.lng}';
+    final waypoint = '${eta.pickup.lat},${eta.pickup.lng}';
+    final destination = '${eta.dropoff.lat},${eta.dropoff.lng}';
+    final url = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&origin=${Uri.encodeComponent(origin)}&destination=${Uri.encodeComponent(destination)}&waypoints=${Uri.encodeComponent(waypoint)}&travelmode=driving',
+    );
+    await launchUrl(url, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> callDriver() async {
+    final phone = activeOrder?.driverPhone;
+    if (phone == null || phone.isEmpty) {
+      error = 'A driver has not been assigned yet.';
+      notifyListeners();
+      return;
+    }
+    await launchUrl(Uri.parse('tel:$phone'));
+  }
+
+  Future<void> enablePushNotifications() async {
+    await guard('Push notifications enabled', () async {
+      try {
+        if (Firebase.apps.isEmpty) {
+          await Firebase.initializeApp();
+        }
+      } catch (_) {
+        throw const ApiException(
+            'Firebase is not configured for this build. Add Android/iOS Firebase files before enabling push.');
+      }
+      final settings = await FirebaseMessaging.instance.requestPermission();
+      if (settings.authorizationStatus == AuthorizationStatus.denied) {
+        throw const ApiException('Push notification permission was denied.');
+      }
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token == null || token.isEmpty) {
+        throw const ApiException(
+            'Firebase did not return a push token. Check Firebase setup.');
+      }
+      await api.registerDeviceToken(token);
+      return true;
+    });
+  }
+
+  Future<void> createSupportTicket(String subject, String message) async {
+    await guard('Support ticket created', () {
+      return api.createSupportTicket(
+        category: 'order',
+        subject: subject.trim(),
+        message: message.trim(),
+        orderId: activeOrder?.id,
+      );
+    });
+  }
+
+  Future<void> createReview(
+      String restaurantId, int rating, String comment) async {
+    await guard(
+        'Review submitted',
+        () => api.createRestaurantReview(restaurantId, rating, comment.trim(),
+            orderId: activeOrder?.id));
+  }
+
+  Future<T?> guard<T>(String? successMessage, Future<T> Function() work,
+      {bool quietSuccess = false}) async {
+    busy = true;
+    error = null;
+    offline = false;
+    notifyListeners();
+    try {
+      final result = await work();
+      if (!quietSuccess && successMessage != null) {
+        notice = successMessage;
+      }
+      return result;
+    } on ApiException catch (exception) {
+      offline = exception.offline;
+      error = exception.message;
+    } catch (exception) {
+      error = exception.toString();
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+    return null;
+  }
+
+  @override
+  void dispose() {
+    socket?.dispose();
+    trackingTimer?.cancel();
+    super.dispose();
+  }
+}
+
+class CustomerCart {
+  final List<CartLine> lines = [];
+
+  String? get restaurantId => lines.firstOrNull?.item.restaurantId;
+  String? get restaurantName => lines.firstOrNull?.item.restaurantName;
+  int get totalPaise =>
+      lines.fold(0, (sum, line) => sum + line.quantity * line.item.pricePaise);
+
+  void add(MenuSearchItem item) {
+    if (restaurantId != null && restaurantId != item.restaurantId) {
+      throw const ApiException(
+          'Please checkout or clear your cart before ordering from another restaurant.');
+    }
+    final existing = lines
+        .where((line) => line.item.menuItemId == item.menuItemId)
+        .firstOrNull;
+    if (existing == null) {
+      lines.add(CartLine(item: item));
+      return;
+    }
+    existing.quantity += 1;
+  }
+
+  void increment(String menuItemId) {
+    final line =
+        lines.where((item) => item.item.menuItemId == menuItemId).firstOrNull;
+    if (line != null) {
+      line.quantity += 1;
+    }
+  }
+
+  void decrement(String menuItemId) {
+    final line =
+        lines.where((item) => item.item.menuItemId == menuItemId).firstOrNull;
+    if (line == null) {
+      return;
+    }
+    line.quantity -= 1;
+    if (line.quantity <= 0) {
+      lines.remove(line);
+    }
+  }
+
+  void remove(String menuItemId) {
+    lines.removeWhere((line) => line.item.menuItemId == menuItemId);
+  }
+
+  void clear() => lines.clear();
+
+  List<CartItemRequest> toOrderItems() {
+    return lines.map((line) {
+      return CartItemRequest(
+          name: line.item.menuItemName,
+          quantity: line.quantity,
+          pricePaise: line.item.pricePaise);
+    }).toList();
+  }
+}
+
+class CartLine {
+  CartLine({required this.item, this.quantity = 1});
+
+  final MenuSearchItem item;
+  int quantity;
+}
+
+class CustomerShell extends StatelessWidget {
+  const CustomerShell({required this.state, super.key});
+
+  final CustomerAppState state;
+
   @override
   Widget build(BuildContext context) {
+    if (!state.initialized) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (!state.hasConfig) {
+      return SetupScreen(message: state.configError!);
+    }
+    if (!state.signedIn) {
+      return AuthScreen(state: state);
+    }
+
     final pages = [
-      customerPage(),
-      driverPage(),
-      restaurantPage(),
-      adminPage(),
-      demoPage(),
+      DiscoverScreen(state: state),
+      CartScreen(state: state),
+      TrackingScreen(state: state),
+      AccountScreen(state: state),
     ];
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AmberKitchen Flutter'),
+        title: const Text('AmberKitchen'),
         actions: [
-          TextButton(
-            onPressed: runFullDemo,
-            child: const Text('Run Demo'),
+          IconButton(
+            tooltip: 'Refresh',
+            icon: const Icon(Icons.refresh),
+            onPressed: state.busy ? null : () => state.refreshCustomerData(),
           ),
         ],
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+        child: Stack(
           children: [
-            Text(notice, style: Theme.of(context).textTheme.bodyMedium),
-            const SizedBox(height: 12),
-            loginCard(),
-            const SizedBox(height: 12),
-            SegmentedButton<int>(
-              segments: const [
-                ButtonSegment(value: 0, label: Text('Customer')),
-                ButtonSegment(value: 1, label: Text('Driver')),
-                ButtonSegment(value: 2, label: Text('Restaurant')),
-                ButtonSegment(value: 3, label: Text('Admin')),
-                ButtonSegment(value: 4, label: Text('Demo')),
-              ],
-              selected: {tab},
-              onSelectionChanged: (value) => setState(() => tab = value.first),
+            IndexedStack(index: state.tabIndex, children: pages),
+            if (state.busy) const LinearProgressIndicator(minHeight: 3),
+          ],
+        ),
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: state.tabIndex,
+        onDestinationSelected: state.selectTab,
+        destinations: const [
+          NavigationDestination(
+              icon: Icon(Icons.restaurant_menu), label: 'Order'),
+          NavigationDestination(
+              icon: Icon(Icons.shopping_bag_outlined), label: 'Cart'),
+          NavigationDestination(
+              icon: Icon(Icons.delivery_dining), label: 'Track'),
+          NavigationDestination(
+              icon: Icon(Icons.person_outline), label: 'Account'),
+        ],
+      ),
+    );
+  }
+}
+
+class SetupScreen extends StatelessWidget {
+  const SetupScreen({required this.message, super.key});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.settings, size: 48),
+              const SizedBox(height: 16),
+              Text('Production setup required',
+                  style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 8),
+              Text(message, textAlign: TextAlign.center),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class AuthScreen extends StatefulWidget {
+  const AuthScreen({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  State<AuthScreen> createState() => _AuthScreenState();
+}
+
+class _AuthScreenState extends State<AuthScreen> {
+  final phone = TextEditingController();
+  final otp = TextEditingController();
+
+  @override
+  void dispose() {
+    phone.dispose();
+    otp.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            const SizedBox(height: 24),
+            Text('AmberKitchen',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineLarge
+                    ?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Text(
+                'Sign in to order food, checkout securely, and track delivery live.',
+                style: Theme.of(context).textTheme.bodyLarge),
+            const SizedBox(height: 24),
+            AppBanner(state: widget.state),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                      controller: phone,
+                      keyboardType: TextInputType.phone,
+                      decoration:
+                          const InputDecoration(labelText: 'Phone number')),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: widget.state.busy
+                        ? null
+                        : () => widget.state.requestOtp(phone.text),
+                    icon: const Icon(Icons.sms_outlined),
+                    label: const Text('Send OTP'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                      controller: otp,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'OTP')),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: widget.state.busy
+                        ? null
+                        : () => widget.state.verifyOtp(phone.text, otp.text),
+                    child: const Text('Verify and Continue'),
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: widget.state.busy
+                        ? null
+                        : widget.state.signInWithGoogle,
+                    icon: const Icon(Icons.login),
+                    label: const Text('Continue with Google'),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            pages[tab],
           ],
         ),
       ),
     );
   }
+}
 
-  Widget loginCard() {
-    return FeatureCard(
-      title: 'Authentication + Push',
-      children: [
-        TextField(controller: phone, decoration: const InputDecoration(labelText: 'Phone')),
-        TextField(controller: otp, decoration: const InputDecoration(labelText: 'OTP')),
-        DropdownButtonFormField<String>(
-          initialValue: role,
-          decoration: const InputDecoration(labelText: 'Role'),
-          items: const ['customer', 'driver', 'restaurant', 'admin', 'super_admin', 'delivery_admin']
-              .map((value) => DropdownMenuItem(value: value, child: Text(value)))
-              .toList(),
-          onChanged: (value) => setState(() => role = value ?? role),
-        ),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            ActionChip(label: const Text('Send OTP'), onPressed: () => runApi('Send OTP', () => api.requestOtp(phone.text))),
-            ActionChip(label: const Text('Verify OTP'), onPressed: () => runApi('Verify OTP', () => api.verifyOtp(phone.text, otp.text, role))),
-            ActionChip(label: const Text('Register Push'), onPressed: () => runApi('Register Push', () => api.registerDeviceToken('flutter-demo-token'))),
-            ActionChip(label: const Text('Test Push'), onPressed: () => runApi('Test Push', api.sendTestNotification)),
+class DiscoverScreen extends StatelessWidget {
+  const DiscoverScreen({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: state.loadRestaurants,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          AppBanner(state: state),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Find food',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: state.filters.query,
+                  decoration: const InputDecoration(
+                      labelText: 'Search dishes or restaurants'),
+                  onChanged: (value) => state.filters.query = value,
+                  onFieldSubmitted: (_) => state.loadRestaurants(),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        initialValue: state.filters.cuisine,
+                        decoration: const InputDecoration(labelText: 'Cuisine'),
+                        onChanged: (value) => state.filters.cuisine = value,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: state.filters.diet,
+                        decoration: const InputDecoration(labelText: 'Diet'),
+                        items: const [
+                          DropdownMenuItem(value: 'all', child: Text('All')),
+                          DropdownMenuItem(value: 'veg', child: Text('Veg')),
+                          DropdownMenuItem(
+                              value: 'non_veg', child: Text('Non veg')),
+                        ],
+                        onChanged: (value) =>
+                            state.filters.diet = value ?? 'all',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: state.filters.sort,
+                        decoration: const InputDecoration(labelText: 'Sort'),
+                        items: const [
+                          DropdownMenuItem(
+                              value: 'distance', child: Text('Distance')),
+                          DropdownMenuItem(
+                              value: 'rating_desc', child: Text('Rating')),
+                          DropdownMenuItem(
+                              value: 'price_asc', child: Text('Price low')),
+                          DropdownMenuItem(
+                              value: 'price_desc', child: Text('Price high')),
+                        ],
+                        onChanged: (value) =>
+                            state.filters.sort = value ?? 'distance',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextFormField(
+                        initialValue: state.filters.maxPricePaise == 0
+                            ? ''
+                            : state.filters.maxPricePaise.toString(),
+                        keyboardType: TextInputType.number,
+                        decoration:
+                            const InputDecoration(labelText: 'Max price paise'),
+                        onChanged: (value) => state.filters.maxPricePaise =
+                            int.tryParse(value) ?? 0,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                    'Minimum rating ${state.filters.minRating.toStringAsFixed(1)}'),
+                Slider(
+                  value: state.filters.minRating,
+                  min: 0,
+                  max: 5,
+                  divisions: 10,
+                  label: state.filters.minRating.toStringAsFixed(1),
+                  onChanged: state.setMinRating,
+                ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.icon(
+                        onPressed: state.busy ? null : state.loadRestaurants,
+                        icon: const Icon(Icons.search),
+                        label: const Text('Search')),
+                    OutlinedButton.icon(
+                        onPressed: state.busy ? null : state.loadLocation,
+                        icon: const Icon(Icons.my_location),
+                        label: const Text('Use location')),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (state.offers.isNotEmpty) ...[
+            const SectionTitle(title: 'Offers'),
+            SizedBox(
+              height: 92,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: state.offers.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, index) =>
+                    OfferTile(offer: state.offers[index]),
+              ),
+            ),
           ],
-        ),
-        TextField(controller: googleToken, decoration: const InputDecoration(labelText: 'Google ID token')),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: ActionChip(label: const Text('Google Login'), onPressed: () => runApi('Google Login', () => api.googleLogin(googleToken.text, role))),
-        ),
-      ],
+          if (state.trending.isNotEmpty) ...[
+            const SectionTitle(title: 'Trending restaurants'),
+            ...state.trending
+                .take(4)
+                .map((restaurant) => TrendingTile(restaurant: restaurant)),
+          ],
+          const SectionTitle(title: 'Menu'),
+          if (state.menuItems.isEmpty)
+            const EmptyState(
+                icon: Icons.search_off,
+                title: 'No menu items yet',
+                body:
+                    'Search with fewer filters or refresh once restaurants are live.'),
+          ...state.menuItems.map((item) =>
+              MenuItemTile(item: item, onAdd: () => state.addToCart(item))),
+        ],
+      ),
     );
   }
+}
 
-  Widget customerPage() {
-    return FeatureCard(
-      title: 'Customer App',
+class CartScreen extends StatelessWidget {
+  const CartScreen({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
       children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            ActionChip(label: const Text('Search Restaurants'), onPressed: () => runApi('Search Restaurants', () => api.searchRestaurants())),
-            ActionChip(label: const Text('Google Places'), onPressed: () => runApi('Google Places', () => api.googlePlacesDelhiNcrRestaurants())),
-            ActionChip(label: const Text('Trending + ETA'), onPressed: () => runApi('Trending Restaurants', () => api.trendingRestaurants())),
-            ActionChip(label: const Text('Place Order'), onPressed: () => runApi('Place Order', () => api.createOrder())),
-            ActionChip(label: const Text('Load Order'), onPressed: orderId.isEmpty ? null : () => runApi('Load Order', () => api.getOrder(orderId))),
-            ActionChip(label: const Text('Edit Order'), onPressed: orderId.isEmpty ? null : () => runApi('Edit Order', () => api.editOrderBeforeConfirmation(orderId, 'Flutter updated address'))),
-            ActionChip(label: const Text('Cancel'), onPressed: orderId.isEmpty ? null : () => runApi('Cancel Order', () => api.cancelOrder(orderId, 'Flutter cancellation'))),
-            ActionChip(label: const Text('Refund'), onPressed: orderId.isEmpty ? null : () => runApi('Refund', () => api.requestRefund(orderId, 'Flutter refund', amountPaise: 1000))),
-            ActionChip(label: const Text('Reorder'), onPressed: orderId.isEmpty ? null : () => runApi('Reorder', () => api.reorder(orderId))),
-            ActionChip(label: const Text('PhonePe'), onPressed: orderId.isEmpty ? null : () => runApi('PhonePe', () => api.createPayment('phonepe', orderId))),
-            ActionChip(label: const Text('Paytm'), onPressed: orderId.isEmpty ? null : () => runApi('Paytm', () => api.createPayment('paytm', orderId))),
-            ActionChip(label: const Text('Razorpay'), onPressed: orderId.isEmpty ? null : () => runApi('Razorpay', () => api.createPayment('razorpay', orderId))),
-            ActionChip(label: const Text('ETA Loop'), onPressed: orderId.isEmpty ? null : () => runApi('ETA Loop', () async => [await api.orderEta(orderId), await api.orderEtaLoop(orderId)])),
-            ActionChip(label: const Text('Review'), onPressed: () => runApi('Review', () => api.createRestaurantReview(restaurantId, orderId: orderId.isEmpty ? null : orderId))),
-            ActionChip(label: const Text('Support'), onPressed: () => runApi('Support', () => api.createSupportTicket(orderId: orderId.isEmpty ? null : orderId))),
-            ActionChip(label: const Text('Navigation'), onPressed: () => launchUrl(Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${dropoff.latitude},${dropoff.longitude}'))),
-          ],
-        ),
+        AppBanner(state: state),
+        if (state.cart.lines.isEmpty)
+          const EmptyState(
+              icon: Icons.shopping_bag_outlined,
+              title: 'Your cart is empty',
+              body: 'Add items from the Order tab to start checkout.')
+        else
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(state.cart.restaurantName ?? 'Cart',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 12),
+                ...state.cart.lines.map((line) => CartLineTile(
+                      line: line,
+                      onIncrement: () =>
+                          state.incrementCart(line.item.menuItemId),
+                      onDecrement: () =>
+                          state.decrementCart(line.item.menuItemId),
+                      onRemove: () =>
+                          state.removeFromCart(line.item.menuItemId),
+                    )),
+                const Divider(),
+                SummaryRow(
+                    label: 'Total',
+                    value: formatCurrency(state.cartTotalPaise),
+                    strong: true),
+              ],
+            ),
+          ),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 260,
-          child: GoogleMap(
-            initialCameraPosition: const CameraPosition(target: delhi, zoom: 11),
-            markers: {
-              const Marker(markerId: MarkerId('driver'), position: delhi),
-              const Marker(markerId: MarkerId('pickup'), position: pickup),
-              const Marker(markerId: MarkerId('dropoff'), position: dropoff),
-            },
-            polylines: {
-              const Polyline(polylineId: PolylineId('route'), points: [delhi, pickup, dropoff], width: 4, color: Color(0xff0f766e)),
-            },
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Delivery',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 12),
+              TextFormField(
+                initialValue: state.deliveryAddress,
+                minLines: 2,
+                maxLines: 3,
+                decoration:
+                    const InputDecoration(labelText: 'Delivery address'),
+                onChanged: (value) => state.deliveryAddress = value,
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                  onPressed: state.busy ? null : state.loadLocation,
+                  icon: const Icon(Icons.my_location),
+                  label: const Text('Use current location')),
+              if (state.currentLat != null && state.currentLng != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                      'Location ready: ${state.currentLat!.toStringAsFixed(5)}, ${state.currentLng!.toStringAsFixed(5)}'),
+                ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed:
+                    state.busy || !state.canCheckout ? null : state.checkout,
+                icon: const Icon(Icons.lock_outline),
+                label: const Text('Checkout'),
+              ),
+              if (state.activeOrder?.status == 'created' &&
+                  state.cart.lines.isNotEmpty)
+                TextButton(
+                    onPressed: state.editActiveOrderFromCart,
+                    child:
+                        const Text('Update active order before confirmation')),
+            ],
           ),
         ),
       ],
     );
   }
+}
 
-  Widget driverPage() {
-    return FeatureCard(
-      title: 'Delivery Partner App',
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            ActionChip(label: const Text('Driver Signup'), onPressed: () => runApi('Driver Signup', api.submitDriverOnboarding)),
-            ActionChip(label: const Text('My Onboarding'), onPressed: () => runApi('My Onboarding', api.myDriverOnboarding)),
-            ActionChip(label: const Text('Background Check'), onPressed: () => runApi('Background Check', api.runDriverBackgroundCheck)),
-            ActionChip(label: const Text('Available Orders'), onPressed: () => runApi('Available Orders', api.availableDeliveryOrders)),
-            ActionChip(label: const Text('Accept Order'), onPressed: orderId.isEmpty ? null : () => runApi('Accept Order', () => api.acceptDeliveryOrder(orderId))),
-            ActionChip(label: const Text('Picked Up'), onPressed: orderId.isEmpty ? null : () => runApi('Picked Up', () => api.updateOrderStatus(orderId, 'picked_up'))),
-            ActionChip(label: const Text('Delivered'), onPressed: orderId.isEmpty ? null : () => runApi('Delivered', () => api.updateOrderStatus(orderId, 'delivered'))),
-            ActionChip(label: const Text('Live Location'), onPressed: orderId.isEmpty ? null : () => runApi('Live Location', () => api.sendDriverLocation(orderId, delhi.latitude, delhi.longitude))),
-            ActionChip(label: const Text('Wallet'), onPressed: () => runApi('Wallet', api.walletSummary)),
-            ActionChip(label: const Text('Transactions'), onPressed: () => runApi('Transactions', api.walletTransactions)),
-            ActionChip(label: const Text('Earnings'), onPressed: () => runApi('Earnings', api.driverEarnings)),
-            ActionChip(label: const Text('Request Payout'), onPressed: () => runApi('Request Payout', () => api.requestPayout(50000, 'upi', upiId: 'driver@upi'))),
-            ActionChip(label: const Text('Incentives'), onPressed: () => runApi('Incentives', api.driverIncentives)),
+class TrackingScreen extends StatelessWidget {
+  const TrackingScreen({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final order = state.activeOrder;
+    return RefreshIndicator(
+      onRefresh: () async {
+        if (order != null) {
+          await state.loadOrder(order.id);
+        } else {
+          await state.loadOrders();
+        }
+      },
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          AppBanner(state: state),
+          if (order == null)
+            const EmptyState(
+                icon: Icons.delivery_dining,
+                title: 'No active order',
+                body: 'Checkout to start live tracking.')
+          else ...[
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Order ${shortId(order.id)}',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  StatusPill(status: order.status),
+                  const SizedBox(height: 12),
+                  SummaryRow(
+                      label: 'Total', value: formatCurrency(order.totalPaise)),
+                  SummaryRow(
+                      label: 'ETA',
+                      value: state.activeEta == null
+                          ? order.estimatedDeliveryAt ?? 'Calculating'
+                          : '${state.activeEta!.predictedEtaMinutes} min'),
+                  SummaryRow(
+                      label: 'Driver',
+                      value: order.driverPhone ?? 'Assigning soon'),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      FilledButton.icon(
+                          onPressed: state.startPayment,
+                          icon: const Icon(Icons.payment),
+                          label: const Text('Pay securely')),
+                      OutlinedButton.icon(
+                          onPressed: state.openNavigation,
+                          icon: const Icon(Icons.navigation_outlined),
+                          label: const Text('Navigate')),
+                      OutlinedButton.icon(
+                          onPressed: state.callDriver,
+                          icon: const Icon(Icons.call_outlined),
+                          label: const Text('Call driver')),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: state.selectedPaymentProvider,
+                    decoration:
+                        const InputDecoration(labelText: 'Payment provider'),
+                    items: const [
+                      DropdownMenuItem(
+                          value: 'phonepe', child: Text('PhonePe')),
+                      DropdownMenuItem(value: 'paytm', child: Text('Paytm')),
+                      DropdownMenuItem(
+                          value: 'razorpay', child: Text('Razorpay')),
+                    ],
+                    onChanged: (value) =>
+                        state.setPaymentProvider(value ?? 'phonepe'),
+                  ),
+                  if (state.paymentStatus.isNotEmpty)
+                    Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(state.paymentStatus)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            TrackingMap(state: state),
+            const SizedBox(height: 12),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Live updates',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  Text(state.trackingStatus),
+                  ...order.history.reversed.map((event) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.check_circle_outline),
+                        title: Text(titleCase(event.status)),
+                        subtitle: Text(event.note.isEmpty
+                            ? event.createdAt
+                            : '${event.note}\n${event.createdAt}'),
+                      )),
+                ],
+              ),
+            ),
           ],
-        ),
-      ],
+          const SectionTitle(title: 'Recent orders'),
+          if (state.orders.isEmpty)
+            const Text('Your previous orders will appear here.')
+          else
+            ...state.orders.map((item) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Order ${shortId(item.id)}'),
+                  subtitle: Text(
+                      '${titleCase(item.status)} - ${formatCurrency(item.totalPaise)}'),
+                  trailing: TextButton(
+                      onPressed: () => state.reorder(item),
+                      child: const Text('Reorder')),
+                  onTap: () => state.loadOrder(item.id),
+                )),
+        ],
+      ),
     );
   }
+}
 
-  Widget restaurantPage() {
-    return FeatureCard(
-      title: 'Restaurant Panel',
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            ActionChip(label: const Text('Onboard Restaurant'), onPressed: () => runApi('Onboard Restaurant', api.onboardRestaurant)),
-            ActionChip(label: const Text('My Restaurants'), onPressed: () => runApi('My Restaurants', api.myRestaurants)),
-            ActionChip(label: const Text('Add Menu Photo'), onPressed: () => runApi('Add Menu', () => api.createMenuItem(restaurantId))),
-            ActionChip(label: const Text('Import Menu Photos'), onPressed: () => runApi('Import Menu', () => api.importMenuItems(restaurantId))),
-            ActionChip(label: const Text('Orders'), onPressed: () => runApi('Restaurant Orders', () => api.restaurantOrders(restaurantId))),
-            ActionChip(label: const Text('Accept Order'), onPressed: orderId.isEmpty ? null : () => runApi('Accept Order', () => api.decideRestaurantOrder(orderId, 'accepted'))),
-            ActionChip(label: const Text('Reject Order'), onPressed: orderId.isEmpty ? null : () => runApi('Reject Order', () => api.decideRestaurantOrder(orderId, 'cancelled'))),
-            ActionChip(label: const Text('Earnings'), onPressed: () => runApi('Restaurant Earnings', () => api.restaurantEarnings(restaurantId))),
-          ],
-        ),
-      ],
-    );
+class AccountScreen extends StatefulWidget {
+  const AccountScreen({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  State<AccountScreen> createState() => _AccountScreenState();
+}
+
+class _AccountScreenState extends State<AccountScreen> {
+  final supportSubject = TextEditingController();
+  final supportMessage = TextEditingController();
+  final reviewRestaurantId = TextEditingController();
+  final reviewComment = TextEditingController();
+  final refundReason = TextEditingController();
+  int rating = 5;
+
+  @override
+  void dispose() {
+    supportSubject.dispose();
+    supportMessage.dispose();
+    reviewRestaurantId.dispose();
+    reviewComment.dispose();
+    refundReason.dispose();
+    super.dispose();
   }
 
-  Widget adminPage() {
-    return FeatureCard(
-      title: 'Admin + Operations',
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
       children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            ActionChip(label: const Text('Dashboard'), onPressed: () => runApi('Dashboard', api.adminDashboard)),
-            ActionChip(label: const Text('Users'), onPressed: () => runApi('Users', api.adminUsers)),
-            ActionChip(label: const Text('Restaurants'), onPressed: () => runApi('Restaurants', api.adminRestaurants)),
-            ActionChip(label: const Text('All Orders'), onPressed: () => runApi('All Orders', api.adminAllOrders)),
-            ActionChip(label: const Text('Payments'), onPressed: () => runApi('Payments', api.paymentReports)),
-            ActionChip(label: const Text('Analytics'), onPressed: () => runApi('Analytics', api.platformAnalytics)),
-            ActionChip(label: const Text('AI Demand'), onPressed: () => runApi('AI Demand', api.runDemandPredictionJob)),
-            ActionChip(label: const Text('Jobs'), onPressed: () => runApi('Jobs', api.analyticsJobs)),
-            ActionChip(label: const Text('Predictions'), onPressed: () => runApi('Predictions', api.demandPredictions)),
-            ActionChip(label: const Text('Driver Load'), onPressed: () => runApi('Driver Load', api.driverLoadBalancing)),
-            ActionChip(label: const Text('Best Driver'), onPressed: orderId.isEmpty ? null : () => runApi('Best Driver', () => api.assignBestDriver(orderId))),
-            ActionChip(label: const Text('Delivery Orders'), onPressed: () => runApi('Delivery Orders', api.deliveryAdminOrders)),
-            ActionChip(label: const Text('Drivers'), onPressed: () => runApi('Drivers', api.deliveryDrivers)),
-            ActionChip(label: const Text('Zones'), onPressed: () => runApi('Zones', api.marketplaceZones)),
-            ActionChip(label: const Text('Create Zone'), onPressed: () => runApi('Create Zone', api.createZone)),
-            ActionChip(label: const Text('Offers'), onPressed: () => runApi('Offers', api.marketplaceOffers)),
-            ActionChip(label: const Text('Create Offer'), onPressed: () => runApi('Create Offer', api.createOffer)),
-            ActionChip(label: const Text('Campaigns'), onPressed: () => runApi('Campaigns', api.campaigns)),
-            ActionChip(label: const Text('Create Campaign'), onPressed: () => runApi('Create Campaign', api.createCampaign)),
-            ActionChip(label: const Text('Create Incentive'), onPressed: () => runApi('Create Incentive', api.createDriverIncentive)),
-            ActionChip(label: const Text('Driver Applications'), onPressed: () => runApi('Driver Applications', api.driverOnboardingApplications)),
-            ActionChip(label: const Text('Driver Referrals'), onPressed: () => runApi('Driver Referrals', api.driverReferrals)),
-            ActionChip(label: const Text('Payouts'), onPressed: () => runApi('Payouts', api.adminPayouts)),
-            ActionChip(label: const Text('Azure Blob'), onPressed: () => runApi('Azure Blob', api.createAzureBlobAsset)),
-            ActionChip(label: const Text('Azure OCR'), onPressed: () => runApi('Azure OCR', api.verifyAzureOcr)),
-            ActionChip(label: const Text('Azure Face'), onPressed: () => runApi('Azure Face', api.verifyAzureFace)),
-            ActionChip(label: const Text('Audit Logs'), onPressed: () => runApi('Audit Logs', api.auditLogs)),
-            ActionChip(label: const Text('Verification Logs'), onPressed: () => runApi('Verification Logs', api.verificationChecks)),
-          ],
+        AppBanner(state: widget.state),
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Customer account',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                  onPressed: widget.state.enablePushNotifications,
+                  icon: const Icon(Icons.notifications_active_outlined),
+                  label: const Text('Enable push notifications')),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                  onPressed: widget.state.logout,
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Sign out')),
+            ],
+          ),
         ),
-      ],
-    );
-  }
-
-  Widget demoPage() {
-    return FeatureCard(
-      title: 'Full Feature Demo',
-      children: [
-        FilledButton(onPressed: runFullDemo, child: const Text('Run complete mobile demo')),
-        ...demoEvents.map((event) => ListTile(
-              dense: true,
-              leading: const Icon(Icons.check_circle, color: Color(0xff0f766e)),
-              title: Text(event),
-            )),
+        const SizedBox(height: 12),
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Support',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 12),
+              TextField(
+                  controller: supportSubject,
+                  decoration: const InputDecoration(labelText: 'Subject')),
+              const SizedBox(height: 12),
+              TextField(
+                  controller: supportMessage,
+                  minLines: 3,
+                  maxLines: 5,
+                  decoration: const InputDecoration(labelText: 'Message')),
+              const SizedBox(height: 12),
+              FilledButton(
+                  onPressed: () => widget.state.createSupportTicket(
+                      supportSubject.text, supportMessage.text),
+                  child: const Text('Send support request')),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Refund and review',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 12),
+              TextField(
+                  controller: refundReason,
+                  decoration:
+                      const InputDecoration(labelText: 'Refund reason')),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                  onPressed: () =>
+                      widget.state.requestRefund(refundReason.text),
+                  child: const Text('Request refund for active order')),
+              const Divider(height: 24),
+              TextField(
+                  controller: reviewRestaurantId,
+                  decoration:
+                      const InputDecoration(labelText: 'Restaurant ID')),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                initialValue: rating,
+                decoration: const InputDecoration(labelText: 'Rating'),
+                items: List.generate(
+                    5,
+                    (index) => DropdownMenuItem(
+                        value: index + 1, child: Text('${index + 1}'))),
+                onChanged: (value) => setState(() => rating = value ?? 5),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                  controller: reviewComment,
+                  decoration: const InputDecoration(labelText: 'Review')),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () => widget.state.createReview(
+                    reviewRestaurantId.text, rating, reviewComment.text),
+                child: const Text('Submit review'),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
 }
 
-class FeatureCard extends StatelessWidget {
-  const FeatureCard({required this.title, required this.children, super.key});
+class TrackingMap extends StatelessWidget {
+  const TrackingMap({required this.state, super.key});
 
-  final String title;
-  final List<Widget> children;
+  final CustomerAppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final eta = state.activeEta;
+    final fallback =
+        LatLng(state.currentLat ?? 20.5937, state.currentLng ?? 78.9629);
+    final points = eta == null
+        ? <LatLng>[]
+        : [
+            LatLng(eta.origin.lat, eta.origin.lng),
+            LatLng(eta.pickup.lat, eta.pickup.lng),
+            LatLng(eta.dropoff.lat, eta.dropoff.lng),
+          ];
+    final driver = state.liveDriverLocation;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        height: 280,
+        child: GoogleMap(
+          initialCameraPosition: CameraPosition(
+              target: points.isNotEmpty ? points.first : fallback, zoom: 12),
+          markers: {
+            if (eta != null)
+              Marker(
+                  markerId: const MarkerId('pickup'),
+                  position: LatLng(eta.pickup.lat, eta.pickup.lng),
+                  infoWindow: const InfoWindow(title: 'Pickup')),
+            if (eta != null)
+              Marker(
+                  markerId: const MarkerId('dropoff'),
+                  position: LatLng(eta.dropoff.lat, eta.dropoff.lng),
+                  infoWindow: const InfoWindow(title: 'Dropoff')),
+            if (driver != null)
+              Marker(
+                  markerId: const MarkerId('driver'),
+                  position: LatLng(driver.lat, driver.lng),
+                  infoWindow: const InfoWindow(title: 'Driver')),
+          },
+          polylines: {
+            if (points.length > 1)
+              Polyline(
+                  polylineId: const PolylineId('route'),
+                  points: points,
+                  color: const Color(0xff0f766e),
+                  width: 5),
+          },
+          myLocationButtonEnabled: true,
+          myLocationEnabled: state.currentLat != null,
+        ),
+      ),
+    );
+  }
+}
+
+class AppBanner extends StatelessWidget {
+  const AppBanner({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final message =
+        state.error ?? state.notice ?? (state.offline ? 'Offline' : null);
+    if (message == null || message.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final isError = state.error != null;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isError ? const Color(0xfffff1f2) : const Color(0xffecfdf5),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+            color: isError ? const Color(0xfffecdd3) : const Color(0xffa7f3d0)),
+      ),
+      child: Text(message,
+          style: TextStyle(
+              color:
+                  isError ? const Color(0xff9f1239) : const Color(0xff065f46))),
+    );
+  }
+}
+
+class AppCard extends StatelessWidget {
+  const AppCard({required this.child, super.key});
+
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
@@ -339,17 +1451,298 @@ class FeatureCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         side: const BorderSide(color: Color(0xffe5e7eb)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 12),
-            ...children,
-          ],
-        ),
+      child: Padding(padding: const EdgeInsets.all(14), child: child),
+    );
+  }
+}
+
+class MenuItemTile extends StatelessWidget {
+  const MenuItemTile({required this.item, required this.onAdd, super.key});
+
+  final MenuSearchItem item;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ItemImage(url: item.photoUrl),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.menuItemName,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+                Text(item.restaurantName),
+                if (item.description != null)
+                  Text(item.description!,
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    Chip(label: Text(formatCurrency(item.pricePaise))),
+                    if (item.isVeg != null)
+                      Chip(label: Text(item.isVeg! ? 'Veg' : 'Non veg')),
+                    if (item.rating != null)
+                      Chip(
+                          label: Text(
+                              '${item.rating!.toStringAsFixed(1)} rating')),
+                    if (item.distanceKm != null)
+                      Chip(
+                          label: Text(
+                              '${item.distanceKm!.toStringAsFixed(1)} km')),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+              onPressed: onAdd,
+              icon: const Icon(Icons.add_shopping_cart),
+              tooltip: 'Add to cart'),
+        ],
       ),
     );
   }
+}
+
+class TrendingTile extends StatelessWidget {
+  const TrendingTile({required this.restaurant, super.key});
+
+  final TrendingRestaurant restaurant;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: ItemImage(url: restaurant.photoUrl, size: 52),
+      title: Text(restaurant.name),
+      subtitle: Text(
+          '${restaurant.cuisineType ?? 'Cuisine'} - ${restaurant.predictedEtaMinutes} min ETA'),
+      trailing: restaurant.distanceKm == null
+          ? null
+          : Text('${restaurant.distanceKm!.toStringAsFixed(1)} km'),
+    );
+  }
+}
+
+class OfferTile extends StatelessWidget {
+  const OfferTile({required this.offer, super.key});
+
+  final Offer offer;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xff12312d),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(offer.code,
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text(offer.title, style: const TextStyle(color: Colors.white70)),
+        ],
+      ),
+    );
+  }
+}
+
+class CartLineTile extends StatelessWidget {
+  const CartLineTile(
+      {required this.line,
+      required this.onIncrement,
+      required this.onDecrement,
+      required this.onRemove,
+      super.key});
+
+  final CartLine line;
+  final VoidCallback onIncrement;
+  final VoidCallback onDecrement;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(line.item.menuItemName),
+      subtitle: Text('${formatCurrency(line.item.pricePaise)} each'),
+      trailing: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 4,
+        children: [
+          IconButton(
+              onPressed: onDecrement,
+              icon: const Icon(Icons.remove_circle_outline)),
+          Text('${line.quantity}'),
+          IconButton(
+              onPressed: onIncrement,
+              icon: const Icon(Icons.add_circle_outline)),
+          IconButton(
+              onPressed: onRemove, icon: const Icon(Icons.delete_outline)),
+        ],
+      ),
+    );
+  }
+}
+
+class ItemImage extends StatelessWidget {
+  const ItemImage({this.url, this.size = 76, super.key});
+
+  final String? url;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: size,
+        height: size,
+        color: const Color(0xffe2e8f0),
+        child: url == null || url!.isEmpty
+            ? const Icon(Icons.restaurant)
+            : Image.network(
+                url!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(Icons.restaurant),
+              ),
+      ),
+    );
+  }
+}
+
+class EmptyState extends StatelessWidget {
+  const EmptyState(
+      {required this.icon, required this.title, required this.body, super.key});
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      child: Column(
+        children: [
+          Icon(icon, size: 40, color: const Color(0xff64748b)),
+          const SizedBox(height: 8),
+          Text(title,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text(body, textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+}
+
+class SectionTitle extends StatelessWidget {
+  const SectionTitle({required this.title, super.key});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
+      child: Text(title,
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(fontWeight: FontWeight.w800)),
+    );
+  }
+}
+
+class SummaryRow extends StatelessWidget {
+  const SummaryRow(
+      {required this.label,
+      required this.value,
+      this.strong = false,
+      super.key});
+
+  final String label;
+  final String value;
+  final bool strong;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label),
+          Flexible(
+              child: Text(value,
+                  textAlign: TextAlign.end,
+                  style: strong
+                      ? const TextStyle(fontWeight: FontWeight.w800)
+                      : null)),
+        ],
+      ),
+    );
+  }
+}
+
+class StatusPill extends StatelessWidget {
+  const StatusPill({required this.status, super.key});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xffccfbf1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Text(titleCase(status),
+            style: const TextStyle(
+                fontWeight: FontWeight.w700, color: Color(0xff115e59))),
+      ),
+    );
+  }
+}
+
+String formatCurrency(int paise) {
+  return 'INR ${(paise / 100).toStringAsFixed(0)}';
+}
+
+String shortId(String id) {
+  if (id.length <= 8) {
+    return id;
+  }
+  return id.substring(0, 8);
+}
+
+String titleCase(String value) {
+  return value
+      .replaceAll('_', ' ')
+      .split(' ')
+      .where((word) => word.isNotEmpty)
+      .map((word) {
+    return '${word[0].toUpperCase()}${word.substring(1)}';
+  }).join(' ');
 }

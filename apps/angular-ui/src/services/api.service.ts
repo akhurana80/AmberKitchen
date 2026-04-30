@@ -607,6 +607,47 @@ export class ApiService {
     );
   }
 
+  supportTickets() {
+    return this.http.get<Array<{ id: string; category: string; subject: string; status: string; created_at: string }>>(
+      `${this.baseUrl}/api/marketplace/support/tickets`,
+      { headers: this.authHeaders() }
+    );
+  }
+
+  createAzureBlobAsset(fileName: string, contentType: string, sizeBytes: number, metadata?: Record<string, unknown>) {
+    return this.http.post(
+      `${this.baseUrl}/api/integrations/azure/blob/assets`,
+      { fileName, contentType, sizeBytes, metadata },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  verifyAzureOcr(imageUrl: string) {
+    return this.http.post(`${this.baseUrl}/api/integrations/azure/ocr/verify`, { imageUrl }, { headers: this.authHeaders() });
+  }
+
+  verifyAzureFace(selfieUrl: string, documentUrl: string) {
+    return this.http.post(
+      `${this.baseUrl}/api/integrations/azure/face/verify`,
+      { selfieUrl, documentUrl },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  auditLogs() {
+    return this.http.get<Array<{ id: string; method: string; path: string; status_code: number; created_at: string }>>(
+      `${this.baseUrl}/api/integrations/audit-logs`,
+      { headers: this.authHeaders() }
+    );
+  }
+
+  verificationChecks() {
+    return this.http.get<Array<{ id: string; provider: string; check_type: string; status: string; created_at: string }>>(
+      `${this.baseUrl}/api/integrations/verification-checks`,
+      { headers: this.authHeaders() }
+    );
+  }
+
   private authHeaders() {
     return new HttpHeaders({ Authorization: `Bearer ${this.token}` });
   }

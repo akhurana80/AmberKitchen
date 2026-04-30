@@ -4,7 +4,7 @@
 
 - `angular-ui`: Angular web app for browser users and admin operations.
 - `mobile-react`: Expo React Native app for iOS and Android.
-- `flutter-mobile`: Flutter app for iOS and Android with matching feature coverage and demo mode.
+- `flutter-mobile`: Flutter customer app for iOS and Android with production ordering, checkout, payments, persistent auth, and live tracking.
 
 ## Legacy Static Prototypes
 
