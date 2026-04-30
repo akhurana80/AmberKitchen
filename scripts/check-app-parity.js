@@ -149,6 +149,17 @@ const requiredFlutterCustomerScreens = [
   "class SupportScreen"
 ];
 
+const requiredFlutterCartFeatures = [
+  "cartStorageKey",
+  "class CartModifier",
+  "updateCartLineModifiers",
+  "class CartPricing",
+  "class CouponApplicationSection",
+  "Coupon application",
+  "Delivery fee",
+  "Final checkout review"
+];
+
 function read(path) {
   return fs.readFileSync(path, "utf8");
 }
@@ -232,6 +243,12 @@ if (!sources.flutterUi.includes("API_BASE_URL") || !sources.flutterUi.includes("
 for (const screen of requiredFlutterCustomerScreens) {
   if (!sources.flutterUi.includes(screen)) {
     flutterProductionIssues.push(`Flutter customer app is missing ${screen}`);
+  }
+}
+
+for (const feature of requiredFlutterCartFeatures) {
+  if (!sources.flutterUi.includes(feature)) {
+    flutterProductionIssues.push(`Flutter customer cart is missing ${feature}`);
   }
 }
 

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { createHash } from "crypto";
+import type { PoolClient } from "pg";
 import { z } from "zod";
 import { requireAuth, requireRole } from "../auth";
 import { query, transaction } from "../db";
@@ -15,6 +16,94 @@ function hashRequestBody(body: unknown) {
   return createHash("sha256").update(JSON.stringify(body)).digest("hex");
 }
 
+const cartModifierInput = z.object({
+  name: z.string().min(1).max(120),
+  pricePaise: z.number().int().nonnegative().default(0)
+});
+
+const orderItemInput = z.object({
+  name: z.string().min(1),
+  quantity: z.number().int().positive(),
+  pricePaise: z.number().int().positive(),
+  modifiers: z.array(cartModifierInput).max(12).default([])
+});
+
+type OrderItemInput = z.infer<typeof orderItemInput>;
+
+type PricingBreakdown = {
+  subtotalPaise: number;
+  taxPaise: number;
+  platformFeePaise: number;
+  deliveryFeePaise: number;
+  discountPaise: number;
+  totalPaise: number;
+  couponCode: string | null;
+};
+
+type OfferRow = {
+  code: string;
+  discount_type: "flat" | "percent";
+  discount_value: number;
+  min_order_paise: number;
+};
+
+function itemUnitPricePaise(item: OrderItemInput) {
+  return item.pricePaise + item.modifiers.reduce((sum, modifier) => sum + modifier.pricePaise, 0);
+}
+
+async function priceOrder(client: PoolClient, items: OrderItemInput[], couponCode?: string): Promise<PricingBreakdown | { error: string }> {
+  const subtotalPaise = items.reduce((sum, item) => sum + item.quantity * itemUnitPricePaise(item), 0);
+  const taxPaise = Math.round(subtotalPaise * 0.05);
+  const platformFeePaise = subtotalPaise >= 19900 ? 900 : 0;
+  const deliveryFeePaise = subtotalPaise >= 49900 ? 0 : 3900;
+  const normalizedCoupon = couponCode?.trim().toUpperCase() || null;
+  let discountPaise = 0;
+
+  if (normalizedCoupon) {
+    const offer = await client.query<OfferRow>(
+      `select code, discount_type, discount_value, min_order_paise
+       from offers
+       where code = $1
+         and is_active = true
+         and starts_at <= now()
+         and (ends_at is null or ends_at >= now())`,
+      [normalizedCoupon]
+    );
+    const activeOffer = offer.rows[0];
+    if (!activeOffer) {
+      return { error: "Coupon is not active or does not exist" };
+    }
+    if (subtotalPaise < Number(activeOffer.min_order_paise)) {
+      return { error: `Coupon requires a minimum order of ${Number(activeOffer.min_order_paise)} paise` };
+    }
+    discountPaise = activeOffer.discount_type === "flat"
+      ? Number(activeOffer.discount_value)
+      : Math.round(subtotalPaise * Number(activeOffer.discount_value) / 100);
+  }
+
+  const totalBeforeDiscount = subtotalPaise + taxPaise + platformFeePaise + deliveryFeePaise;
+  discountPaise = Math.min(discountPaise, totalBeforeDiscount);
+  return {
+    subtotalPaise,
+    taxPaise,
+    platformFeePaise,
+    deliveryFeePaise,
+    discountPaise,
+    totalPaise: totalBeforeDiscount - discountPaise,
+    couponCode: normalizedCoupon
+  };
+}
+
+async function insertOrderItems(client: PoolClient, orderId: string, items: OrderItemInput[]) {
+  for (const item of items) {
+    await client.query(
+      `insert into order_items (order_id, name, quantity, price_paise, modifiers)
+       values ($1, $2, $3, $4, $5::jsonb)`,
+      [orderId, item.name, item.quantity, item.pricePaise, JSON.stringify(item.modifiers)]
+    );
+  }
+}
+
 orderRoutes.use(requireAuth);
 
 orderRoutes.post("/", requireRole("customer", "admin"), async (req, res, next) => {
@@ -24,11 +113,8 @@ orderRoutes.post("/", requireRole("customer", "admin"), async (req, res, next) =
       deliveryAddress: z.string().min(5),
       deliveryLat: z.number(),
       deliveryLng: z.number(),
-      items: z.array(z.object({
-        name: z.string().min(1),
-        quantity: z.number().int().positive(),
-        pricePaise: z.number().int().positive()
-      })).min(1)
+      couponCode: z.string().trim().min(2).max(32).optional(),
+      items: z.array(orderItemInput).min(1)
     }).parse(req.body);
 
     const idempotencyKey = req.header("idempotency-key");
@@ -49,24 +135,36 @@ orderRoutes.post("/", requireRole("customer", "admin"), async (req, res, next) =
     }
 
     const result = await transaction(async client => {
-      const totalPaise = body.items.reduce((sum, item) => sum + item.quantity * item.pricePaise, 0);
+      const pricing = await priceOrder(client, body.items, body.couponCode);
+      if ("error" in pricing) {
+        return { statusCode: 400, body: { error: pricing.error } };
+      }
       const order = await client.query<{ id: string; estimated_delivery_at: string }>(
         `insert into orders (
-           customer_id, restaurant_id, status, total_paise, delivery_address,
-           delivery_lat, delivery_lng, auto_cancel_at, estimated_delivery_at
+           customer_id, restaurant_id, status, total_paise, subtotal_paise,
+           tax_paise, platform_fee_paise, delivery_fee_paise, discount_paise,
+           coupon_code, delivery_address, delivery_lat, delivery_lng,
+           auto_cancel_at, estimated_delivery_at
          )
-         values ($1, $2, 'created', $3, $4, $5, $6, now() + interval '10 minutes', now() + interval '45 minutes')
+         values ($1, $2, 'created', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now() + interval '10 minutes', now() + interval '45 minutes')
          returning id, estimated_delivery_at`,
-        [req.user!.id, body.restaurantId, totalPaise, body.deliveryAddress, body.deliveryLat, body.deliveryLng]
+        [
+          req.user!.id,
+          body.restaurantId,
+          pricing.totalPaise,
+          pricing.subtotalPaise,
+          pricing.taxPaise,
+          pricing.platformFeePaise,
+          pricing.deliveryFeePaise,
+          pricing.discountPaise,
+          pricing.couponCode,
+          body.deliveryAddress,
+          body.deliveryLat,
+          body.deliveryLng
+        ]
       );
 
-      for (const item of body.items) {
-        await client.query(
-          `insert into order_items (order_id, name, quantity, price_paise)
-           values ($1, $2, $3, $4)`,
-          [order.rows[0].id, item.name, item.quantity, item.pricePaise]
-        );
-      }
+      await insertOrderItems(client, order.rows[0].id, body.items);
 
       await client.query(
         `insert into order_status_history (order_id, status, changed_by, note)
@@ -74,7 +172,7 @@ orderRoutes.post("/", requireRole("customer", "admin"), async (req, res, next) =
         [order.rows[0].id, req.user!.id]
       );
 
-      return { id: order.rows[0].id, totalPaise, status: "created", estimatedDeliveryAt: order.rows[0].estimated_delivery_at };
+      return { statusCode: 201, body: { id: order.rows[0].id, ...pricing, status: "created", estimatedDeliveryAt: order.rows[0].estimated_delivery_at } };
     });
 
     if (idempotencyKey) {
@@ -82,11 +180,11 @@ orderRoutes.post("/", requireRole("customer", "admin"), async (req, res, next) =
         `insert into idempotency_keys (key, user_id, scope, request_hash, response_status, response_body)
          values ($1, $2, 'order:create', $3, $4, $5)
          on conflict (key, user_id, scope) do nothing`,
-        [idempotencyKey, req.user!.id, requestHash, 201, result]
+        [idempotencyKey, req.user!.id, requestHash, result.statusCode, result.body]
       );
     }
 
-    res.status(201).json(result);
+    res.status(result.statusCode).json(result.body);
   } catch (error) {
     next(error);
   }
@@ -196,30 +294,50 @@ orderRoutes.post("/:id/reorder", requireRole("customer", "admin", "super_admin")
       return res.status(404).json({ error: "Original order not found" });
     }
 
-    const items = await query<{ name: string; quantity: number; price_paise: number }>(
-      "select name, quantity, price_paise from order_items where order_id = $1",
+    const items = await query<{ name: string; quantity: number; price_paise: number; modifiers: unknown }>(
+      "select name, quantity, price_paise, modifiers from order_items where order_id = $1",
       [req.params.id]
     );
-    const totalPaise = items.rows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.price_paise), 0);
+    const orderItems: OrderItemInput[] = items.rows.map(item => ({
+      name: item.name,
+      quantity: Number(item.quantity),
+      pricePaise: Number(item.price_paise),
+      modifiers: Array.isArray(item.modifiers)
+        ? item.modifiers.map(modifier => cartModifierInput.parse(modifier))
+        : []
+    }));
 
     const created = await transaction(async client => {
+      const pricing = await priceOrder(client, orderItems);
+      if ("error" in pricing) {
+        return { statusCode: 400, body: { error: pricing.error } };
+      }
       const order = await client.query<{ id: string; estimated_delivery_at: string }>(
         `insert into orders (
-           customer_id, restaurant_id, status, total_paise, delivery_address,
-           delivery_lat, delivery_lng, auto_cancel_at, estimated_delivery_at
+           customer_id, restaurant_id, status, total_paise, subtotal_paise,
+           tax_paise, platform_fee_paise, delivery_fee_paise, discount_paise,
+           coupon_code, delivery_address, delivery_lat, delivery_lng,
+           auto_cancel_at, estimated_delivery_at
          )
-         values ($1, $2, 'created', $3, $4, $5, $6, now() + interval '10 minutes', now() + interval '45 minutes')
+         values ($1, $2, 'created', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now() + interval '10 minutes', now() + interval '45 minutes')
          returning id, estimated_delivery_at`,
-        [req.user!.id, source.restaurant_id, totalPaise, source.delivery_address, source.delivery_lat, source.delivery_lng]
+        [
+          req.user!.id,
+          source.restaurant_id,
+          pricing.totalPaise,
+          pricing.subtotalPaise,
+          pricing.taxPaise,
+          pricing.platformFeePaise,
+          pricing.deliveryFeePaise,
+          pricing.discountPaise,
+          pricing.couponCode,
+          source.delivery_address,
+          source.delivery_lat,
+          source.delivery_lng
+        ]
       );
 
-      for (const item of items.rows) {
-        await client.query(
-          `insert into order_items (order_id, name, quantity, price_paise)
-           values ($1, $2, $3, $4)`,
-          [order.rows[0].id, item.name, item.quantity, item.price_paise]
-        );
-      }
+      await insertOrderItems(client, order.rows[0].id, orderItems);
 
       await client.query(
         `insert into order_status_history (order_id, status, changed_by, note)
@@ -227,10 +345,10 @@ orderRoutes.post("/:id/reorder", requireRole("customer", "admin", "super_admin")
         [order.rows[0].id, req.user!.id, `Reordered from ${req.params.id}`]
       );
 
-      return order.rows[0];
+      return { statusCode: 201, body: { id: order.rows[0].id, ...pricing, status: "created", estimatedDeliveryAt: order.rows[0].estimated_delivery_at } };
     });
 
-    res.status(201).json({ id: created.id, totalPaise, status: "created", estimatedDeliveryAt: created.estimated_delivery_at });
+    res.status(created.statusCode).json(created.body);
   } catch (error) {
     next(error);
   }
@@ -238,21 +356,19 @@ orderRoutes.post("/:id/reorder", requireRole("customer", "admin", "super_admin")
 
 orderRoutes.patch("/:id", requireRole("customer", "admin", "super_admin"), async (req, res, next) => {
   try {
+    const orderId = routeParam(req.params.id);
     const body = z.object({
       deliveryAddress: z.string().min(5).optional(),
       deliveryLat: z.number().optional(),
       deliveryLng: z.number().optional(),
-      items: z.array(z.object({
-        name: z.string().min(1),
-        quantity: z.number().int().positive(),
-        pricePaise: z.number().int().positive()
-      })).min(1).optional()
+      couponCode: z.string().trim().min(2).max(32).optional(),
+      items: z.array(orderItemInput).min(1).optional()
     }).parse(req.body);
 
     const result = await transaction(async client => {
       const current = await client.query<{ id: string; customer_id: string; status: string; delivery_address: string; delivery_lat: string; delivery_lng: string }>(
         "select * from orders where id = $1 for update",
-        [req.params.id]
+        [orderId]
       );
       const order = current.rows[0];
 
@@ -266,41 +382,56 @@ orderRoutes.patch("/:id", requireRole("customer", "admin", "super_admin"), async
         return { statusCode: 409, body: { error: "Order can only be edited before restaurant confirmation" } };
       }
 
-      const totalPaise = body.items?.reduce((sum, item) => sum + item.quantity * item.pricePaise, 0);
+      const pricing = body.items ? await priceOrder(client, body.items, body.couponCode) : null;
+      if (pricing && "error" in pricing) {
+        return { statusCode: 400, body: { error: pricing.error } };
+      }
       const updated = await client.query(
         `update orders
          set delivery_address = coalesce($1, delivery_address),
              delivery_lat = coalesce($2, delivery_lat),
              delivery_lng = coalesce($3, delivery_lng),
              total_paise = coalesce($4, total_paise),
+             subtotal_paise = coalesce($5, subtotal_paise),
+             tax_paise = coalesce($6, tax_paise),
+             platform_fee_paise = coalesce($7, platform_fee_paise),
+             delivery_fee_paise = coalesce($8, delivery_fee_paise),
+             discount_paise = coalesce($9, discount_paise),
+             coupon_code = coalesce($10, coupon_code),
              updated_at = now()
-         where id = $5
+         where id = $11
          returning *`,
-        [body.deliveryAddress ?? null, body.deliveryLat ?? null, body.deliveryLng ?? null, totalPaise ?? null, req.params.id]
+        [
+          body.deliveryAddress ?? null,
+          body.deliveryLat ?? null,
+          body.deliveryLng ?? null,
+          pricing && !("error" in pricing) ? pricing.totalPaise : null,
+          pricing && !("error" in pricing) ? pricing.subtotalPaise : null,
+          pricing && !("error" in pricing) ? pricing.taxPaise : null,
+          pricing && !("error" in pricing) ? pricing.platformFeePaise : null,
+          pricing && !("error" in pricing) ? pricing.deliveryFeePaise : null,
+          pricing && !("error" in pricing) ? pricing.discountPaise : null,
+          pricing && !("error" in pricing) ? pricing.couponCode : null,
+          orderId
+        ]
       );
 
       if (body.items) {
-        await client.query("delete from order_items where order_id = $1", [req.params.id]);
-        for (const item of body.items) {
-          await client.query(
-            `insert into order_items (order_id, name, quantity, price_paise)
-             values ($1, $2, $3, $4)`,
-            [req.params.id, item.name, item.quantity, item.pricePaise]
-          );
-        }
+        await client.query("delete from order_items where order_id = $1", [orderId]);
+        await insertOrderItems(client, orderId, body.items);
       }
 
       await client.query(
         `insert into order_status_history (order_id, status, changed_by, note)
          values ($1, 'created', $2, 'Order edited before confirmation')`,
-        [req.params.id, req.user!.id]
+        [orderId, req.user!.id]
       );
 
       return { statusCode: 200, body: updated.rows[0] };
     });
 
     if (result.statusCode === 200) {
-      emitOrderUpdate(routeParam(req.params.id), result.body);
+      emitOrderUpdate(orderId, result.body);
     }
     res.status(result.statusCode).json(result.body);
   } catch (error) {

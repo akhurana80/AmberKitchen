@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -71,6 +72,7 @@ class CustomerAppState extends ChangeNotifier {
 
   static const tokenStorageKey = 'amberkitchen.customer.token';
   static const lastOrderStorageKey = 'amberkitchen.customer.lastOrderId';
+  static const cartStorageKey = 'amberkitchen.customer.cart';
 
   final AmberApiClient api;
   final FlutterSecureStorage storage;
@@ -103,7 +105,34 @@ class CustomerAppState extends ChangeNotifier {
   Timer? trackingTimer;
 
   bool get signedIn => api.token.isNotEmpty;
-  int get cartTotalPaise => cart.totalPaise;
+  int get cartTotalPaise => cartPricing.totalPaise;
+  Offer? get appliedOffer {
+    final code = cart.couponCode.trim().toUpperCase();
+    if (code.isEmpty) {
+      return null;
+    }
+    return offers
+        .where((offer) => offer.code.toUpperCase() == code)
+        .firstOrNull;
+  }
+
+  String? get couponProblem {
+    final code = cart.couponCode.trim().toUpperCase();
+    if (code.isEmpty) {
+      return null;
+    }
+    final offer = appliedOffer;
+    if (offer == null) {
+      return 'Coupon is not active for this account.';
+    }
+    if (cart.subtotalPaise < offer.minOrderPaise) {
+      return 'Add ${formatCurrency(offer.minOrderPaise - cart.subtotalPaise)} more to use $code.';
+    }
+    return null;
+  }
+
+  CartPricing get cartPricing =>
+      cart.pricingFor(offer: couponProblem == null ? appliedOffer : null);
   bool get canCheckout =>
       cart.lines.isNotEmpty &&
       deliveryAddress.trim().length >= 5 &&
@@ -252,6 +281,7 @@ class CustomerAppState extends ChangeNotifier {
     }
 
     await _initializeGoogleSignIn();
+    await _restoreCart();
     final savedToken = await storage.read(key: tokenStorageKey);
     final savedOrderId = await storage.read(key: lastOrderStorageKey);
     if (savedToken != null && savedToken.isNotEmpty) {
@@ -314,6 +344,22 @@ class CustomerAppState extends ChangeNotifier {
     await storage.write(key: tokenStorageKey, value: token);
   }
 
+  Future<void> _restoreCart() async {
+    final raw = await storage.read(key: cartStorageKey);
+    if (raw == null || raw.isEmpty) {
+      return;
+    }
+    try {
+      cart.restoreFromJson(Map<String, dynamic>.from(jsonDecode(raw) as Map));
+    } catch (_) {
+      await storage.delete(key: cartStorageKey);
+    }
+  }
+
+  Future<void> _persistCart() async {
+    await storage.write(key: cartStorageKey, value: jsonEncode(cart.toJson()));
+  }
+
   Future<void> logout() async {
     socket?.dispose();
     trackingTimer?.cancel();
@@ -327,6 +373,7 @@ class CustomerAppState extends ChangeNotifier {
     offers = [];
     await storage.delete(key: tokenStorageKey);
     await storage.delete(key: lastOrderStorageKey);
+    await storage.delete(key: cartStorageKey);
     try {
       await GoogleSignIn.instance.signOut();
     } catch (_) {}
@@ -408,6 +455,7 @@ class CustomerAppState extends ChangeNotifier {
     try {
       cart.add(item);
       notice = '${item.menuItemName} added to cart.';
+      unawaited(_persistCart());
     } on ApiException catch (exception) {
       error = exception.message;
     }
@@ -416,16 +464,54 @@ class CustomerAppState extends ChangeNotifier {
 
   void incrementCart(String menuItemId) {
     cart.increment(menuItemId);
+    unawaited(_persistCart());
     notifyListeners();
   }
 
   void decrementCart(String menuItemId) {
     cart.decrement(menuItemId);
+    unawaited(_persistCart());
     notifyListeners();
   }
 
   void removeFromCart(String menuItemId) {
     cart.remove(menuItemId);
+    unawaited(_persistCart());
+    notifyListeners();
+  }
+
+  void updateCartLineModifiers(
+    String menuItemId, {
+    String? spiceLevel,
+    bool? includeCutlery,
+    String? specialInstructions,
+  }) {
+    cart.updateModifiers(
+      menuItemId,
+      spiceLevel: spiceLevel,
+      includeCutlery: includeCutlery,
+      specialInstructions: specialInstructions,
+    );
+    unawaited(_persistCart());
+    notifyListeners();
+  }
+
+  void applyCoupon(String code) {
+    cart.applyCoupon(code);
+    final problem = couponProblem;
+    error = problem;
+    notice = problem == null && cart.couponCode.isNotEmpty
+        ? '${cart.couponCode} applied.'
+        : null;
+    unawaited(_persistCart());
+    notifyListeners();
+  }
+
+  void removeCoupon() {
+    cart.removeCoupon();
+    error = null;
+    notice = 'Coupon removed.';
+    unawaited(_persistCart());
     notifyListeners();
   }
 
@@ -442,6 +528,11 @@ class CustomerAppState extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    if (couponProblem != null) {
+      error = couponProblem;
+      notifyListeners();
+      return;
+    }
 
     final created = await guard<CreateOrderResponse>('Order placed', () {
       return api.createOrder(
@@ -450,11 +541,13 @@ class CustomerAppState extends ChangeNotifier {
         deliveryLat: currentLat!,
         deliveryLng: currentLng!,
         items: cart.toOrderItems(),
+        couponCode: cart.couponCode,
       );
     });
 
     if (created != null) {
       cart.clear();
+      await _persistCart();
       await storage.write(key: lastOrderStorageKey, value: created.id);
       await loadOrder(created.id);
       tabIndex = 3;
@@ -466,6 +559,11 @@ class CustomerAppState extends ChangeNotifier {
     if (activeOrder == null || !canCheckout) {
       return;
     }
+    if (couponProblem != null) {
+      error = couponProblem;
+      notifyListeners();
+      return;
+    }
     await guard('Order updated', () async {
       await api.editOrderBeforeConfirmation(
         orderId: activeOrder!.id,
@@ -473,6 +571,7 @@ class CustomerAppState extends ChangeNotifier {
         deliveryLat: currentLat!,
         deliveryLng: currentLng!,
         items: cart.toOrderItems(),
+        couponCode: cart.couponCode,
       );
       await loadOrder(activeOrder!.id);
       return true;
@@ -716,11 +815,13 @@ class CustomerAppState extends ChangeNotifier {
 
 class CustomerCart {
   final List<CartLine> lines = [];
+  String couponCode = '';
 
   String? get restaurantId => lines.firstOrNull?.item.restaurantId;
   String? get restaurantName => lines.firstOrNull?.item.restaurantName;
-  int get totalPaise =>
-      lines.fold(0, (sum, line) => sum + line.quantity * line.item.pricePaise);
+  int get subtotalPaise =>
+      lines.fold(0, (sum, line) => sum + line.lineTotalPaise);
+  int get totalPaise => pricingFor().totalPaise;
 
   void add(MenuSearchItem item) {
     if (restaurantId != null && restaurantId != item.restaurantId) {
@@ -761,23 +862,196 @@ class CustomerCart {
     lines.removeWhere((line) => line.item.menuItemId == menuItemId);
   }
 
-  void clear() => lines.clear();
+  void updateModifiers(
+    String menuItemId, {
+    String? spiceLevel,
+    bool? includeCutlery,
+    String? specialInstructions,
+  }) {
+    final line =
+        lines.where((item) => item.item.menuItemId == menuItemId).firstOrNull;
+    if (line == null) {
+      return;
+    }
+    if (spiceLevel != null) {
+      line.spiceLevel = spiceLevel;
+    }
+    if (includeCutlery != null) {
+      line.includeCutlery = includeCutlery;
+    }
+    if (specialInstructions != null) {
+      line.specialInstructions = specialInstructions;
+    }
+  }
+
+  void applyCoupon(String code) {
+    couponCode = code.trim().toUpperCase();
+  }
+
+  void removeCoupon() {
+    couponCode = '';
+  }
+
+  void clear() {
+    lines.clear();
+    couponCode = '';
+  }
+
+  CartPricing pricingFor({Offer? offer}) {
+    final subtotal = subtotalPaise;
+    final tax = (subtotal * 0.05).round();
+    final platformFee = subtotal >= 19900 ? 900 : 0;
+    final deliveryFee = lines.isEmpty || subtotal >= 49900 ? 0 : 3900;
+    final discount = offer == null
+        ? 0
+        : offer.discountType == 'flat'
+            ? offer.discountValue
+            : (subtotal * offer.discountValue / 100).round();
+    final totalBeforeDiscount = subtotal + tax + platformFee + deliveryFee;
+    final discountPaise = discount.clamp(0, totalBeforeDiscount).toInt();
+    return CartPricing(
+      subtotalPaise: subtotal,
+      taxPaise: tax,
+      platformFeePaise: platformFee,
+      deliveryFeePaise: deliveryFee,
+      discountPaise: discountPaise,
+      totalPaise: (totalBeforeDiscount - discountPaise)
+          .clamp(0, totalBeforeDiscount)
+          .toInt(),
+    );
+  }
 
   List<CartItemRequest> toOrderItems() {
     return lines.map((line) {
       return CartItemRequest(
-          name: line.item.menuItemName,
-          quantity: line.quantity,
-          pricePaise: line.item.pricePaise);
+        name: line.item.menuItemName,
+        quantity: line.quantity,
+        pricePaise: line.item.pricePaise,
+        modifiers: line.modifiers
+            .map((modifier) => CartItemModifierRequest(
+                  name: modifier.name,
+                  pricePaise: modifier.pricePaise,
+                ))
+            .toList(),
+      );
     }).toList();
+  }
+
+  Map<String, dynamic> toJson() => {
+        'couponCode': couponCode,
+        'lines': lines.map((line) => line.toJson()).toList(),
+      };
+
+  void restoreFromJson(Map<String, dynamic> json) {
+    lines
+      ..clear()
+      ..addAll(((json['lines'] as List?) ?? const []).map(
+          (line) => CartLine.fromJson(Map<String, dynamic>.from(line as Map))));
+    couponCode = json['couponCode']?.toString() ?? '';
   }
 }
 
 class CartLine {
-  CartLine({required this.item, this.quantity = 1});
+  CartLine({
+    required this.item,
+    this.quantity = 1,
+    this.spiceLevel = 'Regular',
+    this.includeCutlery = false,
+    this.specialInstructions = '',
+  });
 
   final MenuSearchItem item;
   int quantity;
+  String spiceLevel;
+  bool includeCutlery;
+  String specialInstructions;
+
+  int get modifierTotalPaise =>
+      modifiers.fold(0, (sum, modifier) => sum + modifier.pricePaise);
+  int get unitPricePaise => item.pricePaise + modifierTotalPaise;
+  int get lineTotalPaise => quantity * unitPricePaise;
+  List<CartModifier> get modifiers => [
+        if (spiceLevel != 'Regular')
+          CartModifier(name: 'Spice level: $spiceLevel', pricePaise: 0),
+        if (includeCutlery)
+          const CartModifier(name: 'Include cutlery', pricePaise: 0),
+        if (specialInstructions.trim().isNotEmpty)
+          CartModifier(
+              name: 'Instructions: ${specialInstructions.trim()}',
+              pricePaise: 0),
+      ];
+
+  Map<String, dynamic> toJson() => {
+        'item': {
+          'menuItemId': item.menuItemId,
+          'menuItemName': item.menuItemName,
+          'description': item.description,
+          'pricePaise': item.pricePaise,
+          'photoUrl': item.photoUrl,
+          'isVeg': item.isVeg,
+          'cuisineType': item.cuisineType,
+          'rating': item.rating,
+          'restaurantId': item.restaurantId,
+          'restaurantName': item.restaurantName,
+          'restaurantAddress': item.restaurantAddress,
+          'distanceKm': item.distanceKm,
+        },
+        'quantity': quantity,
+        'spiceLevel': spiceLevel,
+        'includeCutlery': includeCutlery,
+        'specialInstructions': specialInstructions,
+      };
+
+  factory CartLine.fromJson(Map<String, dynamic> json) {
+    final item = Map<String, dynamic>.from((json['item'] as Map?) ?? const {});
+    return CartLine(
+      item: MenuSearchItem(
+        menuItemId: valueAsString(item['menuItemId']),
+        menuItemName: valueAsString(item['menuItemName']),
+        description: item['description']?.toString(),
+        pricePaise: valueAsInt(item['pricePaise']),
+        photoUrl: item['photoUrl']?.toString(),
+        isVeg: item['isVeg'] is bool ? item['isVeg'] as bool : null,
+        cuisineType: item['cuisineType']?.toString(),
+        rating: valueAsDouble(item['rating']),
+        restaurantId: valueAsString(item['restaurantId']),
+        restaurantName: valueAsString(item['restaurantName']),
+        restaurantAddress: valueAsString(item['restaurantAddress']),
+        distanceKm: valueAsDouble(item['distanceKm']),
+      ),
+      quantity: valueAsInt(json['quantity']).clamp(1, 99).toInt(),
+      spiceLevel: json['spiceLevel']?.toString() ?? 'Regular',
+      includeCutlery: json['includeCutlery'] is bool
+          ? json['includeCutlery'] as bool
+          : false,
+      specialInstructions: json['specialInstructions']?.toString() ?? '',
+    );
+  }
+}
+
+class CartModifier {
+  const CartModifier({required this.name, required this.pricePaise});
+
+  final String name;
+  final int pricePaise;
+}
+
+class CartPricing {
+  const CartPricing({
+    required this.subtotalPaise,
+    required this.taxPaise,
+    required this.platformFeePaise,
+    required this.deliveryFeePaise,
+    required this.discountPaise,
+    required this.totalPaise,
+  });
+
+  final int subtotalPaise;
+  final int taxPaise;
+  final int platformFeePaise;
+  final int deliveryFeePaise;
+  final int discountPaise;
+  final int totalPaise;
 }
 
 class RestaurantSummary {
@@ -1499,11 +1773,20 @@ class CartScreen extends StatelessWidget {
                           state.decrementCart(line.item.menuItemId),
                       onRemove: () =>
                           state.removeFromCart(line.item.menuItemId),
+                      onSpiceChanged: (value) => state.updateCartLineModifiers(
+                          line.item.menuItemId,
+                          spiceLevel: value),
+                      onCutleryChanged: (value) =>
+                          state.updateCartLineModifiers(line.item.menuItemId,
+                              includeCutlery: value),
+                      onInstructionsChanged: (value) =>
+                          state.updateCartLineModifiers(line.item.menuItemId,
+                              specialInstructions: value),
                     )),
                 const Divider(),
                 SummaryRow(
-                    label: 'Total',
-                    value: formatCurrency(state.cartTotalPaise),
+                    label: 'Cart subtotal',
+                    value: formatCurrency(state.cart.subtotalPaise),
                     strong: true),
               ],
             ),
@@ -1522,6 +1805,7 @@ class CheckoutScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pricing = state.cartPricing;
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1538,13 +1822,41 @@ class CheckoutScreen extends StatelessWidget {
             framed: false,
           ),
           const Divider(height: 24),
+          CouponApplicationSection(state: state),
+          const Divider(height: 24),
+          Text('Final checkout review',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          if (state.cart.restaurantName != null)
+            SummaryRow(label: 'Restaurant', value: state.cart.restaurantName!),
+          SummaryRow(
+              label: 'Address',
+              value: state.deliveryAddress.trim().isEmpty
+                  ? 'Select address'
+                  : state.deliveryAddress.trim()),
           SummaryRow(label: 'Items', value: '${state.cart.lines.length}'),
           SummaryRow(
-              label: 'Subtotal', value: formatCurrency(state.cartTotalPaise)),
-          const SummaryRow(
-              label: 'Taxes and fees', value: 'Calculated by backend'),
-          const SummaryRow(
-              label: 'Delivery fee', value: 'Calculated by backend'),
+              label: 'Subtotal', value: formatCurrency(pricing.subtotalPaise)),
+          SummaryRow(
+              label: 'Taxes and platform fee',
+              value:
+                  formatCurrency(pricing.taxPaise + pricing.platformFeePaise)),
+          SummaryRow(
+              label: 'Delivery fee',
+              value: pricing.deliveryFeePaise == 0
+                  ? 'Free'
+                  : formatCurrency(pricing.deliveryFeePaise)),
+          if (pricing.discountPaise > 0)
+            SummaryRow(
+                label: 'Coupon discount',
+                value: '-${formatCurrency(pricing.discountPaise)}'),
+          SummaryRow(
+              label: 'Total',
+              value: formatCurrency(pricing.totalPaise),
+              strong: true),
           const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: state.busy || !state.canCheckout ? null : state.checkout,
@@ -1558,6 +1870,85 @@ class CheckoutScreen extends StatelessWidget {
                 child: const Text('Update active order before confirmation')),
         ],
       ),
+    );
+  }
+}
+
+class CouponApplicationSection extends StatefulWidget {
+  const CouponApplicationSection({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  State<CouponApplicationSection> createState() =>
+      _CouponApplicationSectionState();
+}
+
+class _CouponApplicationSectionState extends State<CouponApplicationSection> {
+  late final TextEditingController coupon;
+
+  @override
+  void initState() {
+    super.initState();
+    coupon = TextEditingController(text: widget.state.cart.couponCode);
+  }
+
+  @override
+  void didUpdateWidget(covariant CouponApplicationSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (coupon.text != widget.state.cart.couponCode) {
+      coupon.text = widget.state.cart.couponCode;
+    }
+  }
+
+  @override
+  void dispose() {
+    coupon.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final problem = widget.state.couponProblem;
+    final applied = widget.state.appliedOffer;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Coupon application',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 12),
+        TextField(
+          controller: coupon,
+          textCapitalization: TextCapitalization.characters,
+          decoration: InputDecoration(
+            labelText: 'Coupon code',
+            helperText: applied?.title,
+            errorText: problem,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            FilledButton.icon(
+              onPressed: () => widget.state.applyCoupon(coupon.text),
+              icon: const Icon(Icons.local_offer_outlined),
+              label: const Text('Apply coupon'),
+            ),
+            OutlinedButton.icon(
+              onPressed: widget.state.cart.couponCode.isEmpty
+                  ? null
+                  : widget.state.removeCoupon,
+              icon: const Icon(Icons.close),
+              label: const Text('Remove'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -2148,32 +2539,86 @@ class CartLineTile extends StatelessWidget {
       required this.onIncrement,
       required this.onDecrement,
       required this.onRemove,
+      required this.onSpiceChanged,
+      required this.onCutleryChanged,
+      required this.onInstructionsChanged,
       super.key});
 
   final CartLine line;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
   final VoidCallback onRemove;
+  final ValueChanged<String> onSpiceChanged;
+  final ValueChanged<bool> onCutleryChanged;
+  final ValueChanged<String> onInstructionsChanged;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(line.item.menuItemName),
-      subtitle: Text('${formatCurrency(line.item.pricePaise)} each'),
-      trailing: Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 4,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          IconButton(
-              onPressed: onDecrement,
-              icon: const Icon(Icons.remove_circle_outline)),
-          Text('${line.quantity}'),
-          IconButton(
-              onPressed: onIncrement,
-              icon: const Icon(Icons.add_circle_outline)),
-          IconButton(
-              onPressed: onRemove, icon: const Icon(Icons.delete_outline)),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(line.item.menuItemName),
+            subtitle: Text(
+                '${formatCurrency(line.item.pricePaise)} each - ${formatCurrency(line.lineTotalPaise)} line total'),
+            trailing: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 4,
+              children: [
+                IconButton(
+                    onPressed: onDecrement,
+                    icon: const Icon(Icons.remove_circle_outline)),
+                Text('${line.quantity}'),
+                IconButton(
+                    onPressed: onIncrement,
+                    icon: const Icon(Icons.add_circle_outline)),
+                IconButton(
+                    onPressed: onRemove,
+                    icon: const Icon(Icons.delete_outline)),
+              ],
+            ),
+          ),
+          DropdownButtonFormField<String>(
+            initialValue: line.spiceLevel,
+            decoration: const InputDecoration(labelText: 'Item modifier'),
+            items: const [
+              DropdownMenuItem(value: 'Regular', child: Text('Regular spice')),
+              DropdownMenuItem(value: 'Mild', child: Text('Mild')),
+              DropdownMenuItem(value: 'Spicy', child: Text('Spicy')),
+              DropdownMenuItem(
+                  value: 'Extra spicy', child: Text('Extra spicy')),
+            ],
+            onChanged: (value) => onSpiceChanged(value ?? 'Regular'),
+          ),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            value: line.includeCutlery,
+            onChanged: (value) => onCutleryChanged(value ?? false),
+            title: const Text('Include cutlery'),
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+          TextFormField(
+            initialValue: line.specialInstructions,
+            decoration:
+                const InputDecoration(labelText: 'Special instructions'),
+            maxLines: 2,
+            onChanged: onInstructionsChanged,
+          ),
+          if (line.modifiers.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: line.modifiers
+                    .map((modifier) => Chip(label: Text(modifier.name)))
+                    .toList(),
+              ),
+            ),
+          const Divider(height: 24),
         ],
       ),
     );

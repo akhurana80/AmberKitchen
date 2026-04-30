@@ -9,8 +9,8 @@ The Flutter app in `apps/flutter-mobile` is now the production customer app for 
 - Proper customer screens: Home, Location selection, Restaurant listing, Restaurant details, Menu browsing, Cart, Checkout, Payment status, Order tracking, Order history, Profile, and Support
 - Restaurant search with cuisine, veg/non-veg, rating, distance, and price sorting
 - Trending restaurants and customer offers
-- Same-restaurant cart with quantity controls
-- Checkout from real backend menu data
+- Persistent same-restaurant cart with quantity controls, item modifiers, coupon application, taxes/fees, delivery fee, address selection, and final checkout review
+- Checkout from real backend menu data with backend-authoritative pricing
 - Edit order before restaurant confirmation
 - PhonePe, Paytm, and Razorpay payment handoff
 - Live order tracking with Socket.IO plus ETA polling fallback

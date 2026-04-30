@@ -134,6 +134,7 @@ class AmberApiClient {
     required double deliveryLat,
     required double deliveryLng,
     required List<CartItemRequest> items,
+    String? couponCode,
   }) async {
     final response = await _post(
       '/api/v1/orders',
@@ -142,6 +143,8 @@ class AmberApiClient {
         'deliveryAddress': deliveryAddress,
         'deliveryLat': deliveryLat,
         'deliveryLng': deliveryLng,
+        if (couponCode != null && couponCode.trim().isNotEmpty)
+          'couponCode': couponCode.trim().toUpperCase(),
         'items': items.map((item) => item.toJson()).toList(),
       },
       idempotencyKey: 'flutter-order-${DateTime.now().microsecondsSinceEpoch}',
@@ -169,11 +172,14 @@ class AmberApiClient {
     required double deliveryLat,
     required double deliveryLng,
     required List<CartItemRequest> items,
+    String? couponCode,
   }) async {
     await _patch('/api/v1/orders/$orderId', {
       'deliveryAddress': deliveryAddress,
       'deliveryLat': deliveryLat,
       'deliveryLng': deliveryLng,
+      if (couponCode != null && couponCode.trim().isNotEmpty)
+        'couponCode': couponCode.trim().toUpperCase(),
       'items': items.map((item) => item.toJson()).toList(),
     });
   }
@@ -394,13 +400,15 @@ class Offer {
       required this.code,
       required this.title,
       required this.discountType,
-      required this.discountValue});
+      required this.discountValue,
+      required this.minOrderPaise});
 
   final String id;
   final String code;
   final String title;
   final String discountType;
   final int discountValue;
+  final int minOrderPaise;
 
   factory Offer.fromJson(Map<String, dynamic> json) => Offer(
         id: valueAsString(json['id']),
@@ -408,20 +416,40 @@ class Offer {
         title: valueAsString(json['title']),
         discountType: valueAsString(json['discount_type']),
         discountValue: valueAsInt(json['discount_value']),
+        minOrderPaise: valueAsInt(json['min_order_paise']),
       );
 }
 
 class CartItemRequest {
-  CartItemRequest(
-      {required this.name, required this.quantity, required this.pricePaise});
+  CartItemRequest({
+    required this.name,
+    required this.quantity,
+    required this.pricePaise,
+    this.modifiers = const [],
+  });
 
   final String name;
   final int quantity;
   final int pricePaise;
+  final List<CartItemModifierRequest> modifiers;
 
   Map<String, dynamic> toJson() => {
         'name': name,
         'quantity': quantity,
+        'pricePaise': pricePaise,
+        if (modifiers.isNotEmpty)
+          'modifiers': modifiers.map((modifier) => modifier.toJson()).toList(),
+      };
+}
+
+class CartItemModifierRequest {
+  const CartItemModifierRequest({required this.name, required this.pricePaise});
+
+  final String name;
+  final int pricePaise;
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
         'pricePaise': pricePaise,
       };
 }
@@ -431,11 +459,23 @@ class CreateOrderResponse {
       {required this.id,
       required this.totalPaise,
       required this.status,
+      this.subtotalPaise = 0,
+      this.taxPaise = 0,
+      this.platformFeePaise = 0,
+      this.deliveryFeePaise = 0,
+      this.discountPaise = 0,
+      this.couponCode,
       this.estimatedDeliveryAt});
 
   final String id;
   final int totalPaise;
   final String status;
+  final int subtotalPaise;
+  final int taxPaise;
+  final int platformFeePaise;
+  final int deliveryFeePaise;
+  final int discountPaise;
+  final String? couponCode;
   final String? estimatedDeliveryAt;
 
   factory CreateOrderResponse.fromJson(Map<String, dynamic> json) =>
@@ -443,6 +483,17 @@ class CreateOrderResponse {
         id: valueAsString(json['id']),
         totalPaise: valueAsInt(json['totalPaise'] ?? json['total_paise']),
         status: valueAsString(json['status']),
+        subtotalPaise:
+            valueAsInt(json['subtotalPaise'] ?? json['subtotal_paise']),
+        taxPaise: valueAsInt(json['taxPaise'] ?? json['tax_paise']),
+        platformFeePaise:
+            valueAsInt(json['platformFeePaise'] ?? json['platform_fee_paise']),
+        deliveryFeePaise:
+            valueAsInt(json['deliveryFeePaise'] ?? json['delivery_fee_paise']),
+        discountPaise:
+            valueAsInt(json['discountPaise'] ?? json['discount_paise']),
+        couponCode:
+            json['couponCode']?.toString() ?? json['coupon_code']?.toString(),
         estimatedDeliveryAt: json['estimatedDeliveryAt']?.toString() ??
             json['estimated_delivery_at']?.toString(),
       );
@@ -485,6 +536,12 @@ class OrderDetails extends OrderSummary {
     this.deliveryLng,
     this.driverPhone,
     this.driverName,
+    this.subtotalPaise = 0,
+    this.taxPaise = 0,
+    this.platformFeePaise = 0,
+    this.deliveryFeePaise = 0,
+    this.discountPaise = 0,
+    this.couponCode,
     required this.items,
     required this.history,
   });
@@ -494,6 +551,12 @@ class OrderDetails extends OrderSummary {
   final double? deliveryLng;
   final String? driverPhone;
   final String? driverName;
+  final int subtotalPaise;
+  final int taxPaise;
+  final int platformFeePaise;
+  final int deliveryFeePaise;
+  final int discountPaise;
+  final String? couponCode;
   final List<OrderItem> items;
   final List<OrderHistoryEvent> history;
 
@@ -509,6 +572,17 @@ class OrderDetails extends OrderSummary {
         deliveryLng: valueAsDouble(json['delivery_lng']),
         driverPhone: json['driver_phone']?.toString(),
         driverName: json['driver_name']?.toString(),
+        subtotalPaise:
+            valueAsInt(json['subtotalPaise'] ?? json['subtotal_paise']),
+        taxPaise: valueAsInt(json['taxPaise'] ?? json['tax_paise']),
+        platformFeePaise:
+            valueAsInt(json['platformFeePaise'] ?? json['platform_fee_paise']),
+        deliveryFeePaise:
+            valueAsInt(json['deliveryFeePaise'] ?? json['delivery_fee_paise']),
+        discountPaise:
+            valueAsInt(json['discountPaise'] ?? json['discount_paise']),
+        couponCode:
+            json['couponCode']?.toString() ?? json['coupon_code']?.toString(),
         items: ((json['items'] as List?) ?? const [])
             .map((item) =>
                 OrderItem.fromJson(Map<String, dynamic>.from(item as Map)))
@@ -521,17 +595,39 @@ class OrderDetails extends OrderSummary {
 }
 
 class OrderItem {
-  OrderItem(
-      {required this.name, required this.quantity, required this.pricePaise});
+  OrderItem({
+    required this.name,
+    required this.quantity,
+    required this.pricePaise,
+    this.modifiers = const [],
+  });
 
   final String name;
   final int quantity;
   final int pricePaise;
+  final List<OrderItemModifier> modifiers;
 
   factory OrderItem.fromJson(Map<String, dynamic> json) => OrderItem(
         name: valueAsString(json['name']),
         quantity: valueAsInt(json['quantity']),
         pricePaise: valueAsInt(json['price_paise'] ?? json['pricePaise']),
+        modifiers: ((json['modifiers'] as List?) ?? const [])
+            .map((item) => OrderItemModifier.fromJson(
+                Map<String, dynamic>.from(item as Map)))
+            .toList(),
+      );
+}
+
+class OrderItemModifier {
+  const OrderItemModifier({required this.name, required this.pricePaise});
+
+  final String name;
+  final int pricePaise;
+
+  factory OrderItemModifier.fromJson(Map<String, dynamic> json) =>
+      OrderItemModifier(
+        name: valueAsString(json['name']),
+        pricePaise: valueAsInt(json['pricePaise'] ?? json['price_paise']),
       );
 }
 

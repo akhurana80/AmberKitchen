@@ -118,14 +118,23 @@ alter table orders add column if not exists cancelled_by uuid references users(i
 alter table orders add column if not exists cancelled_at timestamptz;
 alter table orders add column if not exists auto_cancel_at timestamptz;
 alter table orders add column if not exists estimated_delivery_at timestamptz;
+alter table orders add column if not exists subtotal_paise integer not null default 0;
+alter table orders add column if not exists tax_paise integer not null default 0;
+alter table orders add column if not exists platform_fee_paise integer not null default 0;
+alter table orders add column if not exists delivery_fee_paise integer not null default 0;
+alter table orders add column if not exists discount_paise integer not null default 0;
+alter table orders add column if not exists coupon_code text;
 
 create table if not exists order_items (
   id uuid primary key default uuid_generate_v4(),
   order_id uuid not null references orders(id) on delete cascade,
   name text not null,
   quantity integer not null,
-  price_paise integer not null
+  price_paise integer not null,
+  modifiers jsonb not null default '[]'::jsonb
 );
+
+alter table order_items add column if not exists modifiers jsonb not null default '[]'::jsonb;
 
 create table if not exists order_status_history (
   id uuid primary key default uuid_generate_v4(),
