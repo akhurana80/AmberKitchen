@@ -88,6 +88,7 @@ class CustomerAppState extends ChangeNotifier {
   double? currentLng;
   String deliveryAddress = '';
   String selectedPaymentProvider = 'phonepe';
+  String? selectedRestaurantId;
   List<MenuSearchItem> menuItems = [];
   List<TrendingRestaurant> trending = [];
   List<Offer> offers = [];
@@ -109,9 +110,120 @@ class CustomerAppState extends ChangeNotifier {
       currentLat != null &&
       currentLng != null;
   bool get hasConfig => configError == null;
+  List<RestaurantSummary> get restaurantSummaries {
+    final byRestaurant = <String, RestaurantSummary>{};
+    for (final item in menuItems) {
+      final existing = byRestaurant[item.restaurantId];
+      if (existing == null) {
+        byRestaurant[item.restaurantId] = RestaurantSummary(
+          id: item.restaurantId,
+          name: item.restaurantName,
+          address: item.restaurantAddress,
+          cuisineType: item.cuisineType,
+          rating: item.rating,
+          startingPricePaise: item.pricePaise,
+          photoUrl: item.photoUrl,
+          distanceKm: item.distanceKm,
+          menuCount: 1,
+        );
+      } else {
+        byRestaurant[item.restaurantId] = existing.copyWith(
+          cuisineType: existing.cuisineType ?? item.cuisineType,
+          rating: existing.rating ?? item.rating,
+          startingPricePaise: item.pricePaise < existing.startingPricePaise
+              ? item.pricePaise
+              : existing.startingPricePaise,
+          photoUrl: existing.photoUrl ?? item.photoUrl,
+          distanceKm: existing.distanceKm ?? item.distanceKm,
+          menuCount: existing.menuCount + 1,
+        );
+      }
+    }
+    for (final restaurant in trending) {
+      final existing = byRestaurant[restaurant.id];
+      if (existing == null) {
+        byRestaurant[restaurant.id] = RestaurantSummary(
+          id: restaurant.id,
+          name: restaurant.name,
+          address: restaurant.address,
+          cuisineType: restaurant.cuisineType,
+          rating: restaurant.rating,
+          startingPricePaise: restaurant.startingPricePaise ?? 0,
+          photoUrl: restaurant.photoUrl,
+          distanceKm: restaurant.distanceKm,
+          predictedEtaMinutes: restaurant.predictedEtaMinutes,
+          menuCount: 0,
+        );
+      } else {
+        byRestaurant[restaurant.id] = existing.copyWith(
+          cuisineType: existing.cuisineType ?? restaurant.cuisineType,
+          rating: existing.rating ?? restaurant.rating,
+          startingPricePaise: existing.startingPricePaise == 0 &&
+                  restaurant.startingPricePaise != null
+              ? restaurant.startingPricePaise!
+              : existing.startingPricePaise,
+          photoUrl: existing.photoUrl ?? restaurant.photoUrl,
+          distanceKm: existing.distanceKm ?? restaurant.distanceKm,
+          predictedEtaMinutes: restaurant.predictedEtaMinutes,
+        );
+      }
+    }
+    final restaurants = byRestaurant.values.toList();
+    restaurants.sort((a, b) {
+      final distanceCompare = (a.distanceKm ?? double.infinity)
+          .compareTo(b.distanceKm ?? double.infinity);
+      if (distanceCompare != 0) {
+        return distanceCompare;
+      }
+      return b.ratingValue.compareTo(a.ratingValue);
+    });
+    return restaurants;
+  }
+
+  RestaurantSummary? get selectedRestaurant {
+    final restaurants = restaurantSummaries;
+    if (restaurants.isEmpty) {
+      return null;
+    }
+    return restaurants
+            .where((restaurant) => restaurant.id == selectedRestaurantId)
+            .firstOrNull ??
+        restaurants.first;
+  }
+
+  List<MenuSearchItem> get selectedRestaurantMenuItems {
+    final restaurant = selectedRestaurant;
+    if (restaurant == null) {
+      return menuItems;
+    }
+    final selectedItems =
+        menuItems.where((item) => item.restaurantId == restaurant.id).toList();
+    return selectedItems;
+  }
 
   void selectTab(int index) {
     tabIndex = index;
+    notifyListeners();
+  }
+
+  void openRestaurants() {
+    tabIndex = 1;
+    notifyListeners();
+  }
+
+  void openCart() {
+    tabIndex = 2;
+    notifyListeners();
+  }
+
+  void openOrders() {
+    tabIndex = 3;
+    notifyListeners();
+  }
+
+  void selectRestaurant(String restaurantId) {
+    selectedRestaurantId = restaurantId;
+    tabIndex = 1;
     notifyListeners();
   }
 
@@ -122,6 +234,11 @@ class CustomerAppState extends ChangeNotifier {
 
   void setPaymentProvider(String value) {
     selectedPaymentProvider = value;
+    notifyListeners();
+  }
+
+  void setDeliveryAddress(String value) {
+    deliveryAddress = value;
     notifyListeners();
   }
 
@@ -273,6 +390,15 @@ class CustomerAppState extends ChangeNotifier {
       menuItems = responses[0] as List<MenuSearchItem>;
       trending = responses[1] as List<TrendingRestaurant>;
       offers = responses[2] as List<Offer>;
+      final restaurantIds = {
+        ...menuItems.map((item) => item.restaurantId),
+        ...trending.map((restaurant) => restaurant.id),
+      };
+      if (restaurantIds.isNotEmpty &&
+          (selectedRestaurantId == null ||
+              !restaurantIds.contains(selectedRestaurantId))) {
+        selectedRestaurantId = restaurantIds.first;
+      }
       return true;
     }, quietSuccess: true);
   }
@@ -331,7 +457,7 @@ class CustomerAppState extends ChangeNotifier {
       cart.clear();
       await storage.write(key: lastOrderStorageKey, value: created.id);
       await loadOrder(created.id);
-      tabIndex = 2;
+      tabIndex = 3;
       notifyListeners();
     }
   }
@@ -472,7 +598,7 @@ class CustomerAppState extends ChangeNotifier {
         'Reorder placed', () => api.reorder(order.id));
     if (created != null) {
       await loadOrder(created.id);
-      tabIndex = 2;
+      tabIndex = 3;
       notifyListeners();
     }
   }
@@ -654,6 +780,67 @@ class CartLine {
   int quantity;
 }
 
+class RestaurantSummary {
+  const RestaurantSummary({
+    required this.id,
+    required this.name,
+    required this.address,
+    required this.startingPricePaise,
+    required this.menuCount,
+    this.cuisineType,
+    this.rating,
+    this.photoUrl,
+    this.distanceKm,
+    this.predictedEtaMinutes,
+  });
+
+  final String id;
+  final String name;
+  final String address;
+  final String? cuisineType;
+  final double? rating;
+  final int startingPricePaise;
+  final String? photoUrl;
+  final double? distanceKm;
+  final int? predictedEtaMinutes;
+  final int menuCount;
+
+  double get ratingValue => rating ?? 0;
+  String get listingSubtitle {
+    final details = <String>[
+      cuisineType ?? 'Cuisine',
+      if (rating != null) '${rating!.toStringAsFixed(1)} rating',
+      if (distanceKm != null) '${distanceKm!.toStringAsFixed(1)} km',
+      if (predictedEtaMinutes != null) '$predictedEtaMinutes min ETA',
+      if (menuCount > 0) '$menuCount menu items',
+    ];
+    return details.join(' - ');
+  }
+
+  RestaurantSummary copyWith({
+    String? cuisineType,
+    double? rating,
+    int? startingPricePaise,
+    String? photoUrl,
+    double? distanceKm,
+    int? predictedEtaMinutes,
+    int? menuCount,
+  }) {
+    return RestaurantSummary(
+      id: id,
+      name: name,
+      address: address,
+      cuisineType: cuisineType ?? this.cuisineType,
+      rating: rating ?? this.rating,
+      startingPricePaise: startingPricePaise ?? this.startingPricePaise,
+      photoUrl: photoUrl ?? this.photoUrl,
+      distanceKm: distanceKm ?? this.distanceKm,
+      predictedEtaMinutes: predictedEtaMinutes ?? this.predictedEtaMinutes,
+      menuCount: menuCount ?? this.menuCount,
+    );
+  }
+}
+
 class CustomerShell extends StatelessWidget {
   const CustomerShell({required this.state, super.key});
 
@@ -672,10 +859,11 @@ class CustomerShell extends StatelessWidget {
     }
 
     final pages = [
-      DiscoverScreen(state: state),
+      HomeScreen(state: state),
+      RestaurantsScreen(state: state),
       CartScreen(state: state),
-      TrackingScreen(state: state),
-      AccountScreen(state: state),
+      OrdersScreen(state: state),
+      ProfileScreen(state: state),
     ];
     return Scaffold(
       appBar: AppBar(
@@ -700,14 +888,15 @@ class CustomerShell extends StatelessWidget {
         selectedIndex: state.tabIndex,
         onDestinationSelected: state.selectTab,
         destinations: const [
+          NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Home'),
           NavigationDestination(
-              icon: Icon(Icons.restaurant_menu), label: 'Order'),
+              icon: Icon(Icons.restaurant_menu), label: 'Restaurants'),
           NavigationDestination(
               icon: Icon(Icons.shopping_bag_outlined), label: 'Cart'),
           NavigationDestination(
-              icon: Icon(Icons.delivery_dining), label: 'Track'),
+              icon: Icon(Icons.receipt_long_outlined), label: 'Orders'),
           NavigationDestination(
-              icon: Icon(Icons.person_outline), label: 'Account'),
+              icon: Icon(Icons.person_outline), label: 'Profile'),
         ],
       ),
     );
@@ -828,123 +1017,43 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 }
 
-class DiscoverScreen extends StatelessWidget {
-  const DiscoverScreen({required this.state, super.key});
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({required this.state, super.key});
 
   final CustomerAppState state;
 
   @override
   Widget build(BuildContext context) {
+    final order = state.activeOrder;
     return RefreshIndicator(
-      onRefresh: state.loadRestaurants,
+      onRefresh: state.refreshCustomerData,
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           AppBanner(state: state),
+          LocationSelectionScreen(state: state, includeAddressField: true),
           AppCard(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Find food',
+                Text('Home',
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
                         ?.copyWith(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 12),
-                TextFormField(
-                  initialValue: state.filters.query,
-                  decoration: const InputDecoration(
-                      labelText: 'Search dishes or restaurants'),
-                  onChanged: (value) => state.filters.query = value,
-                  onFieldSubmitted: (_) => state.loadRestaurants(),
+                FilledButton.icon(
+                  onPressed: state.openRestaurants,
+                  icon: const Icon(Icons.restaurant_menu),
+                  label: const Text('Browse restaurants'),
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        initialValue: state.filters.cuisine,
-                        decoration: const InputDecoration(labelText: 'Cuisine'),
-                        onChanged: (value) => state.filters.cuisine = value,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: state.filters.diet,
-                        decoration: const InputDecoration(labelText: 'Diet'),
-                        items: const [
-                          DropdownMenuItem(value: 'all', child: Text('All')),
-                          DropdownMenuItem(value: 'veg', child: Text('Veg')),
-                          DropdownMenuItem(
-                              value: 'non_veg', child: Text('Non veg')),
-                        ],
-                        onChanged: (value) =>
-                            state.filters.diet = value ?? 'all',
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: state.filters.sort,
-                        decoration: const InputDecoration(labelText: 'Sort'),
-                        items: const [
-                          DropdownMenuItem(
-                              value: 'distance', child: Text('Distance')),
-                          DropdownMenuItem(
-                              value: 'rating_desc', child: Text('Rating')),
-                          DropdownMenuItem(
-                              value: 'price_asc', child: Text('Price low')),
-                          DropdownMenuItem(
-                              value: 'price_desc', child: Text('Price high')),
-                        ],
-                        onChanged: (value) =>
-                            state.filters.sort = value ?? 'distance',
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextFormField(
-                        initialValue: state.filters.maxPricePaise == 0
-                            ? ''
-                            : state.filters.maxPricePaise.toString(),
-                        keyboardType: TextInputType.number,
-                        decoration:
-                            const InputDecoration(labelText: 'Max price paise'),
-                        onChanged: (value) => state.filters.maxPricePaise =
-                            int.tryParse(value) ?? 0,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                    'Minimum rating ${state.filters.minRating.toStringAsFixed(1)}'),
-                Slider(
-                  value: state.filters.minRating,
-                  min: 0,
-                  max: 5,
-                  divisions: 10,
-                  label: state.filters.minRating.toStringAsFixed(1),
-                  onChanged: state.setMinRating,
-                ),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    FilledButton.icon(
-                        onPressed: state.busy ? null : state.loadRestaurants,
-                        icon: const Icon(Icons.search),
-                        label: const Text('Search')),
-                    OutlinedButton.icon(
-                        onPressed: state.busy ? null : state.loadLocation,
-                        icon: const Icon(Icons.my_location),
-                        label: const Text('Use location')),
-                  ],
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: state.cart.lines.isEmpty ? null : state.openCart,
+                  icon: const Icon(Icons.shopping_bag_outlined),
+                  label: Text(state.cart.lines.isEmpty
+                      ? 'Cart is empty'
+                      : 'Review cart'),
                 ),
               ],
             ),
@@ -964,21 +1073,389 @@ class DiscoverScreen extends StatelessWidget {
           ],
           if (state.trending.isNotEmpty) ...[
             const SectionTitle(title: 'Trending restaurants'),
-            ...state.trending
-                .take(4)
-                .map((restaurant) => TrendingTile(restaurant: restaurant)),
+            ...state.trending.take(4).map(
+                  (restaurant) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: ItemImage(url: restaurant.photoUrl, size: 52),
+                    title: Text(restaurant.name),
+                    subtitle: Text(
+                        '${restaurant.cuisineType ?? 'Cuisine'} - ${restaurant.predictedEtaMinutes} min ETA'),
+                    trailing: restaurant.distanceKm == null
+                        ? null
+                        : Text(
+                            '${restaurant.distanceKm!.toStringAsFixed(1)} km'),
+                    onTap: () => state.selectRestaurant(restaurant.id),
+                  ),
+                ),
           ],
-          const SectionTitle(title: 'Menu'),
-          if (state.menuItems.isEmpty)
+          const SectionTitle(title: 'Active order'),
+          if (order == null)
             const EmptyState(
-                icon: Icons.search_off,
-                title: 'No menu items yet',
-                body:
-                    'Search with fewer filters or refresh once restaurants are live.'),
-          ...state.menuItems.map((item) =>
-              MenuItemTile(item: item, onAdd: () => state.addToCart(item))),
+                icon: Icons.receipt_long_outlined,
+                title: 'No active order',
+                body: 'Checkout to start live tracking.')
+          else
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Order ${shortId(order.id)}',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  StatusPill(status: order.status),
+                  const SizedBox(height: 8),
+                  SummaryRow(
+                      label: 'Total', value: formatCurrency(order.totalPaise)),
+                  SummaryRow(
+                      label: 'ETA',
+                      value: state.activeEta == null
+                          ? order.estimatedDeliveryAt ?? 'Calculating'
+                          : '${state.activeEta!.predictedEtaMinutes} min'),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: state.openOrders,
+                    icon: const Icon(Icons.delivery_dining),
+                    label: const Text('Track order'),
+                  ),
+                ],
+              ),
+            ),
+          const SectionTitle(title: 'Order history'),
+          if (state.orders.isEmpty)
+            const Text('Your orders will appear here.')
+          else
+            ...state.orders.take(3).map((item) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Order ${shortId(item.id)}'),
+                  subtitle: Text(
+                      '${titleCase(item.status)} - ${formatCurrency(item.totalPaise)}'),
+                  onTap: () async {
+                    await state.loadOrder(item.id);
+                    state.openOrders();
+                  },
+                )),
         ],
       ),
+    );
+  }
+}
+
+class LocationSelectionScreen extends StatelessWidget {
+  const LocationSelectionScreen({
+    required this.state,
+    this.includeAddressField = false,
+    this.framed = true,
+    super.key,
+  });
+
+  final CustomerAppState state;
+  final bool includeAddressField;
+  final bool framed;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Location selection',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w800)),
+        if (includeAddressField) ...[
+          const SizedBox(height: 12),
+          TextFormField(
+            initialValue: state.deliveryAddress,
+            minLines: 2,
+            maxLines: 3,
+            decoration: const InputDecoration(labelText: 'Delivery address'),
+            onChanged: state.setDeliveryAddress,
+          ),
+        ],
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+            onPressed: state.busy ? null : state.loadLocation,
+            icon: const Icon(Icons.my_location),
+            label: const Text('Use current location')),
+        if (state.currentLat != null && state.currentLng != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+                'Location ready: ${state.currentLat!.toStringAsFixed(5)}, ${state.currentLng!.toStringAsFixed(5)}'),
+          ),
+      ],
+    );
+    return framed ? AppCard(child: content) : content;
+  }
+}
+
+class RestaurantsScreen extends StatelessWidget {
+  const RestaurantsScreen({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: state.loadRestaurants,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          AppBanner(state: state),
+          RestaurantListingScreen(state: state),
+          const SizedBox(height: 12),
+          RestaurantDetailsScreen(state: state),
+          const SizedBox(height: 12),
+          MenuBrowsingScreen(state: state),
+        ],
+      ),
+    );
+  }
+}
+
+class RestaurantListingScreen extends StatelessWidget {
+  const RestaurantListingScreen({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final restaurants = state.restaurantSummaries;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Restaurant listing',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 12),
+          TextFormField(
+            initialValue: state.filters.query,
+            decoration: const InputDecoration(
+                labelText: 'Search dishes or restaurants'),
+            onChanged: (value) => state.filters.query = value,
+            onFieldSubmitted: (_) => state.loadRestaurants(),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  initialValue: state.filters.cuisine,
+                  decoration: const InputDecoration(labelText: 'Cuisine'),
+                  onChanged: (value) => state.filters.cuisine = value,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: state.filters.diet,
+                  decoration: const InputDecoration(labelText: 'Diet'),
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('All')),
+                    DropdownMenuItem(value: 'veg', child: Text('Veg')),
+                    DropdownMenuItem(value: 'non_veg', child: Text('Non veg')),
+                  ],
+                  onChanged: (value) => state.filters.diet = value ?? 'all',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: state.filters.sort,
+                  decoration: const InputDecoration(labelText: 'Sort'),
+                  items: const [
+                    DropdownMenuItem(
+                        value: 'distance', child: Text('Distance')),
+                    DropdownMenuItem(
+                        value: 'rating_desc', child: Text('Rating')),
+                    DropdownMenuItem(
+                        value: 'price_asc', child: Text('Price low')),
+                    DropdownMenuItem(
+                        value: 'price_desc', child: Text('Price high')),
+                  ],
+                  onChanged: (value) =>
+                      state.filters.sort = value ?? 'distance',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextFormField(
+                  initialValue: state.filters.maxPricePaise == 0
+                      ? ''
+                      : state.filters.maxPricePaise.toString(),
+                  keyboardType: TextInputType.number,
+                  decoration:
+                      const InputDecoration(labelText: 'Max price paise'),
+                  onChanged: (value) =>
+                      state.filters.maxPricePaise = int.tryParse(value) ?? 0,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text('Minimum rating ${state.filters.minRating.toStringAsFixed(1)}'),
+          Slider(
+            value: state.filters.minRating,
+            min: 0,
+            max: 5,
+            divisions: 10,
+            label: state.filters.minRating.toStringAsFixed(1),
+            onChanged: state.setMinRating,
+          ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                  onPressed: state.busy ? null : state.loadRestaurants,
+                  icon: const Icon(Icons.search),
+                  label: const Text('Search')),
+              OutlinedButton.icon(
+                  onPressed: state.busy ? null : state.loadLocation,
+                  icon: const Icon(Icons.my_location),
+                  label: const Text('Use location')),
+            ],
+          ),
+          const Divider(height: 28),
+          if (restaurants.isEmpty)
+            const EmptyInlineState(
+                icon: Icons.search_off,
+                title: 'No restaurants yet',
+                body:
+                    'Try fewer filters or refresh after restaurants are live.')
+          else
+            ...restaurants.map((restaurant) {
+              final selected = restaurant.id == state.selectedRestaurant?.id;
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: ItemImage(url: restaurant.photoUrl, size: 52),
+                title: Text(restaurant.name),
+                subtitle: Text(restaurant.listingSubtitle),
+                trailing: selected
+                    ? const Icon(Icons.check_circle, color: Color(0xff0f766e))
+                    : const Icon(Icons.chevron_right),
+                onTap: () => state.selectRestaurant(restaurant.id),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+}
+
+class RestaurantDetailsScreen extends StatelessWidget {
+  const RestaurantDetailsScreen({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final restaurant = state.selectedRestaurant;
+    if (restaurant == null) {
+      return const EmptyState(
+          icon: Icons.storefront_outlined,
+          title: 'Select a restaurant',
+          body: 'Restaurants will appear here after search results load.');
+    }
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ItemImage(url: restaurant.photoUrl, size: 84),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Restaurant details',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    Text(restaurant.name,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700)),
+                    Text(restaurant.address),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              if (restaurant.cuisineType != null)
+                Chip(label: Text(restaurant.cuisineType!)),
+              if (restaurant.rating != null)
+                Chip(
+                    label: Text(
+                        '${restaurant.rating!.toStringAsFixed(1)} rating')),
+              if (restaurant.distanceKm != null)
+                Chip(
+                    label: Text(
+                        '${restaurant.distanceKm!.toStringAsFixed(1)} km')),
+              if (restaurant.predictedEtaMinutes != null)
+                Chip(label: Text('${restaurant.predictedEtaMinutes} min ETA')),
+              if (restaurant.startingPricePaise > 0)
+                Chip(
+                    label: Text(
+                        'From ${formatCurrency(restaurant.startingPricePaise)}')),
+            ],
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: state.selectedRestaurantMenuItems.isEmpty
+                ? null
+                : () =>
+                    state.addToCart(state.selectedRestaurantMenuItems.first),
+            icon: const Icon(Icons.add_shopping_cart),
+            label: const Text('Add first item'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MenuBrowsingScreen extends StatelessWidget {
+  const MenuBrowsingScreen({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = state.selectedRestaurantMenuItems;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionTitle(title: 'Menu browsing'),
+        if (items.isEmpty)
+          const EmptyState(
+              icon: Icons.menu_book_outlined,
+              title: 'No menu items yet',
+              body: 'Search with fewer filters or choose another restaurant.')
+        else
+          ...items.map((item) =>
+              MenuItemTile(item: item, onAdd: () => state.addToCart(item))),
+      ],
     );
   }
 }
@@ -998,17 +1475,21 @@ class CartScreen extends StatelessWidget {
           const EmptyState(
               icon: Icons.shopping_bag_outlined,
               title: 'Your cart is empty',
-              body: 'Add items from the Order tab to start checkout.')
+              body: 'Add items from Restaurants to start checkout.')
         else
           AppCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(state.cart.restaurantName ?? 'Cart',
+                Text('Cart',
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
                         ?.copyWith(fontWeight: FontWeight.w800)),
+                if (state.cart.restaurantName != null) ...[
+                  const SizedBox(height: 4),
+                  Text(state.cart.restaurantName!),
+                ],
                 const SizedBox(height: 12),
                 ...state.cart.lines.map((line) => CartLineTile(
                       line: line,
@@ -1028,58 +1509,61 @@ class CartScreen extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 12),
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Delivery',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 12),
-              TextFormField(
-                initialValue: state.deliveryAddress,
-                minLines: 2,
-                maxLines: 3,
-                decoration:
-                    const InputDecoration(labelText: 'Delivery address'),
-                onChanged: (value) => state.deliveryAddress = value,
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                  onPressed: state.busy ? null : state.loadLocation,
-                  icon: const Icon(Icons.my_location),
-                  label: const Text('Use current location')),
-              if (state.currentLat != null && state.currentLng != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                      'Location ready: ${state.currentLat!.toStringAsFixed(5)}, ${state.currentLng!.toStringAsFixed(5)}'),
-                ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed:
-                    state.busy || !state.canCheckout ? null : state.checkout,
-                icon: const Icon(Icons.lock_outline),
-                label: const Text('Checkout'),
-              ),
-              if (state.activeOrder?.status == 'created' &&
-                  state.cart.lines.isNotEmpty)
-                TextButton(
-                    onPressed: state.editActiveOrderFromCart,
-                    child:
-                        const Text('Update active order before confirmation')),
-            ],
-          ),
-        ),
+        CheckoutScreen(state: state),
       ],
     );
   }
 }
 
-class TrackingScreen extends StatelessWidget {
-  const TrackingScreen({required this.state, super.key});
+class CheckoutScreen extends StatelessWidget {
+  const CheckoutScreen({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Checkout',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 12),
+          LocationSelectionScreen(
+            state: state,
+            includeAddressField: true,
+            framed: false,
+          ),
+          const Divider(height: 24),
+          SummaryRow(label: 'Items', value: '${state.cart.lines.length}'),
+          SummaryRow(
+              label: 'Subtotal', value: formatCurrency(state.cartTotalPaise)),
+          const SummaryRow(
+              label: 'Taxes and fees', value: 'Calculated by backend'),
+          const SummaryRow(
+              label: 'Delivery fee', value: 'Calculated by backend'),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: state.busy || !state.canCheckout ? null : state.checkout,
+            icon: const Icon(Icons.lock_outline),
+            label: const Text('Place order'),
+          ),
+          if (state.activeOrder?.status == 'created' &&
+              state.cart.lines.isNotEmpty)
+            TextButton(
+                onPressed: state.editActiveOrderFromCart,
+                child: const Text('Update active order before confirmation')),
+        ],
+      ),
+    );
+  }
+}
+
+class OrdersScreen extends StatelessWidget {
+  const OrdersScreen({required this.state, super.key});
 
   final CustomerAppState state;
 
@@ -1098,102 +1582,175 @@ class TrackingScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           AppBanner(state: state),
+          PaymentStatusScreen(state: state),
+          const SizedBox(height: 12),
+          OrderTrackingScreen(state: state),
+          const SizedBox(height: 12),
+          OrderHistoryScreen(state: state),
+        ],
+      ),
+    );
+  }
+}
+
+class PaymentStatusScreen extends StatelessWidget {
+  const PaymentStatusScreen({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final order = state.activeOrder;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Payment status',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 12),
           if (order == null)
-            const EmptyState(
-                icon: Icons.delivery_dining,
-                title: 'No active order',
-                body: 'Checkout to start live tracking.')
+            const Text('Place an order to start payment.')
           else ...[
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Order ${shortId(order.id)}',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 8),
-                  StatusPill(status: order.status),
-                  const SizedBox(height: 12),
-                  SummaryRow(
-                      label: 'Total', value: formatCurrency(order.totalPaise)),
-                  SummaryRow(
-                      label: 'ETA',
-                      value: state.activeEta == null
-                          ? order.estimatedDeliveryAt ?? 'Calculating'
-                          : '${state.activeEta!.predictedEtaMinutes} min'),
-                  SummaryRow(
-                      label: 'Driver',
-                      value: order.driverPhone ?? 'Assigning soon'),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      FilledButton.icon(
-                          onPressed: state.startPayment,
-                          icon: const Icon(Icons.payment),
-                          label: const Text('Pay securely')),
-                      OutlinedButton.icon(
-                          onPressed: state.openNavigation,
-                          icon: const Icon(Icons.navigation_outlined),
-                          label: const Text('Navigate')),
-                      OutlinedButton.icon(
-                          onPressed: state.callDriver,
-                          icon: const Icon(Icons.call_outlined),
-                          label: const Text('Call driver')),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: state.selectedPaymentProvider,
-                    decoration:
-                        const InputDecoration(labelText: 'Payment provider'),
-                    items: const [
-                      DropdownMenuItem(
-                          value: 'phonepe', child: Text('PhonePe')),
-                      DropdownMenuItem(value: 'paytm', child: Text('Paytm')),
-                      DropdownMenuItem(
-                          value: 'razorpay', child: Text('Razorpay')),
-                    ],
-                    onChanged: (value) =>
-                        state.setPaymentProvider(value ?? 'phonepe'),
-                  ),
-                  if (state.paymentStatus.isNotEmpty)
-                    Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(state.paymentStatus)),
-                ],
-              ),
+            SummaryRow(label: 'Order', value: shortId(order.id)),
+            SummaryRow(
+                label: 'Amount', value: formatCurrency(order.totalPaise)),
+            SummaryRow(label: 'Status', value: titleCase(order.status)),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: state.selectedPaymentProvider,
+              decoration: const InputDecoration(labelText: 'Payment provider'),
+              items: const [
+                DropdownMenuItem(value: 'phonepe', child: Text('PhonePe')),
+                DropdownMenuItem(value: 'paytm', child: Text('Paytm')),
+                DropdownMenuItem(value: 'razorpay', child: Text('Razorpay')),
+              ],
+              onChanged: (value) =>
+                  state.setPaymentProvider(value ?? 'phonepe'),
             ),
             const SizedBox(height: 12),
-            TrackingMap(state: state),
-            const SizedBox(height: 12),
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Live updates',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 8),
-                  Text(state.trackingStatus),
-                  ...order.history.reversed.map((event) => ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.check_circle_outline),
-                        title: Text(titleCase(event.status)),
-                        subtitle: Text(event.note.isEmpty
-                            ? event.createdAt
-                            : '${event.note}\n${event.createdAt}'),
-                      )),
-                ],
-              ),
-            ),
+            FilledButton.icon(
+                onPressed: state.startPayment,
+                icon: const Icon(Icons.payment),
+                label: const Text('Pay or retry')),
+            if (state.paymentStatus.isNotEmpty)
+              Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(state.paymentStatus)),
           ],
-          const SectionTitle(title: 'Recent orders'),
+        ],
+      ),
+    );
+  }
+}
+
+class OrderTrackingScreen extends StatelessWidget {
+  const OrderTrackingScreen({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final order = state.activeOrder;
+    if (order == null) {
+      return const EmptyState(
+          icon: Icons.delivery_dining,
+          title: 'Order tracking',
+          body: 'Checkout to start live tracking.');
+    }
+    return Column(
+      children: [
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Order tracking',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              Text('Order ${shortId(order.id)}'),
+              const SizedBox(height: 8),
+              StatusPill(status: order.status),
+              const SizedBox(height: 12),
+              SummaryRow(
+                  label: 'Total', value: formatCurrency(order.totalPaise)),
+              SummaryRow(
+                  label: 'ETA',
+                  value: state.activeEta == null
+                      ? order.estimatedDeliveryAt ?? 'Calculating'
+                      : '${state.activeEta!.predictedEtaMinutes} min'),
+              SummaryRow(
+                  label: 'Driver',
+                  value: order.driverPhone ?? 'Assigning soon'),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                      onPressed: state.openNavigation,
+                      icon: const Icon(Icons.navigation_outlined),
+                      label: const Text('Navigate')),
+                  OutlinedButton.icon(
+                      onPressed: state.callDriver,
+                      icon: const Icon(Icons.call_outlined),
+                      label: const Text('Call driver')),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        TrackingMap(state: state),
+        const SizedBox(height: 12),
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Status updates',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              Text(state.trackingStatus),
+              ...order.history.reversed.map((event) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.check_circle_outline),
+                    title: Text(titleCase(event.status)),
+                    subtitle: Text(event.note.isEmpty
+                        ? event.createdAt
+                        : '${event.note}\n${event.createdAt}'),
+                  )),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class OrderHistoryScreen extends StatelessWidget {
+  const OrderHistoryScreen({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Order history',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
           if (state.orders.isEmpty)
             const Text('Your previous orders will appear here.')
           else
@@ -1213,16 +1770,16 @@ class TrackingScreen extends StatelessWidget {
   }
 }
 
-class AccountScreen extends StatefulWidget {
-  const AccountScreen({required this.state, super.key});
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({required this.state, super.key});
 
   final CustomerAppState state;
 
   @override
-  State<AccountScreen> createState() => _AccountScreenState();
+  State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _AccountScreenState extends State<AccountScreen> {
+class _ProfileScreenState extends State<ProfileScreen> {
   final supportSubject = TextEditingController();
   final supportMessage = TextEditingController();
   final reviewRestaurantId = TextEditingController();
@@ -1250,7 +1807,7 @@ class _AccountScreenState extends State<AccountScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Customer account',
+              Text('Profile',
                   style: Theme.of(context)
                       .textTheme
                       .titleLarge
@@ -1269,32 +1826,10 @@ class _AccountScreenState extends State<AccountScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Support',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 12),
-              TextField(
-                  controller: supportSubject,
-                  decoration: const InputDecoration(labelText: 'Subject')),
-              const SizedBox(height: 12),
-              TextField(
-                  controller: supportMessage,
-                  minLines: 3,
-                  maxLines: 5,
-                  decoration: const InputDecoration(labelText: 'Message')),
-              const SizedBox(height: 12),
-              FilledButton(
-                  onPressed: () => widget.state.createSupportTicket(
-                      supportSubject.text, supportMessage.text),
-                  child: const Text('Send support request')),
-            ],
-          ),
+        SupportScreen(
+          state: widget.state,
+          subjectController: supportSubject,
+          messageController: supportMessage,
         ),
         const SizedBox(height: 12),
         AppCard(
@@ -1345,6 +1880,50 @@ class _AccountScreenState extends State<AccountScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class SupportScreen extends StatelessWidget {
+  const SupportScreen({
+    required this.state,
+    required this.subjectController,
+    required this.messageController,
+    super.key,
+  });
+
+  final CustomerAppState state;
+  final TextEditingController subjectController;
+  final TextEditingController messageController;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Support',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 12),
+          TextField(
+              controller: subjectController,
+              decoration: const InputDecoration(labelText: 'Subject')),
+          const SizedBox(height: 12),
+          TextField(
+              controller: messageController,
+              minLines: 3,
+              maxLines: 5,
+              decoration: const InputDecoration(labelText: 'Message')),
+          const SizedBox(height: 12),
+          FilledButton(
+              onPressed: () => state.createSupportTicket(
+                  subjectController.text, messageController.text),
+              child: const Text('Send support request')),
+        ],
+      ),
     );
   }
 }
@@ -1649,6 +2228,36 @@ class EmptyState extends StatelessWidget {
                   ?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
           Text(body, textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+}
+
+class EmptyInlineState extends StatelessWidget {
+  const EmptyInlineState(
+      {required this.icon, required this.title, required this.body, super.key});
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 32, color: const Color(0xff64748b)),
+          const SizedBox(height: 8),
+          Text(title,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text(body),
         ],
       ),
     );

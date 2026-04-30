@@ -133,6 +133,22 @@ const forbiddenFlutterCodeTerms = [
   "example.com/selfie"
 ];
 
+const requiredFlutterCustomerScreens = [
+  "class HomeScreen",
+  "class LocationSelectionScreen",
+  "class RestaurantsScreen",
+  "class RestaurantListingScreen",
+  "class RestaurantDetailsScreen",
+  "class MenuBrowsingScreen",
+  "class CartScreen",
+  "class CheckoutScreen",
+  "class PaymentStatusScreen",
+  "class OrderTrackingScreen",
+  "class OrderHistoryScreen",
+  "class ProfileScreen",
+  "class SupportScreen"
+];
+
 function read(path) {
   return fs.readFileSync(path, "utf8");
 }
@@ -211,6 +227,12 @@ if (!sources.flutterUi.includes("socket_io_client")) {
 }
 if (!sources.flutterUi.includes("API_BASE_URL") || !sources.flutterUi.includes("Production setup required")) {
   flutterProductionIssues.push("Flutter customer app must require production API configuration");
+}
+
+for (const screen of requiredFlutterCustomerScreens) {
+  if (!sources.flutterUi.includes(screen)) {
+    flutterProductionIssues.push(`Flutter customer app is missing ${screen}`);
+  }
 }
 
 if (missingStructure.length || missingFeatures.length || flutterProductionIssues.length) {

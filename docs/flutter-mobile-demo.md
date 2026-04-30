@@ -6,6 +6,7 @@ The Flutter app in `apps/flutter-mobile` is now the production customer app for 
 
 - Customer-only OTP and Google Sign-In
 - Secure persistent auth with `flutter_secure_storage`
+- Proper customer screens: Home, Location selection, Restaurant listing, Restaurant details, Menu browsing, Cart, Checkout, Payment status, Order tracking, Order history, Profile, and Support
 - Restaurant search with cuisine, veg/non-veg, rating, distance, and price sorting
 - Trending restaurants and customer offers
 - Same-restaurant cart with quantity controls
