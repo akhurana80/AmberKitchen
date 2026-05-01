@@ -34,14 +34,27 @@ trackingRoutes.post("/orders/:orderId/location", requireRole("driver", "admin"),
       speed: z.number().optional()
     }).parse(req.body);
 
+    const orderId = routeParam(req.params.orderId);
+    const allowed = await query(
+      `select id
+       from orders
+       where id = $1
+         and ($3::text = 'admin' or driver_id = $2)
+       limit 1`,
+      [orderId, req.user!.id, req.user!.role]
+    );
+    if (!allowed.rows[0]) {
+      return res.status(403).json({ error: "Driver location can be sent only for an assigned order" });
+    }
+
     const result = await query(
       `insert into driver_locations (order_id, driver_id, lat, lng, heading, speed)
        values ($1, $2, $3, $4, $5, $6)
        returning *`,
-      [req.params.orderId, req.user!.id, body.lat, body.lng, body.heading ?? null, body.speed ?? null]
+      [orderId, req.user!.id, body.lat, body.lng, body.heading ?? null, body.speed ?? null]
     );
 
-    emitDriverLocation(routeParam(req.params.orderId), result.rows[0]);
+    emitDriverLocation(orderId, result.rows[0]);
     res.status(201).json(result.rows[0]);
   } catch (error) {
     next(error);
@@ -50,12 +63,17 @@ trackingRoutes.post("/orders/:orderId/location", requireRole("driver", "admin"),
 
 trackingRoutes.get("/orders/:orderId/location", async (req, res, next) => {
   try {
+    const orderId = routeParam(req.params.orderId);
     const result = await query(
-      `select * from driver_locations
-       where order_id = $1
-       order by created_at desc
+      `select dl.*
+       from driver_locations dl
+       join orders o on o.id = dl.order_id
+       where dl.order_id = $1
+         and (o.customer_id = $2 or o.driver_id = $2 or $3::text in ('admin', 'super_admin', 'delivery_admin')
+           or o.restaurant_id in (select id from restaurants where owner_id = $2))
+       order by dl.created_at desc
        limit 1`,
-      [req.params.orderId]
+      [orderId, req.user!.id, req.user!.role]
     );
     res.json(result.rows[0] ?? null);
   } catch (error) {

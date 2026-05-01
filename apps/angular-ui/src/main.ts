@@ -928,8 +928,17 @@ class AppComponent implements AfterViewInit {
   }
 
   watchOrder(orderId: string) {
-    const socket = io(this.api.baseUrl);
+    const socket = io(this.api.baseUrl, {
+      auth: { token: this.api.token },
+      transports: ["websocket"]
+    });
     socket.emit("order:join", orderId);
+    socket.on("tracking:joined", () => {
+      this.mapNotice.set("Live tracking connected.");
+    });
+    socket.on("tracking:error", event => {
+      this.mapNotice.set(event?.message ?? "Live tracking subscription failed.");
+    });
     socket.on("driver:location", location => {
       this.latestLocation.set(`${location.lat}, ${location.lng}`);
       this.updateMap(Number(location.lat), Number(location.lng));

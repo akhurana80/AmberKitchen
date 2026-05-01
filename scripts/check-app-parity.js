@@ -170,6 +170,17 @@ const requiredFlutterPaymentFeatures = [
   "paymentStage"
 ];
 
+const requiredFlutterTrackingFeatures = [
+  "trackingLiveConnected",
+  "lastDriverLocationAt",
+  "class TrackingSignalRow",
+  "class TrackingDelayBanner",
+  "class OrderStatusTimeline",
+  "class TrackingMapFallback",
+  "contactTrackingSupport",
+  "tracking:error"
+];
+
 function read(path) {
   return fs.readFileSync(path, "utf8");
 }
@@ -265,6 +276,12 @@ for (const feature of requiredFlutterCartFeatures) {
 for (const feature of requiredFlutterPaymentFeatures) {
   if (!sources.flutterUi.includes(feature)) {
     flutterProductionIssues.push(`Flutter customer payment UX is missing ${feature}`);
+  }
+}
+
+for (const feature of requiredFlutterTrackingFeatures) {
+  if (!sources.flutterUi.includes(feature)) {
+    flutterProductionIssues.push(`Flutter customer tracking UX is missing ${feature}`);
   }
 }
 

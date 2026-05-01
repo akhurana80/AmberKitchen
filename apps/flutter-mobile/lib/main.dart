@@ -102,6 +102,12 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
   List<EtaEvent> etaEvents = [];
   GeoPoint? liveDriverLocation;
   String trackingStatus = 'Tracking starts after checkout.';
+  String? locationProblem;
+  String? trackingMapProblem;
+  bool trackingLiveConnected = false;
+  bool mapFallbackEnabled = false;
+  DateTime? lastDriverLocationAt;
+  DateTime? lastTrackingRefreshAt;
   String paymentStatus = '';
   String paymentStage = 'not_started';
   PaymentStart? activePaymentStart;
@@ -146,6 +152,58 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
       currentLat != null &&
       currentLng != null;
   bool get hasConfig => configError == null;
+  bool get shouldUseTrackingFallback =>
+      mapFallbackEnabled || locationProblem != null;
+  bool get hasActiveTrackingOrder {
+    final status = activeOrder?.status;
+    return status != null &&
+        !{'delivered', 'cancelled'}.contains(status.toLowerCase());
+  }
+
+  bool get isDriverLocationStale {
+    if (!hasActiveTrackingOrder || lastDriverLocationAt == null) {
+      return false;
+    }
+    return DateTime.now().difference(lastDriverLocationAt!).inMinutes >= 3;
+  }
+
+  int? get deliveryDelayMinutes {
+    final promised = parseDateTime(activeOrder?.estimatedDeliveryAt ??
+        activeEta?.currentEstimatedDeliveryAt);
+    final predicted = parseDateTime(activeEta?.predictedDeliveryAt);
+    if (promised == null || predicted == null) {
+      return null;
+    }
+    final minutes = predicted.difference(promised).inMinutes;
+    return minutes > 5 ? minutes : null;
+  }
+
+  String? get trackingDelayMessage {
+    final delay = deliveryDelayMinutes;
+    if (delay != null) {
+      return 'ETA delayed by $delay min. We are refreshing the route automatically.';
+    }
+    if (isDriverLocationStale) {
+      return 'Driver location is delayed. ETA fallback refresh is active.';
+    }
+    return null;
+  }
+
+  String get driverMarkerStatus {
+    if (liveDriverLocation == null) {
+      return activeOrder?.driverPhone == null
+          ? 'Driver assignment pending.'
+          : 'Waiting for first driver location.';
+    }
+    final age = lastDriverLocationAt == null
+        ? null
+        : DateTime.now().difference(lastDriverLocationAt!);
+    if (age == null || age.inSeconds < 60) {
+      return 'Driver marker updated just now.';
+    }
+    return 'Driver marker updated ${age.inMinutes} min ago.';
+  }
+
   List<RestaurantSummary> get restaurantSummaries {
     final byRestaurant = <String, RestaurantSummary>{};
     for (final item in menuItems) {
@@ -467,6 +525,14 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     paymentSnapshot = null;
     paymentStage = 'not_started';
     paymentStatus = '';
+    liveDriverLocation = null;
+    trackingLiveConnected = false;
+    mapFallbackEnabled = false;
+    locationProblem = null;
+    trackingMapProblem = null;
+    lastDriverLocationAt = null;
+    lastTrackingRefreshAt = null;
+    trackingStatus = 'Tracking starts after checkout.';
     orders = [];
     menuItems = [];
     trending = [];
@@ -503,8 +569,9 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     await guard(silent ? null : 'Location updated', () async {
       final enabled = await Geolocator.isLocationServiceEnabled();
       if (!enabled) {
-        throw const ApiException(
-            'Turn on location services to show nearby restaurants and delivery tracking.');
+        locationProblem =
+            'Turn on location services to show nearby restaurants and delivery tracking.';
+        throw ApiException(locationProblem!);
       }
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -512,14 +579,16 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
       }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        throw const ApiException(
-            'Location permission is required for nearby restaurants, checkout, and tracking.');
+        locationProblem =
+            'Location permission is required for nearby restaurants, checkout, and tracking.';
+        throw ApiException(locationProblem!);
       }
       final position = await Geolocator.getCurrentPosition();
       currentLat = position.latitude;
       currentLng = position.longitude;
       filters.lat = currentLat;
       filters.lng = currentLng;
+      locationProblem = null;
       return true;
     }, quietSuccess: silent);
   }
@@ -794,6 +863,7 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
       activeOrder = await api.getOrder(orderId);
       activeEta = await api.orderEta(orderId);
       etaEvents = await api.orderEtaLoop(orderId);
+      _syncTrackingFromEta(activeEta);
       await storage.write(key: lastOrderStorageKey, value: orderId);
       await refreshPaymentStatus(orderId: orderId, silent: true);
       connectTracking(orderId);
@@ -801,9 +871,21 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     }, quietSuccess: true);
   }
 
+  void _syncTrackingFromEta(OrderEta? eta) {
+    if (eta == null) {
+      return;
+    }
+    final driverTime = parseDateTime(eta.driverLocationAt);
+    if (driverTime != null) {
+      lastDriverLocationAt = driverTime;
+      liveDriverLocation = eta.origin;
+    }
+  }
+
   void connectTracking(String orderId) {
     socket?.dispose();
     trackingTimer?.cancel();
+    trackingLiveConnected = false;
     trackingStatus = 'Connecting to live tracking...';
     final options = io.OptionBuilder()
         .setTransports(['websocket'])
@@ -815,42 +897,90 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     socket = nextSocket;
     nextSocket.onConnect((_) {
       trackingStatus = 'Live tracking connected.';
+      trackingLiveConnected = true;
       nextSocket.emit('order:join', orderId);
       notifyListeners();
     });
     nextSocket.onConnectError((_) {
+      trackingLiveConnected = false;
       trackingStatus =
           'Live tracking reconnecting. Latest ETA will continue to refresh.';
       notifyListeners();
     });
-    nextSocket.on('order:update', (_) => unawaited(loadOrder(orderId)));
-    nextSocket.on('driver:location', (payload) {
+    nextSocket.onDisconnect((_) {
+      trackingLiveConnected = false;
+      trackingStatus =
+          'Live tracking disconnected. ETA fallback refresh is active.';
+      notifyListeners();
+    });
+    nextSocket.onError((_) {
+      trackingLiveConnected = false;
+      trackingStatus =
+          'Live tracking is retrying. ETA fallback refresh is active.';
+      notifyListeners();
+    });
+    nextSocket.on('tracking:joined', (_) {
+      trackingLiveConnected = true;
+      trackingStatus = 'Subscribed to live order tracking.';
+      notifyListeners();
+    });
+    nextSocket.on('tracking:error', (payload) {
       final data = payload is Map
           ? Map<String, dynamic>.from(payload)
           : <String, dynamic>{};
-      final lat = valueAsDouble(data['lat']);
-      final lng = valueAsDouble(data['lng']);
-      if (lat != null && lng != null) {
-        liveDriverLocation = GeoPoint(lat: lat, lng: lng);
-        trackingStatus = 'Driver location updated live.';
-        notifyListeners();
-      }
+      trackingLiveConnected = false;
+      trackingStatus =
+          data['message']?.toString() ?? 'Live tracking subscription failed.';
+      notifyListeners();
     });
+    nextSocket.on('order:update', (_) => unawaited(refreshTracking(orderId)));
+    nextSocket.on('driver:location', _handleDriverLocation);
+    nextSocket.on('tracking:location', _handleDriverLocation);
     nextSocket.connect();
     trackingTimer = Timer.periodic(const Duration(seconds: 20),
         (_) => unawaited(refreshTracking(orderId)));
+  }
+
+  void _handleDriverLocation(dynamic payload) {
+    final data = payload is Map
+        ? Map<String, dynamic>.from(payload)
+        : <String, dynamic>{};
+    final lat = valueAsDouble(data['lat']);
+    final lng = valueAsDouble(data['lng']);
+    if (lat != null && lng != null) {
+      liveDriverLocation = GeoPoint(lat: lat, lng: lng);
+      lastDriverLocationAt = parseDateTime(data['created_at']?.toString() ??
+              data['createdAt']?.toString()) ??
+          DateTime.now();
+      trackingStatus = 'Driver location updated live.';
+      notifyListeners();
+    }
   }
 
   Future<void> refreshTracking(String orderId) async {
     if (!signedIn) {
       return;
     }
-    await guard(null, () async {
+    try {
       activeOrder = await api.getOrder(orderId);
       activeEta = await api.orderEta(orderId);
       etaEvents = await api.orderEtaLoop(orderId);
-      return true;
-    }, quietSuccess: true);
+      _syncTrackingFromEta(activeEta);
+      lastTrackingRefreshAt = DateTime.now();
+      trackingStatus = trackingDelayMessage ?? trackingStatus;
+      if (!hasActiveTrackingOrder) {
+        trackingTimer?.cancel();
+        trackingLiveConnected = false;
+      }
+      notifyListeners();
+    } on ApiException catch (exception) {
+      offline = exception.offline;
+      trackingStatus = 'Tracking refresh delayed. We will retry automatically.';
+      notifyListeners();
+    } catch (_) {
+      trackingStatus = 'Tracking refresh delayed. We will retry automatically.';
+      notifyListeners();
+    }
   }
 
   Future<void> cancelActiveOrder(String reason) async {
@@ -903,6 +1033,19 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     await launchUrl(url, mode: LaunchMode.externalApplication);
   }
 
+  void useTrackingMapFallback() {
+    mapFallbackEnabled = true;
+    trackingMapProblem = 'Route summary fallback enabled.';
+    notifyListeners();
+  }
+
+  Future<void> retryTrackingMap() async {
+    mapFallbackEnabled = false;
+    trackingMapProblem = null;
+    await loadLocation();
+    notifyListeners();
+  }
+
   Future<void> callDriver() async {
     final phone = activeOrder?.driverPhone;
     if (phone == null || phone.isEmpty) {
@@ -911,6 +1054,24 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     await launchUrl(Uri.parse('tel:$phone'));
+  }
+
+  Future<void> contactTrackingSupport() async {
+    final order = activeOrder;
+    if (order == null) {
+      error = 'Load an order before contacting support.';
+      notifyListeners();
+      return;
+    }
+    await createSupportTicket(
+      'Live tracking help for ${shortId(order.id)}',
+      [
+        'Order ${shortId(order.id)} tracking needs help.',
+        trackingDelayMessage,
+        trackingStatus,
+        driverMarkerStatus,
+      ].whereType<String>().join('\n'),
+    );
   }
 
   Future<void> enablePushNotifications() async {
@@ -2436,6 +2597,12 @@ class OrderTrackingScreen extends StatelessWidget {
               const SizedBox(height: 8),
               StatusPill(status: order.status),
               const SizedBox(height: 12),
+              TrackingSignalRow(state: state),
+              if (state.trackingDelayMessage != null) ...[
+                const SizedBox(height: 12),
+                TrackingDelayBanner(message: state.trackingDelayMessage!),
+              ],
+              const SizedBox(height: 12),
               SummaryRow(
                   label: 'Total', value: formatCurrency(order.totalPaise)),
               SummaryRow(
@@ -2459,6 +2626,10 @@ class OrderTrackingScreen extends StatelessWidget {
                       onPressed: state.callDriver,
                       icon: const Icon(Icons.call_outlined),
                       label: const Text('Call driver')),
+                  OutlinedButton.icon(
+                      onPressed: state.contactTrackingSupport,
+                      icon: const Icon(Icons.support_agent_outlined),
+                      label: const Text('Support')),
                 ],
               ),
             ],
@@ -2478,18 +2649,165 @@ class OrderTrackingScreen extends StatelessWidget {
                       ?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 8),
               Text(state.trackingStatus),
-              ...order.history.reversed.map((event) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.check_circle_outline),
-                    title: Text(titleCase(event.status)),
-                    subtitle: Text(event.note.isEmpty
-                        ? event.createdAt
-                        : '${event.note}\n${event.createdAt}'),
-                  )),
+              const SizedBox(height: 12),
+              OrderStatusTimeline(order: order),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class TrackingSignalRow extends StatelessWidget {
+  const TrackingSignalRow({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        Chip(
+          avatar: Icon(
+            state.trackingLiveConnected
+                ? Icons.sensors_outlined
+                : Icons.sync_problem_outlined,
+            size: 18,
+          ),
+          label: Text(state.trackingLiveConnected ? 'Live socket' : 'ETA sync'),
+        ),
+        Chip(
+          avatar: const Icon(Icons.location_on_outlined, size: 18),
+          label: Text(state.driverMarkerStatus),
+        ),
+      ],
+    );
+  }
+}
+
+class TrackingDelayBanner extends StatelessWidget {
+  const TrackingDelayBanner({required this.message, super.key});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xfffffbeb),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xfffde68a)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.schedule_outlined, color: Color(0xff92400e)),
+          const SizedBox(width: 10),
+          Expanded(
+            child:
+                Text(message, style: const TextStyle(color: Color(0xff92400e))),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class OrderStatusTimeline extends StatelessWidget {
+  const OrderStatusTimeline({required this.order, super.key});
+
+  final OrderDetails order;
+
+  static const steps = [
+    'created',
+    'accepted',
+    'preparing',
+    'ready',
+    'picked_up',
+    'delivered'
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final historyByStatus = {
+      for (final event in order.history) event.status: event,
+    };
+    final currentIndex = steps.indexOf(order.status);
+    return Column(
+      children: [
+        for (final entry in steps.asMap().entries)
+          _TimelineStep(
+            label: titleCase(entry.value),
+            event: historyByStatus[entry.value],
+            completed: currentIndex >= entry.key,
+            current: currentIndex == entry.key,
+          ),
+        if (order.status == 'cancelled')
+          _TimelineStep(
+            label: 'Cancelled',
+            event: historyByStatus['cancelled'],
+            completed: true,
+            current: true,
+          ),
+      ],
+    );
+  }
+}
+
+class _TimelineStep extends StatelessWidget {
+  const _TimelineStep({
+    required this.label,
+    required this.completed,
+    required this.current,
+    this.event,
+  });
+
+  final String label;
+  final bool completed;
+  final bool current;
+  final OrderHistoryEvent? event;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = completed ? const Color(0xff0f766e) : const Color(0xff94a3b8);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            current
+                ? Icons.radio_button_checked
+                : completed
+                    ? Icons.check_circle_outline
+                    : Icons.radio_button_unchecked,
+            color: color,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: TextStyle(
+                        fontWeight: current ? FontWeight.w800 : FontWeight.w600,
+                        color: color)),
+                if (event != null)
+                  Text(
+                    event!.note.isEmpty
+                        ? event!.createdAt
+                        : '${event!.note}\n${event!.createdAt}',
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -2696,6 +3014,9 @@ class TrackingMap extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final eta = state.activeEta;
+    if (state.shouldUseTrackingFallback) {
+      return TrackingMapFallback(state: state);
+    }
     final fallback =
         LatLng(state.currentLat ?? 20.5937, state.currentLng ?? 78.9629);
     final points = eta == null
@@ -2706,41 +3027,107 @@ class TrackingMap extends StatelessWidget {
             LatLng(eta.dropoff.lat, eta.dropoff.lng),
           ];
     final driver = state.liveDriverLocation;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        height: 280,
-        child: GoogleMap(
-          initialCameraPosition: CameraPosition(
-              target: points.isNotEmpty ? points.first : fallback, zoom: 12),
-          markers: {
-            if (eta != null)
-              Marker(
-                  markerId: const MarkerId('pickup'),
-                  position: LatLng(eta.pickup.lat, eta.pickup.lng),
-                  infoWindow: const InfoWindow(title: 'Pickup')),
-            if (eta != null)
-              Marker(
-                  markerId: const MarkerId('dropoff'),
-                  position: LatLng(eta.dropoff.lat, eta.dropoff.lng),
-                  infoWindow: const InfoWindow(title: 'Dropoff')),
-            if (driver != null)
-              Marker(
-                  markerId: const MarkerId('driver'),
-                  position: LatLng(driver.lat, driver.lng),
-                  infoWindow: const InfoWindow(title: 'Driver')),
-          },
-          polylines: {
-            if (points.length > 1)
-              Polyline(
-                  polylineId: const PolylineId('route'),
-                  points: points,
-                  color: const Color(0xff0f766e),
-                  width: 5),
-          },
-          myLocationButtonEnabled: true,
-          myLocationEnabled: state.currentLat != null,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox(
+            height: 280,
+            child: GoogleMap(
+              initialCameraPosition: CameraPosition(
+                  target: points.isNotEmpty ? points.first : fallback,
+                  zoom: 12),
+              markers: {
+                if (eta != null)
+                  Marker(
+                      markerId: const MarkerId('pickup'),
+                      position: LatLng(eta.pickup.lat, eta.pickup.lng),
+                      infoWindow: const InfoWindow(title: 'Pickup')),
+                if (eta != null)
+                  Marker(
+                      markerId: const MarkerId('dropoff'),
+                      position: LatLng(eta.dropoff.lat, eta.dropoff.lng),
+                      infoWindow: const InfoWindow(title: 'Dropoff')),
+                if (driver != null)
+                  Marker(
+                      markerId: const MarkerId('driver'),
+                      position: LatLng(driver.lat, driver.lng),
+                      infoWindow: InfoWindow(
+                          title: 'Driver', snippet: state.driverMarkerStatus)),
+              },
+              polylines: {
+                if (points.length > 1)
+                  Polyline(
+                      polylineId: const PolylineId('route'),
+                      points: points,
+                      color: const Color(0xff0f766e),
+                      width: 5),
+              },
+              myLocationButtonEnabled: state.currentLat != null,
+              myLocationEnabled: state.currentLat != null,
+            ),
+          ),
         ),
+        TextButton.icon(
+            onPressed: state.useTrackingMapFallback,
+            icon: const Icon(Icons.map_outlined),
+            label: const Text('Use route summary')),
+      ],
+    );
+  }
+}
+
+class TrackingMapFallback extends StatelessWidget {
+  const TrackingMapFallback({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final eta = state.activeEta;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Route summary',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          if (state.locationProblem != null) Text(state.locationProblem!),
+          if (state.trackingMapProblem != null) Text(state.trackingMapProblem!),
+          if (eta == null)
+            const Text('ETA will appear after the route is available.')
+          else ...[
+            SummaryRow(
+                label: 'Pickup distance',
+                value: '${eta.distanceToPickupKm.toStringAsFixed(1)} km'),
+            SummaryRow(
+                label: 'Dropoff distance',
+                value: '${eta.distanceToDropoffKm.toStringAsFixed(1)} km'),
+            SummaryRow(
+                label: 'Predicted ETA',
+                value: '${eta.predictedEtaMinutes} min'),
+            SummaryRow(label: 'Driver marker', value: state.driverMarkerStatus),
+          ],
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                  onPressed: state.openNavigation,
+                  icon: const Icon(Icons.navigation_outlined),
+                  label: const Text('Open route')),
+              OutlinedButton.icon(
+                  onPressed: state.retryTrackingMap,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry map')),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -3158,6 +3545,13 @@ String shortId(String id) {
     return id;
   }
   return id.substring(0, 8);
+}
+
+DateTime? parseDateTime(String? value) {
+  if (value == null || value.isEmpty) {
+    return null;
+  }
+  return DateTime.tryParse(value)?.toLocal();
 }
 
 String titleCase(String value) {

@@ -13,9 +13,10 @@ The Flutter app in `apps/flutter-mobile` is now the production customer app for 
 - Checkout from real backend menu data with backend-authoritative pricing
 - Edit order before restaurant confirmation
 - PhonePe, Paytm, and Razorpay payment method selection with deep-link return handling, pending/success/failure states, retry, and refund status display
-- Live order tracking with Socket.IO plus ETA polling fallback
-- Google Maps route display and external navigation
-- Driver call button when assigned
+- Live order tracking with authenticated Socket.IO subscription plus ETA polling fallback
+- Driver marker updates with stale-location and delay handling
+- Google Maps route display, external navigation, and route-summary fallback when location permission or map rendering fails
+- Driver call button and tracking support request when assigned
 - Cancel, refund, reorder, support, review, and push registration
 - Offline, timeout, loading, and configuration error states
 

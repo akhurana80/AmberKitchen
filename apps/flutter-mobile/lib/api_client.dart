@@ -819,6 +819,9 @@ class OrderEta {
     required this.dropoff,
     required this.distanceToPickupKm,
     required this.distanceToDropoffKm,
+    this.status,
+    this.currentEstimatedDeliveryAt,
+    this.driverLocationAt,
   });
 
   final int predictedEtaMinutes;
@@ -828,6 +831,9 @@ class OrderEta {
   final GeoPoint dropoff;
   final double distanceToPickupKm;
   final double distanceToDropoffKm;
+  final String? status;
+  final String? currentEstimatedDeliveryAt;
+  final String? driverLocationAt;
 
   factory OrderEta.fromJson(Map<String, dynamic> json) {
     final route =
@@ -843,6 +849,12 @@ class OrderEta {
           Map<String, dynamic>.from((route['dropoff'] as Map?) ?? const {})),
       distanceToPickupKm: valueAsDouble(route['distanceToPickupKm']) ?? 0,
       distanceToDropoffKm: valueAsDouble(route['distanceToDropoffKm']) ?? 0,
+      status: json['status']?.toString(),
+      currentEstimatedDeliveryAt:
+          json['currentEstimatedDeliveryAt']?.toString() ??
+              json['current_estimated_delivery_at']?.toString(),
+      driverLocationAt: json['driverLocationAt']?.toString() ??
+          json['driver_location_at']?.toString(),
     );
   }
 }

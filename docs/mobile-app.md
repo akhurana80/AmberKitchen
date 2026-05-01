@@ -8,7 +8,7 @@ The mobile app lives in `apps/mobile-react` and uses Expo React Native so one Re
 - Restaurant search, cuisine filters, ratings, veg/non-veg, trending restaurants, and ETA predictions
 - Place, edit, cancel, refund, reorder, and track orders
 - PhonePe, Paytm, and Razorpay payment start flow
-- Live order tracking with native map and Socket.IO updates
+- Live order tracking with authenticated Socket.IO updates, driver marker updates, and ETA polling fallback
 - Google Maps navigation handoff
 - Delivery partner app: onboarding, Aadhaar/selfie URLs, background check, available orders, accept, status updates, live location, wallet, earnings, and payout request
 - Restaurant panel: onboarding, menu item with photo URL, order accept/reject, and earnings
