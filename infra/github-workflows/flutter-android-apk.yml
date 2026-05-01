@@ -1,0 +1,75 @@
+name: Build Flutter Android APK
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/flutter-mobile/**"
+      - ".github/workflows/flutter-android-apk.yml"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/flutter-mobile/**"
+      - ".github/workflows/flutter-android-apk.yml"
+
+  workflow_dispatch:
+
+jobs:
+  build-android-apk:
+    name: Build customer app APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: apps/flutter-mobile
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.5"
+          channel: stable
+          cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Restore Flutter packages
+        run: flutter pub get
+
+      - name: Analyze Flutter app
+        run: flutter analyze
+
+      - name: Run Flutter tests
+        run: flutter test
+
+      - name: Build release APK
+        run: |
+          flutter build apk --release \
+            --dart-define=API_BASE_URL=${{ vars.API_BASE_URL || 'https://replace-with-your-backend.example.com' }} \
+            --dart-define=SERVICE_REGION_NAME=${{ vars.SERVICE_REGION_NAME || 'Delhi NCR' }} \
+            --dart-define=SERVICE_REGION_LAT=${{ vars.SERVICE_REGION_LAT || '28.6139' }} \
+            --dart-define=SERVICE_REGION_LNG=${{ vars.SERVICE_REGION_LNG || '77.2090' }} \
+            --dart-define=GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID || '' }} \
+            --dart-define=GOOGLE_SERVER_CLIENT_ID=${{ vars.GOOGLE_SERVER_CLIENT_ID || '' }}
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: amberkitchen-customer-release-apk
+          path: apps/flutter-mobile/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
