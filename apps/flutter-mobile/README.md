@@ -7,6 +7,7 @@ Production Flutter customer app for iOS and Android.
 - OTP login with customer role only
 - Google Sign-In using native mobile OAuth
 - Persistent auth in secure storage
+- Provider-backed customer state with a repository/service API layer
 - Restaurant search with cuisine, veg/non-veg, rating, distance, and price filters
 - Real cart with same-restaurant guardrails
 - Checkout from real menu search results
@@ -29,6 +30,9 @@ GOOGLE_SERVER_CLIENT_ID=your-web-oauth-client-id
 GOOGLE_CLIENT_ID=optional-platform-client-id
 GOOGLE_IOS_CLIENT_ID=your-ios-oauth-client-id
 GOOGLE_IOS_REVERSED_CLIENT_ID=your-ios-reversed-client-id
+SERVICE_REGION_NAME=Delhi NCR
+SERVICE_REGION_LAT=28.6139
+SERVICE_REGION_LNG=77.2090
 ```
 
 ## Run Locally
@@ -36,6 +40,9 @@ GOOGLE_IOS_REVERSED_CLIENT_ID=your-ios-reversed-client-id
 ```bash
 GOOGLE_MAPS_API_KEY=your-google-maps-key flutter run \
   --dart-define=API_BASE_URL=http://localhost:4000 \
+  --dart-define=SERVICE_REGION_NAME="Delhi NCR" \
+  --dart-define=SERVICE_REGION_LAT=28.6139 \
+  --dart-define=SERVICE_REGION_LNG=77.2090 \
   --dart-define=GOOGLE_SERVER_CLIENT_ID=your-web-oauth-client-id
 ```
 
@@ -44,6 +51,9 @@ For Android emulator:
 ```bash
 GOOGLE_MAPS_API_KEY=your-google-maps-key flutter run \
   --dart-define=API_BASE_URL=http://10.0.2.2:4000 \
+  --dart-define=SERVICE_REGION_NAME="Delhi NCR" \
+  --dart-define=SERVICE_REGION_LAT=28.6139 \
+  --dart-define=SERVICE_REGION_LNG=77.2090 \
   --dart-define=GOOGLE_SERVER_CLIENT_ID=your-web-oauth-client-id
 ```
 

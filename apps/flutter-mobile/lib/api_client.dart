@@ -134,6 +134,7 @@ class AmberApiClient {
     required double deliveryLat,
     required double deliveryLng,
     required List<CartItemRequest> items,
+    required String idempotencyKey,
     String? couponCode,
   }) async {
     final response = await _post(
@@ -147,7 +148,7 @@ class AmberApiClient {
           'couponCode': couponCode.trim().toUpperCase(),
         'items': items.map((item) => item.toJson()).toList(),
       },
-      idempotencyKey: 'flutter-order-${DateTime.now().microsecondsSinceEpoch}',
+      idempotencyKey: idempotencyKey,
     );
     return CreateOrderResponse.fromJson(
         Map<String, dynamic>.from(response as Map));
@@ -315,6 +316,17 @@ class RestaurantFilters {
   String sort;
   double? lat;
   double? lng;
+
+  RestaurantFilters copyWith({double? lat, double? lng}) => RestaurantFilters(
+        query: query,
+        cuisine: cuisine,
+        diet: diet,
+        minRating: minRating,
+        maxPricePaise: maxPricePaise,
+        sort: sort,
+        lat: lat ?? this.lat,
+        lng: lng ?? this.lng,
+      );
 }
 
 class MenuSearchItem {

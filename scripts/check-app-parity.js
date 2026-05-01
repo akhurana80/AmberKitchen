@@ -21,6 +21,7 @@ const requiredStructure = [
   "apps/flutter-mobile/pubspec.lock",
   "apps/flutter-mobile/lib/main.dart",
   "apps/flutter-mobile/lib/api_client.dart",
+  "apps/flutter-mobile/lib/customer_repository.dart",
   "apps/flutter-mobile/android/app/src/main/AndroidManifest.xml",
   "apps/flutter-mobile/ios/Runner/Info.plist",
   "docs/mobile-app.md",
@@ -181,6 +182,18 @@ const requiredFlutterTrackingFeatures = [
   "tracking:error"
 ];
 
+const requiredFlutterStateFeatures = [
+  "package:provider/provider.dart",
+  "ChangeNotifierProvider",
+  "CustomerRepository",
+  "ScreenLoadState",
+  "CustomerScreenKey",
+  "checkoutIntentStorageKey",
+  "idempotencyKey",
+  "normalizePhone",
+  "SERVICE_REGION_NAME"
+];
+
 function read(path) {
   return fs.readFileSync(path, "utf8");
 }
@@ -282,6 +295,12 @@ for (const feature of requiredFlutterPaymentFeatures) {
 for (const feature of requiredFlutterTrackingFeatures) {
   if (!sources.flutterUi.includes(feature)) {
     flutterProductionIssues.push(`Flutter customer tracking UX is missing ${feature}`);
+  }
+}
+
+for (const feature of requiredFlutterStateFeatures) {
+  if (!sources.flutterUi.includes(feature) && !sources.flutter.includes(feature)) {
+    flutterProductionIssues.push(`Flutter production state/data quality is missing ${feature}`);
   }
 }
 

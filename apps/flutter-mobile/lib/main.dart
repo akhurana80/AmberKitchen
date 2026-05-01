@@ -9,14 +9,65 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:provider/provider.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:url_launcher/url_launcher.dart';
 
 import 'api_client.dart';
+import 'customer_repository.dart';
 
 const apiBaseUrl = String.fromEnvironment('API_BASE_URL');
 const googleClientId = String.fromEnvironment('GOOGLE_CLIENT_ID');
 const googleServerClientId = String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
+const serviceRegionName =
+    String.fromEnvironment('SERVICE_REGION_NAME', defaultValue: 'Delhi NCR');
+final serviceRegionCenter = GeoPoint(
+  lat: double.tryParse(const String.fromEnvironment('SERVICE_REGION_LAT')) ?? 0,
+  lng: double.tryParse(const String.fromEnvironment('SERVICE_REGION_LNG')) ?? 0,
+);
+
+enum CustomerScreenKey {
+  auth,
+  home,
+  location,
+  restaurants,
+  cart,
+  checkout,
+  payment,
+  tracking,
+  orders,
+  profile,
+  support,
+}
+
+class ScreenLoadState {
+  const ScreenLoadState({
+    this.loading = false,
+    this.error,
+    this.offline = false,
+    this.updatedAt,
+  });
+
+  final bool loading;
+  final String? error;
+  final bool offline;
+  final DateTime? updatedAt;
+
+  ScreenLoadState copyWith({
+    bool? loading,
+    String? error,
+    bool clearError = false,
+    bool? offline,
+    DateTime? updatedAt,
+  }) {
+    return ScreenLoadState(
+      loading: loading ?? this.loading,
+      error: clearError ? null : error ?? this.error,
+      offline: offline ?? this.offline,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
 
 void main() {
   runApp(const AmberKitchenFlutterApp());
@@ -30,52 +81,46 @@ class AmberKitchenFlutterApp extends StatefulWidget {
 }
 
 class _AmberKitchenFlutterAppState extends State<AmberKitchenFlutterApp> {
-  late final CustomerAppState appState;
-
-  @override
-  void initState() {
-    super.initState();
-    appState = CustomerAppState(
-      api: AmberApiClient(baseUrl: apiBaseUrl),
-      storage: const FlutterSecureStorage(),
-    );
-    unawaited(appState.initialize());
-  }
-
-  @override
-  void dispose() {
-    appState.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'AmberKitchen',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff0f766e)),
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xfff7f4ef),
-        inputDecorationTheme:
-            const InputDecorationTheme(border: OutlineInputBorder()),
-      ),
-      home: AnimatedBuilder(
-        animation: appState,
-        builder: (context, _) => CustomerShell(state: appState),
+    return ChangeNotifierProvider(
+      create: (_) {
+        final state = CustomerAppState(
+          repository:
+              CustomerRepository(api: AmberApiClient(baseUrl: apiBaseUrl)),
+          storage: const FlutterSecureStorage(),
+        );
+        unawaited(state.initialize());
+        return state;
+      },
+      child: MaterialApp(
+        title: 'AmberKitchen',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff0f766e)),
+          useMaterial3: true,
+          scaffoldBackgroundColor: const Color(0xfff7f4ef),
+          inputDecorationTheme:
+              const InputDecorationTheme(border: OutlineInputBorder()),
+        ),
+        home: Consumer<CustomerAppState>(
+          builder: (context, state, _) => CustomerShell(state: state),
+        ),
       ),
     );
   }
 }
 
 class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
-  CustomerAppState({required this.api, required this.storage});
+  CustomerAppState({required this.repository, required this.storage});
 
   static const tokenStorageKey = 'amberkitchen.customer.token';
   static const lastOrderStorageKey = 'amberkitchen.customer.lastOrderId';
   static const cartStorageKey = 'amberkitchen.customer.cart';
+  static const checkoutIntentStorageKey =
+      'amberkitchen.customer.checkoutIntent';
 
-  final AmberApiClient api;
+  final CustomerRepository repository;
   final FlutterSecureStorage storage;
   final AppLinks paymentLinks = AppLinks();
   final filters = RestaurantFilters();
@@ -116,8 +161,15 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
   Timer? trackingTimer;
   Timer? paymentStatusTimer;
   StreamSubscription<Uri>? paymentLinkSubscription;
+  String? checkoutIntentKey;
+  String? checkoutIntentHash;
+  final screenStates = {
+    for (final key in CustomerScreenKey.values) key: const ScreenLoadState()
+  };
 
-  bool get signedIn => api.token.isNotEmpty;
+  bool get signedIn => repository.signedIn;
+  bool get hasServiceRegionConfig =>
+      serviceRegionCenter.lat != 0 || serviceRegionCenter.lng != 0;
   int get cartTotalPaise => cartPricing.totalPaise;
   Offer? get appliedOffer {
     final code = cart.couponCode.trim().toUpperCase();
@@ -295,7 +347,31 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     return selectedItems;
   }
 
+  ScreenLoadState screenState(CustomerScreenKey key) =>
+      screenStates[key] ?? const ScreenLoadState();
+
+  CustomerScreenKey screenForTab(int index) {
+    return switch (index) {
+      0 => CustomerScreenKey.home,
+      1 => CustomerScreenKey.restaurants,
+      2 => CustomerScreenKey.cart,
+      3 => CustomerScreenKey.orders,
+      _ => CustomerScreenKey.profile,
+    };
+  }
+
+  bool canNavigateToTab(int index) {
+    return hasConfig && signedIn && index >= 0 && index <= 4;
+  }
+
   void selectTab(int index) {
+    if (!canNavigateToTab(index)) {
+      error = signedIn
+          ? 'This screen is not available until production configuration is ready.'
+          : 'Sign in before opening customer screens.';
+      notifyListeners();
+      return;
+    }
     tabIndex = index;
     notifyListeners();
   }
@@ -313,6 +389,51 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
   void openOrders() {
     tabIndex = 3;
     notifyListeners();
+  }
+
+  Future<void> retryScreen(CustomerScreenKey screen) async {
+    switch (screen) {
+      case CustomerScreenKey.auth:
+        error = null;
+        screenStates[screen] = const ScreenLoadState();
+        notifyListeners();
+        return;
+      case CustomerScreenKey.home:
+        await refreshCustomerData();
+        return;
+      case CustomerScreenKey.location:
+        await loadLocation();
+        return;
+      case CustomerScreenKey.restaurants:
+        await loadRestaurants();
+        return;
+      case CustomerScreenKey.cart:
+        error = null;
+        screenStates[screen] = const ScreenLoadState();
+        notifyListeners();
+        return;
+      case CustomerScreenKey.checkout:
+        await checkout();
+        return;
+      case CustomerScreenKey.payment:
+        await refreshPaymentStatus();
+        return;
+      case CustomerScreenKey.tracking:
+        final orderId = activeOrder?.id;
+        if (orderId != null) {
+          await refreshTracking(orderId);
+        }
+        return;
+      case CustomerScreenKey.orders:
+        await loadOrders();
+        return;
+      case CustomerScreenKey.profile:
+      case CustomerScreenKey.support:
+        error = null;
+        screenStates[screen] = const ScreenLoadState();
+        notifyListeners();
+        return;
+    }
   }
 
   void selectRestaurant(String restaurantId) {
@@ -337,9 +458,16 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> initialize() async {
-    if (api.baseUrl.trim().isEmpty) {
+    if (repository.baseUrl.trim().isEmpty) {
       configError =
           'Set API_BASE_URL at build time before releasing this customer app.';
+      initialized = true;
+      notifyListeners();
+      return;
+    }
+    if (!hasServiceRegionConfig) {
+      configError =
+          'Set SERVICE_REGION_LAT and SERVICE_REGION_LNG for $serviceRegionName before releasing this customer app.';
       initialized = true;
       notifyListeners();
       return;
@@ -351,7 +479,7 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     final savedToken = await storage.read(key: tokenStorageKey);
     final savedOrderId = await storage.read(key: lastOrderStorageKey);
     if (savedToken != null && savedToken.isNotEmpty) {
-      api.token = savedToken;
+      repository.token = savedToken;
       await refreshCustomerData(orderId: savedOrderId);
       await _initializePaymentLinks();
     }
@@ -455,12 +583,30 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> requestOtp(String phone) async {
-    await guard('OTP sent', () => api.requestOtp(phone.trim()));
+    final normalizedPhone = normalizePhone(phone);
+    if (normalizedPhone == null) {
+      error = 'Enter a valid mobile number.';
+      screenStates[CustomerScreenKey.auth] = screenState(CustomerScreenKey.auth)
+          .copyWith(error: error, loading: false);
+      notifyListeners();
+      return;
+    }
+    await guard('OTP sent', () => repository.requestOtp(normalizedPhone),
+        screen: CustomerScreenKey.auth);
   }
 
   Future<void> verifyOtp(String phone, String otp) async {
+    final normalizedPhone = normalizePhone(phone);
+    if (normalizedPhone == null || otp.trim().isEmpty) {
+      error = 'Enter a valid mobile number and OTP.';
+      screenStates[CustomerScreenKey.auth] = screenState(CustomerScreenKey.auth)
+          .copyWith(error: error, loading: false);
+      notifyListeners();
+      return;
+    }
     final session = await guard<AuthSession>(
-        'Signed in', () => api.verifyOtp(phone.trim(), otp.trim()));
+        'Signed in', () => repository.verifyOtp(normalizedPhone, otp.trim()),
+        screen: CustomerScreenKey.auth);
     if (session?.token != null) {
       await _persistToken(session!.token!);
       await refreshCustomerData();
@@ -480,18 +626,18 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
         throw const ApiException(
             'Google did not return an ID token. Check OAuth client setup.');
       }
-      final session = await api.googleLogin(idToken);
+      final session = await repository.googleLogin(idToken);
       if (session.token != null) {
         await _persistToken(session.token!);
         await refreshCustomerData();
         await _initializePaymentLinks();
       }
       return session;
-    });
+    }, screen: CustomerScreenKey.auth);
   }
 
   Future<void> _persistToken(String token) async {
-    api.token = token;
+    repository.token = token;
     await storage.write(key: tokenStorageKey, value: token);
   }
 
@@ -517,7 +663,7 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     paymentStatusTimer?.cancel();
     await paymentLinkSubscription?.cancel();
     paymentLinkSubscription = null;
-    api.token = '';
+    repository.token = '';
     cart.clear();
     activeOrder = null;
     activeEta = null;
@@ -533,6 +679,9 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     lastDriverLocationAt = null;
     lastTrackingRefreshAt = null;
     trackingStatus = 'Tracking starts after checkout.';
+    for (final key in CustomerScreenKey.values) {
+      screenStates[key] = const ScreenLoadState();
+    }
     orders = [];
     menuItems = [];
     trending = [];
@@ -540,6 +689,7 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     await storage.delete(key: tokenStorageKey);
     await storage.delete(key: lastOrderStorageKey);
     await storage.delete(key: cartStorageKey);
+    await storage.delete(key: checkoutIntentStorageKey);
     try {
       await GoogleSignIn.instance.signOut();
     } catch (_) {}
@@ -562,7 +712,7 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
         await loadOrder(nextOrderId);
       }
       return true;
-    }, quietSuccess: true);
+    }, quietSuccess: true, screen: CustomerScreenKey.home);
   }
 
   Future<void> loadLocation({bool silent = false}) async {
@@ -590,7 +740,9 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
       filters.lng = currentLng;
       locationProblem = null;
       return true;
-    }, quietSuccess: silent);
+    },
+        quietSuccess: silent,
+        screen: silent ? null : CustomerScreenKey.location);
   }
 
   Future<void> loadRestaurants() async {
@@ -598,10 +750,13 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     await guard('Restaurants updated', () async {
+      final searchLat = currentLat ?? serviceRegionCenter.lat;
+      final searchLng = currentLng ?? serviceRegionCenter.lng;
+      final searchFilters = filters.copyWith(lat: searchLat, lng: searchLng);
       final responses = await Future.wait([
-        api.searchRestaurants(filters),
-        api.trendingRestaurants(lat: currentLat, lng: currentLng),
-        api.marketplaceOffers(),
+        repository.searchRestaurants(searchFilters),
+        repository.trendingRestaurants(lat: searchLat, lng: searchLng),
+        repository.marketplaceOffers(),
       ]);
       menuItems = responses[0] as List<MenuSearchItem>;
       trending = responses[1] as List<TrendingRestaurant>;
@@ -616,7 +771,7 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
         selectedRestaurantId = restaurantIds.first;
       }
       return true;
-    }, quietSuccess: true);
+    }, quietSuccess: true, screen: CustomerScreenKey.restaurants);
   }
 
   void addToCart(MenuSearchItem item) {
@@ -684,6 +839,56 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  String _checkoutFingerprint(String restaurantId) {
+    return jsonEncode({
+      'restaurantId': restaurantId,
+      'deliveryAddress': deliveryAddress.trim(),
+      'deliveryLat': currentLat?.toStringAsFixed(6),
+      'deliveryLng': currentLng?.toStringAsFixed(6),
+      'couponCode': cart.couponCode.trim().toUpperCase(),
+      'items': cart.toOrderItems().map((item) => item.toJson()).toList(),
+    });
+  }
+
+  Future<String> _checkoutIdempotencyKey(String restaurantId) async {
+    final fingerprint = _checkoutFingerprint(restaurantId);
+    if (checkoutIntentKey != null && checkoutIntentHash == fingerprint) {
+      return checkoutIntentKey!;
+    }
+    final saved = await storage.read(key: checkoutIntentStorageKey);
+    if (saved != null && saved.isNotEmpty) {
+      try {
+        final data = Map<String, dynamic>.from(jsonDecode(saved) as Map);
+        if (data['fingerprint'] == fingerprint &&
+            data['key'] is String &&
+            (data['key'] as String).isNotEmpty) {
+          checkoutIntentHash = fingerprint;
+          checkoutIntentKey = data['key'] as String;
+          return checkoutIntentKey!;
+        }
+      } catch (_) {
+        await storage.delete(key: checkoutIntentStorageKey);
+      }
+    }
+    checkoutIntentHash = fingerprint;
+    checkoutIntentKey =
+        'flutter-checkout-${DateTime.now().microsecondsSinceEpoch}';
+    await storage.write(
+      key: checkoutIntentStorageKey,
+      value: jsonEncode({
+        'fingerprint': checkoutIntentHash,
+        'key': checkoutIntentKey,
+      }),
+    );
+    return checkoutIntentKey!;
+  }
+
+  Future<void> _clearCheckoutIntent() async {
+    checkoutIntentKey = null;
+    checkoutIntentHash = null;
+    await storage.delete(key: checkoutIntentStorageKey);
+  }
+
   Future<void> checkout() async {
     if (!canCheckout) {
       error =
@@ -703,20 +908,23 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
 
+    final idempotencyKey = await _checkoutIdempotencyKey(restaurantId);
     final created = await guard<CreateOrderResponse>('Order placed', () {
-      return api.createOrder(
+      return repository.createOrder(
         restaurantId: restaurantId,
         deliveryAddress: deliveryAddress.trim(),
         deliveryLat: currentLat!,
         deliveryLng: currentLng!,
         items: cart.toOrderItems(),
         couponCode: cart.couponCode,
+        idempotencyKey: idempotencyKey,
       );
-    });
+    }, screen: CustomerScreenKey.checkout);
 
     if (created != null) {
       cart.clear();
       await _persistCart();
+      await _clearCheckoutIntent();
       await storage.write(key: lastOrderStorageKey, value: created.id);
       await loadOrder(created.id);
       tabIndex = 3;
@@ -734,7 +942,7 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     await guard('Order updated', () async {
-      await api.editOrderBeforeConfirmation(
+      await repository.editOrderBeforeConfirmation(
         orderId: activeOrder!.id,
         deliveryAddress: deliveryAddress.trim(),
         deliveryLat: currentLat!,
@@ -744,7 +952,7 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
       );
       await loadOrder(activeOrder!.id);
       return true;
-    });
+    }, screen: CustomerScreenKey.payment);
   }
 
   Future<void> startPayment() async {
@@ -757,7 +965,7 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     paymentStatus = 'Creating secure payment request...';
     notifyListeners();
     final payment = await guard<PaymentStart>('Payment initialized', () {
-      return api.createPayment(
+      return repository.createPayment(
         provider: selectedPaymentProvider,
         orderId: activeOrder!.id,
         amountPaise: activeOrder!.totalPaise,
@@ -795,22 +1003,43 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     if (!silent) {
       busy = true;
       error = null;
+      screenStates[CustomerScreenKey.payment] =
+          screenState(CustomerScreenKey.payment)
+              .copyWith(loading: true, clearError: true, offline: false);
       notifyListeners();
     }
     try {
-      final snapshot = await api.paymentStatus(targetOrderId);
+      final snapshot = await repository.paymentStatus(targetOrderId);
       _applyPaymentSnapshot(snapshot);
       if (!silent) {
+        screenStates[CustomerScreenKey.payment] =
+            screenState(CustomerScreenKey.payment).copyWith(
+          loading: false,
+          clearError: true,
+          offline: false,
+          updatedAt: DateTime.now(),
+        );
         notice = 'Payment status refreshed.';
       }
     } on ApiException catch (exception) {
       if (!silent) {
         offline = exception.offline;
         error = exception.message;
+        screenStates[CustomerScreenKey.payment] =
+            screenState(CustomerScreenKey.payment).copyWith(
+          loading: false,
+          error: exception.message,
+          offline: exception.offline,
+        );
       }
     } catch (exception) {
       if (!silent) {
         error = exception.toString();
+        screenStates[CustomerScreenKey.payment] =
+            screenState(CustomerScreenKey.payment).copyWith(
+          loading: false,
+          error: exception.toString(),
+        );
       }
     } finally {
       if (!silent) {
@@ -850,9 +1079,9 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     await guard(null, () async {
-      orders = await api.orders();
+      orders = await repository.orders();
       return true;
-    }, quietSuccess: true);
+    }, quietSuccess: true, screen: CustomerScreenKey.orders);
   }
 
   Future<void> loadOrder(String orderId) async {
@@ -860,15 +1089,15 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     await guard(null, () async {
-      activeOrder = await api.getOrder(orderId);
-      activeEta = await api.orderEta(orderId);
-      etaEvents = await api.orderEtaLoop(orderId);
+      activeOrder = await repository.getOrder(orderId);
+      activeEta = await repository.orderEta(orderId);
+      etaEvents = await repository.orderEtaLoop(orderId);
       _syncTrackingFromEta(activeEta);
       await storage.write(key: lastOrderStorageKey, value: orderId);
       await refreshPaymentStatus(orderId: orderId, silent: true);
       connectTracking(orderId);
       return true;
-    }, quietSuccess: true);
+    }, quietSuccess: true, screen: CustomerScreenKey.tracking);
   }
 
   void _syncTrackingFromEta(OrderEta? eta) {
@@ -889,11 +1118,11 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     trackingStatus = 'Connecting to live tracking...';
     final options = io.OptionBuilder()
         .setTransports(['websocket'])
-        .setAuth({'token': api.token})
+        .setAuth({'token': repository.token})
         .enableReconnection()
         .disableAutoConnect()
         .build();
-    final nextSocket = io.io(api.baseUrl, options);
+    final nextSocket = io.io(repository.baseUrl, options);
     socket = nextSocket;
     nextSocket.onConnect((_) {
       trackingStatus = 'Live tracking connected.';
@@ -961,13 +1190,23 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     if (!signedIn) {
       return;
     }
+    screenStates[CustomerScreenKey.tracking] =
+        screenState(CustomerScreenKey.tracking)
+            .copyWith(loading: true, clearError: true, offline: false);
     try {
-      activeOrder = await api.getOrder(orderId);
-      activeEta = await api.orderEta(orderId);
-      etaEvents = await api.orderEtaLoop(orderId);
+      activeOrder = await repository.getOrder(orderId);
+      activeEta = await repository.orderEta(orderId);
+      etaEvents = await repository.orderEtaLoop(orderId);
       _syncTrackingFromEta(activeEta);
       lastTrackingRefreshAt = DateTime.now();
       trackingStatus = trackingDelayMessage ?? trackingStatus;
+      screenStates[CustomerScreenKey.tracking] =
+          screenState(CustomerScreenKey.tracking).copyWith(
+        loading: false,
+        clearError: true,
+        offline: false,
+        updatedAt: DateTime.now(),
+      );
       if (!hasActiveTrackingOrder) {
         trackingTimer?.cancel();
         trackingLiveConnected = false;
@@ -976,9 +1215,20 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     } on ApiException catch (exception) {
       offline = exception.offline;
       trackingStatus = 'Tracking refresh delayed. We will retry automatically.';
+      screenStates[CustomerScreenKey.tracking] =
+          screenState(CustomerScreenKey.tracking).copyWith(
+        loading: false,
+        error: exception.message,
+        offline: exception.offline,
+      );
       notifyListeners();
     } catch (_) {
       trackingStatus = 'Tracking refresh delayed. We will retry automatically.';
+      screenStates[CustomerScreenKey.tracking] =
+          screenState(CustomerScreenKey.tracking).copyWith(
+        loading: false,
+        error: 'Tracking refresh delayed. We will retry automatically.',
+      );
       notifyListeners();
     }
   }
@@ -988,15 +1238,16 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     await guard('Order cancelled', () async {
-      await api.cancelOrder(activeOrder!.id, reason);
+      await repository.cancelOrder(activeOrder!.id, reason);
       await loadOrder(activeOrder!.id);
       return true;
-    });
+    }, screen: CustomerScreenKey.orders);
   }
 
   Future<void> reorder(OrderSummary order) async {
     final created = await guard<CreateOrderResponse>(
-        'Reorder placed', () => api.reorder(order.id));
+        'Reorder placed', () => repository.reorder(order.id),
+        screen: CustomerScreenKey.orders);
     if (created != null) {
       await loadOrder(created.id);
       tabIndex = 3;
@@ -1010,8 +1261,9 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     }
     final refund = await guard<RefundRecord>(
         'Refund request submitted',
-        () => api.requestRefund(activeOrder!.id, reason,
-            amountPaise: amountPaise));
+        () => repository.requestRefund(activeOrder!.id, reason,
+            amountPaise: amountPaise),
+        screen: CustomerScreenKey.payment);
     if (refund != null) {
       await refreshPaymentStatus(orderId: activeOrder!.id, silent: true);
     }
@@ -1093,38 +1345,59 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
         throw const ApiException(
             'Firebase did not return a push token. Check Firebase setup.');
       }
-      await api.registerDeviceToken(token);
+      await repository.registerDeviceToken(token);
       return true;
-    });
+    }, screen: CustomerScreenKey.profile);
   }
 
   Future<void> createSupportTicket(String subject, String message) async {
     await guard('Support ticket created', () {
-      return api.createSupportTicket(
+      return repository.createSupportTicket(
         category: 'order',
         subject: subject.trim(),
         message: message.trim(),
         orderId: activeOrder?.id,
       );
-    });
+    }, screen: CustomerScreenKey.support);
   }
 
   Future<void> createReview(
       String restaurantId, int rating, String comment) async {
     await guard(
         'Review submitted',
-        () => api.createRestaurantReview(restaurantId, rating, comment.trim(),
-            orderId: activeOrder?.id));
+        () => repository.createRestaurantReview(
+            restaurantId, rating, comment.trim(),
+            orderId: activeOrder?.id),
+        screen: CustomerScreenKey.profile);
   }
 
-  Future<T?> guard<T>(String? successMessage, Future<T> Function() work,
-      {bool quietSuccess = false}) async {
+  Future<T?> guard<T>(
+    String? successMessage,
+    Future<T> Function() work, {
+    bool quietSuccess = false,
+    CustomerScreenKey? screen,
+  }) async {
     busy = true;
     error = null;
     offline = false;
+    if (screen != null) {
+      screenStates[screen] = screenState(screen).copyWith(
+        loading: true,
+        clearError: true,
+        offline: false,
+      );
+    }
     notifyListeners();
     try {
       final result = await work();
+      if (screen != null) {
+        screenStates[screen] = screenState(screen).copyWith(
+          loading: false,
+          clearError: true,
+          offline: false,
+          updatedAt: DateTime.now(),
+        );
+      }
       if (!quietSuccess && successMessage != null) {
         notice = successMessage;
       }
@@ -1132,8 +1405,21 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     } on ApiException catch (exception) {
       offline = exception.offline;
       error = exception.message;
+      if (screen != null) {
+        screenStates[screen] = screenState(screen).copyWith(
+          loading: false,
+          error: exception.message,
+          offline: exception.offline,
+        );
+      }
     } catch (exception) {
       error = exception.toString();
+      if (screen != null) {
+        screenStates[screen] = screenState(screen).copyWith(
+          loading: false,
+          error: exception.toString(),
+        );
+      }
     } finally {
       busy = false;
       notifyListeners();
@@ -1590,6 +1876,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 style: Theme.of(context).textTheme.bodyLarge),
             const SizedBox(height: 24),
             AppBanner(state: widget.state),
+            ScreenStateBanner(
+                state: widget.state, screen: CustomerScreenKey.auth),
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1651,6 +1939,7 @@ class HomeScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           AppBanner(state: state),
+          ScreenStateBanner(state: state, screen: CustomerScreenKey.home),
           LocationSelectionScreen(state: state, includeAddressField: true),
           AppCard(
             child: Column(
@@ -1785,6 +2074,8 @@ class LocationSelectionScreen extends StatelessWidget {
                 .textTheme
                 .titleMedium
                 ?.copyWith(fontWeight: FontWeight.w800)),
+        ScreenStateBanner(state: state, screen: CustomerScreenKey.location),
+        const Text('$serviceRegionName service area'),
         if (includeAddressField) ...[
           const SizedBox(height: 12),
           TextFormField(
@@ -1825,6 +2116,8 @@ class RestaurantsScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           AppBanner(state: state),
+          ScreenStateBanner(
+              state: state, screen: CustomerScreenKey.restaurants),
           RestaurantListingScreen(state: state),
           const SizedBox(height: 12),
           RestaurantDetailsScreen(state: state),
@@ -2091,6 +2384,7 @@ class CartScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       children: [
         AppBanner(state: state),
+        ScreenStateBanner(state: state, screen: CustomerScreenKey.cart),
         if (state.cart.lines.isEmpty)
           const EmptyState(
               icon: Icons.shopping_bag_outlined,
@@ -2162,6 +2456,7 @@ class CheckoutScreen extends StatelessWidget {
                   .titleMedium
                   ?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 12),
+          ScreenStateBanner(state: state, screen: CustomerScreenKey.checkout),
           LocationSelectionScreen(
             state: state,
             includeAddressField: true,
@@ -2319,6 +2614,7 @@ class OrdersScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           AppBanner(state: state),
+          ScreenStateBanner(state: state, screen: CustomerScreenKey.orders),
           PaymentStatusScreen(state: state),
           const SizedBox(height: 12),
           OrderTrackingScreen(state: state),
@@ -2350,6 +2646,7 @@ class PaymentStatusScreen extends StatelessWidget {
                   .titleLarge
                   ?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 12),
+          ScreenStateBanner(state: state, screen: CustomerScreenKey.payment),
           if (order == null)
             const Text('Place an order to start payment.')
           else ...[
@@ -2593,6 +2890,8 @@ class OrderTrackingScreen extends StatelessWidget {
                       .titleLarge
                       ?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 8),
+              ScreenStateBanner(
+                  state: state, screen: CustomerScreenKey.tracking),
               Text('Order ${shortId(order.id)}'),
               const SizedBox(height: 8),
               StatusPill(status: order.status),
@@ -2829,6 +3128,7 @@ class OrderHistoryScreen extends StatelessWidget {
                   .titleLarge
                   ?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
+          ScreenStateBanner(state: state, screen: CustomerScreenKey.orders),
           if (state.orders.isEmpty)
             const Text('Your previous orders will appear here.')
           else
@@ -2860,7 +3160,6 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final supportSubject = TextEditingController();
   final supportMessage = TextEditingController();
-  final reviewRestaurantId = TextEditingController();
   final reviewComment = TextEditingController();
   final refundReason = TextEditingController();
   int rating = 5;
@@ -2869,7 +3168,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     supportSubject.dispose();
     supportMessage.dispose();
-    reviewRestaurantId.dispose();
     reviewComment.dispose();
     refundReason.dispose();
     super.dispose();
@@ -2877,10 +3175,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final reviewRestaurant = widget.state.selectedRestaurant;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         AppBanner(state: widget.state),
+        ScreenStateBanner(
+            state: widget.state, screen: CustomerScreenKey.profile),
         AppCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2930,10 +3231,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       widget.state.requestRefund(refundReason.text),
                   child: const Text('Request refund for active order')),
               const Divider(height: 24),
-              TextField(
-                  controller: reviewRestaurantId,
-                  decoration:
-                      const InputDecoration(labelText: 'Restaurant ID')),
+              SummaryRow(
+                  label: 'Review restaurant',
+                  value: reviewRestaurant?.name ?? 'Select a restaurant'),
               const SizedBox(height: 12),
               DropdownButtonFormField<int>(
                 initialValue: rating,
@@ -2950,8 +3250,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   decoration: const InputDecoration(labelText: 'Review')),
               const SizedBox(height: 12),
               FilledButton(
-                onPressed: () => widget.state.createReview(
-                    reviewRestaurantId.text, rating, reviewComment.text),
+                onPressed: reviewRestaurant == null
+                    ? null
+                    : () => widget.state.createReview(
+                        reviewRestaurant.id, rating, reviewComment.text),
                 child: const Text('Submit review'),
               ),
             ],
@@ -2986,6 +3288,7 @@ class SupportScreen extends StatelessWidget {
                   .titleMedium
                   ?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 12),
+          ScreenStateBanner(state: state, screen: CustomerScreenKey.support),
           TextField(
               controller: subjectController,
               decoration: const InputDecoration(labelText: 'Subject')),
@@ -3017,8 +3320,10 @@ class TrackingMap extends StatelessWidget {
     if (state.shouldUseTrackingFallback) {
       return TrackingMapFallback(state: state);
     }
-    final fallback =
-        LatLng(state.currentLat ?? 20.5937, state.currentLng ?? 78.9629);
+    final fallback = LatLng(
+      state.currentLat ?? serviceRegionCenter.lat,
+      state.currentLng ?? serviceRegionCenter.lng,
+    );
     final points = eta == null
         ? <LatLng>[]
         : [
@@ -3160,6 +3465,65 @@ class AppBanner extends StatelessWidget {
           style: TextStyle(
               color:
                   isError ? const Color(0xff9f1239) : const Color(0xff065f46))),
+    );
+  }
+}
+
+class ScreenStateBanner extends StatelessWidget {
+  const ScreenStateBanner({
+    required this.state,
+    required this.screen,
+    super.key,
+  });
+
+  final CustomerAppState state;
+  final CustomerScreenKey screen;
+
+  @override
+  Widget build(BuildContext context) {
+    final loadState = state.screenState(screen);
+    final message = loadState.loading
+        ? 'Loading...'
+        : loadState.error ??
+            (loadState.offline
+                ? 'Network is unavailable. Check your connection and retry.'
+                : null);
+    if (message == null) {
+      return const SizedBox.shrink();
+    }
+    final isError = loadState.error != null || loadState.offline;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isError ? const Color(0xfffff1f2) : const Color(0xffeff6ff),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+            color: isError ? const Color(0xfffecdd3) : const Color(0xffbfdbfe)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isError ? Icons.wifi_off_outlined : Icons.sync,
+            color: isError ? const Color(0xff9f1239) : const Color(0xff1d4ed8),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(message,
+                style: TextStyle(
+                    color: isError
+                        ? const Color(0xff9f1239)
+                        : const Color(0xff1d4ed8))),
+          ),
+          if (isError)
+            TextButton(
+              onPressed: () => state.retryScreen(screen),
+              child: const Text('Retry'),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -3552,6 +3916,12 @@ DateTime? parseDateTime(String? value) {
     return null;
   }
   return DateTime.tryParse(value)?.toLocal();
+}
+
+String? normalizePhone(String value) {
+  final trimmed = value.trim().replaceAll(RegExp(r'\s+'), '');
+  final normalized = trimmed.startsWith('+') ? trimmed : '+91$trimmed';
+  return RegExp(r'^\+[1-9]\d{9,14}$').hasMatch(normalized) ? normalized : null;
 }
 
 String titleCase(String value) {

@@ -6,11 +6,14 @@ The Flutter app in `apps/flutter-mobile` is now the production customer app for 
 
 - Customer-only OTP and Google Sign-In
 - Secure persistent auth with `flutter_secure_storage`
+- Provider state management with a customer repository over the API service layer
+- Per-screen loading/error/offline state with retry actions
 - Proper customer screens: Home, Location selection, Restaurant listing, Restaurant details, Menu browsing, Cart, Checkout, Payment status, Order tracking, Order history, Profile, and Support
-- Restaurant search with cuisine, veg/non-veg, rating, distance, and price sorting
+- Delhi/NCR restaurant search with cuisine, veg/non-veg, rating, distance, and price sorting
 - Trending restaurants and customer offers
 - Persistent same-restaurant cart with quantity controls, item modifiers, coupon application, taxes/fees, delivery fee, address selection, and final checkout review
 - Checkout from real backend menu data with backend-authoritative pricing
+- Stable checkout idempotency keys across poor-network retries
 - Edit order before restaurant confirmation
 - PhonePe, Paytm, and Razorpay payment method selection with deep-link return handling, pending/success/failure states, retry, and refund status display
 - Live order tracking with authenticated Socket.IO subscription plus ETA polling fallback
@@ -30,6 +33,9 @@ This Flutter app does not expose admin, delivery partner, or restaurant tools. T
 cd apps/flutter-mobile
 GOOGLE_MAPS_API_KEY=your-google-maps-key flutter run \
   --dart-define=API_BASE_URL=https://your-azure-backend.example.com \
+  --dart-define=SERVICE_REGION_NAME="Delhi NCR" \
+  --dart-define=SERVICE_REGION_LAT=28.6139 \
+  --dart-define=SERVICE_REGION_LNG=77.2090 \
   --dart-define=GOOGLE_SERVER_CLIENT_ID=your-web-oauth-client-id
 ```
 
