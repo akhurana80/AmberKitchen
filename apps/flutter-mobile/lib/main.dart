@@ -1908,6 +1908,20 @@ class _AuthScreenState extends State<AuthScreen> {
                 'Sign in to order food, checkout securely, and track delivery live.',
                 style: Theme.of(context).textTheme.bodyLarge),
             const SizedBox(height: 24),
+            const AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Quick start',
+                      style: TextStyle(fontWeight: FontWeight.w800)),
+                  SizedBox(height: 8),
+                  Text('1. Enter your phone number and request OTP, or continue with Google.'),
+                  Text('2. Allow location access to unlock nearby restaurants and fast checkout.'),
+                  Text('3. Browse restaurants and build your cart to place an order.'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             AppBanner(state: widget.state),
             ScreenStateBanner(
                 state: widget.state, screen: CustomerScreenKey.auth),
@@ -1973,6 +1987,12 @@ class HomeScreen extends StatelessWidget {
         children: [
           AppBanner(state: state),
           ScreenStateBanner(state: state, screen: CustomerScreenKey.home),
+          if (state.deliveryAddress.trim().isEmpty)
+            const AppCard(
+              child: Text(
+                'Add your delivery address early so checkout is faster and more accurate.',
+              ),
+            ),
           LocationSelectionScreen(state: state, includeAddressField: true),
           AppCard(
             child: Column(
@@ -2423,9 +2443,9 @@ class RestaurantDetailsScreen extends StatelessWidget {
             runSpacing: 6,
             children: [
               if (restaurant.isPremium)
-                Chip(
-                  label: const Text('Premium'),
-                  backgroundColor: const Color(0xffd8f5e1),
+                const Chip(
+                  label: Text('Premium'),
+                  backgroundColor: Color(0xffd8f5e1),
                 ),
               if (restaurant.cuisineType != null)
                 Chip(label: Text(restaurant.cuisineType!)),
@@ -2576,6 +2596,14 @@ class CheckoutScreen extends StatelessWidget {
                   ?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 12),
           ScreenStateBanner(state: state, screen: CustomerScreenKey.checkout),
+          if (!state.canCheckout)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Complete the delivery address and cart items before placing the order.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
           LocationSelectionScreen(
             state: state,
             includeAddressField: true,
@@ -3961,9 +3989,9 @@ class RestaurantSummaryCard extends StatelessWidget {
                         runSpacing: 6,
                         children: [
                           if (restaurant.isPremium)
-                            Chip(
-                                label: const Text('Premium'),
-                                backgroundColor: const Color(0xffd8f5e1)),
+                            const Chip(
+                                label: Text('Premium'),
+                                backgroundColor: Color(0xffd8f5e1)),
                           if (restaurant.cuisineType != null)
                             Chip(label: Text(restaurant.cuisineType!)),
                           if (restaurant.rating != null)
@@ -4049,7 +4077,7 @@ class PremiumDiscoveryTile extends StatelessWidget {
             const SizedBox(height: 8),
             Wrap(spacing: 6, runSpacing: 6, children: [
               if (restaurant.isPremium)
-                Chip(label: const Text('Premium')),
+                const Chip(label: Text('Premium')),
               Chip(label: Text(restaurant.etaBadge)),
             ]),
           ],

@@ -106,6 +106,17 @@ export default function App() {
 
   const firstRestaurant = restaurants[0]?.restaurant_id ?? trending[0]?.id ?? selectedRestaurantId;
 
+  const roleHelp = useMemo(() => {
+    switch (role) {
+      case "driver":
+        return "Driver mode guides delivery partners through onboarding, live orders, and payout readiness.";
+      case "restaurant":
+        return "Restaurant mode helps you manage onboarding, menu items, active orders, and earnings.";
+      default:
+        return "Admin mode gives you fast access to platform health, approvals, monitoring, and launch controls.";
+    }
+  }, [role]);
+
   useEffect(() => {
     if (!availableTabs.includes(tab)) {
       setTab(availableTabs[0]);
@@ -593,7 +604,8 @@ export default function App() {
 
         <Card title="Login">
           <Text style={styles.notice}>{notice}</Text>
-          <Text style={[styles.status, isOffline && styles.statusOffline]}>{isOffline ? "Offline connection detected" : loading ? "Loading..." : error ? `Error: ${error}` : `Role: ${role}`}</Text>
+          <Text style={[styles.status, isOffline && styles.statusOffline]}>{isOffline ? "Offline connection detected" : loading ? "Loading..." : error ? `Error: ${error}` : `Role: ${titleCase(role)}`}</Text>
+          <Text style={styles.helperText}>{roleHelp}</Text>
           <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="Phone" keyboardType="phone-pad" />
           <TextInput style={styles.input} value={otp} onChangeText={setOtp} placeholder="OTP" keyboardType="number-pad" />
           <Segmented values={roleOptions} value={role} onChange={next => setRole(next as Role)} />
@@ -615,10 +627,11 @@ export default function App() {
 
         {tab === "driver" && (
           <Card title="Delivery Partner App">
+            <Text style={styles.sectionHint}>Start here to onboard safely, accept deliveries and stay visible while on shift.</Text>
             <View style={styles.actions}>
-              <Button label="Load Driver App" onPress={loadDriverWork} disabled={!authed} />
-              <Button label="Background Check" onPress={() => token && run("Background check", () => api.runDriverBackgroundCheck(token))} disabled={!authed} />
-              <Button label="Share Location" onPress={shareDriverLocation} disabled={!orderId} />
+              <Button label="Load driver workspace" onPress={loadDriverWork} disabled={!authed} />
+              <Button label="Run background check" onPress={() => token && run("Background check", () => api.runDriverBackgroundCheck(token))} disabled={!authed} />
+              <Button label="Share live location" onPress={shareDriverLocation} disabled={!orderId} />
             </View>
             <Text style={styles.sectionTitle}>Driver onboarding</Text>
             <TextInput style={styles.input} value={driverFullName} onChangeText={setDriverFullName} placeholder="Full name" />
@@ -636,7 +649,8 @@ export default function App() {
               {selectedSelfie ? <Image source={{ uri: selectedSelfie }} style={styles.uploadPreview} /> : null}
             </View>
             <View style={styles.actions}>
-              <Button label="Submit Onboarding" onPress={submitDriverOnboarding} disabled={!authed} />
+              <Button label="Submit onboarding" onPress={submitDriverOnboarding} disabled={!authed} />
+              <Button label="Run verification checks" onPress={runVerificationChecks} disabled={!authed} />
             </View>
             {driverApplication && <Summary title="Onboarding" lines={[driverApplication.full_name, `OCR: ${driverApplication.ocr_status}`, `Selfie: ${driverApplication.selfie_status}`, `Approval: ${driverApplication.approval_status}`]} />}
             {incentives.slice(0, 2).map(item => <ListItem key={item.id} title={item.title} subtitle={`${item.target_deliveries} deliveries | ${formatCurrency(item.reward_paise)}`} />)}
@@ -658,19 +672,20 @@ export default function App() {
 
         {tab === "restaurant" && (
           <Card title="Restaurant Panel">
+            <Text style={styles.sectionHint}>Use restaurant mode to approve menus, monitor earnings, and manage your first active orders.</Text>
             <Text style={styles.sectionTitle}>Restaurant onboarding details</Text>
             <TextInput style={styles.input} value={restaurantName} onChangeText={setRestaurantName} placeholder="Restaurant name" />
             <TextInput style={styles.input} value={restaurantAddress} onChangeText={setRestaurantAddress} placeholder="Restaurant address" />
             <TextInput style={styles.input} value={restaurantPhone} onChangeText={setRestaurantPhone} placeholder="Contact phone" keyboardType="phone-pad" />
             <TextInput style={styles.input} value={restaurantCuisine} onChangeText={setRestaurantCuisine} placeholder="Cuisine type" />
             <View style={styles.actions}>
-              <Button label="Onboard Restaurant" onPress={onboardRestaurant} disabled={!authed} />
-              <Button label="Load Panel" onPress={loadRestaurantPanel} disabled={!authed} />
+              <Button label="Onboard restaurant" onPress={onboardRestaurant} disabled={!authed} />
+              <Button label="Load restaurant panel" onPress={loadRestaurantPanel} disabled={!authed} />
             </View>
+            <Text style={styles.sectionHint}>After onboarding, load your restaurant panel, then add menu items or import sample photos for launch testing.</Text>
             <View style={styles.actions}>
-              <Button label="Add Menu + Photo" onPress={addMenuItem} disabled={!restaurantAccounts[0]?.id} />
-              <Button label="Import Menu Photos" onPress={importMobileMenu} disabled={!restaurantAccounts[0]?.id} />
-              <Button label="OCR + Face Check" onPress={runVerificationChecks} disabled={!authed} />
+              <Button label="Add menu item" onPress={addMenuItem} disabled={!restaurantAccounts[0]?.id} />
+              <Button label="Import menu items" onPress={importMobileMenu} disabled={!restaurantAccounts[0]?.id} />
             </View>
             {restaurantAccounts.map(item => <ListItem key={item.id} title={item.name} subtitle={`${item.approval_status} | ${item.onboarding_status}`} />)}
             {restaurantOrders.map(item => (
@@ -682,15 +697,22 @@ export default function App() {
 
         {tab === "admin" && (
           <Card title="Admin + Operations Dashboard">
+            <Text style={styles.sectionHint}>Admin mode gives you a concise control plane for launch readiness: platform health, approvals, orders, and payouts.</Text>
             <View style={styles.actions}>
-              <Button label="Load Admin" onPress={loadAdmin} disabled={!authed} />
-              <Button label="AI Demand" onPress={() => token && run("Running AI demand prediction", () => api.runDemandPredictionJob(token))} disabled={!authed} />
-              <Button label="Best Driver" onPress={() => token && orderId && api.assignBestDriver(token, orderId)} disabled={!orderId} />
-              <Button label="Assign First Driver" onPress={() => token && orderId && deliveryDrivers[0]?.id && api.assignDriver(token, orderId, deliveryDrivers[0].id)} disabled={!orderId || !deliveryDrivers[0]} />
-              <Button label="Create Zone" onPress={() => token && api.createZone(token, "Mobile Zone", "Delhi NCR", location.lat, location.lng, 3, 20)} disabled={!authed} />
-              <Button label="Create Offer" onPress={() => token && api.createOffer(token, "MOBILE50", "Mobile Offer", "flat", 5000, 19900)} disabled={!authed} />
-              <Button label="Create Campaign" onPress={() => token && api.createCampaign(token, "Mobile Push Campaign", "push", 100000, "AI mobile lunch creative")} disabled={!authed} />
-              <Button label="Create Incentive" onPress={() => token && api.createDriverIncentive(token, "Mobile delivery bonus", 5, 7500)} disabled={!authed} />
+              <Button label="Load admin dashboard" onPress={loadAdmin} disabled={!authed} />
+              <Button label="Run demand prediction" onPress={() => token && run("Running AI demand prediction", () => api.runDemandPredictionJob(token))} disabled={!authed} />
+            </View>
+            <View style={styles.actions}>
+              <Button label="Assign best driver" onPress={() => token && orderId && api.assignBestDriver(token, orderId)} disabled={!orderId} />
+              <Button label="Assign first available driver" onPress={() => token && orderId && deliveryDrivers[0]?.id && api.assignDriver(token, orderId, deliveryDrivers[0].id)} disabled={!orderId || !deliveryDrivers[0]} />
+            </View>
+            <View style={styles.actions}>
+              <Button label="Create zone" onPress={() => token && api.createZone(token, "Mobile Zone", "Delhi NCR", location.lat, location.lng, 3, 20)} disabled={!authed} />
+              <Button label="Create offer" onPress={() => token && api.createOffer(token, "MOBILE50", "Mobile Offer", "flat", 5000, 19900)} disabled={!authed} />
+            </View>
+            <View style={styles.actions}>
+              <Button label="Create campaign" onPress={() => token && api.createCampaign(token, "Mobile Push Campaign", "push", 100000, "AI mobile lunch creative")} disabled={!authed} />
+              <Button label="Create incentive" onPress={() => token && api.createDriverIncentive(token, "Mobile delivery bonus", 5, 7500)} disabled={!authed} />
             </View>
             {dashboard && <Summary title="Platform Analytics" lines={[`Users ${dashboard.users}`, `Revenue ${formatCurrency(dashboard.revenuePaise)}`, `${dashboard.recentOrders.length} recent orders`]} />}
             <Text style={styles.sectionTitle}>User Management</Text>
@@ -948,6 +970,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8fafc",
     borderRadius: 8,
     padding: 12
+  },
+  helperText: {
+    color: "#475569",
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 8
+  },
+  sectionHint: {
+    color: "#475569",
+    fontSize: 14,
+    marginBottom: 10
   },
   summaryLine: {
     color: "#334155"
