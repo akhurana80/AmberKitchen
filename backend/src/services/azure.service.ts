@@ -1,5 +1,6 @@
 import axios from "axios";
 import { randomUUID } from "crypto";
+import { BlobServiceClient } from "@azure/storage-blob";
 import { config } from "../config";
 import { query } from "../db";
 
@@ -9,12 +10,28 @@ export async function createAzureBlobAsset(input: {
   contentType: string;
   sizeBytes: number;
   metadata?: Record<string, unknown>;
+  data?: string;
 }) {
   const safeName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
   const blobName = `${input.ownerId}/${randomUUID()}-${safeName}`;
   const account = config.azure.storageAccountName || "configured-storage-account";
   const container = config.azure.storageContainer;
   const url = `https://${account}.blob.core.windows.net/${container}/${blobName}`;
+
+  if (input.data) {
+    if (!config.azure.storageConnectionString) {
+      throw new Error("Azure storage upload is not configured.");
+    }
+
+    const blobServiceClient = BlobServiceClient.fromConnectionString(config.azure.storageConnectionString);
+    const containerClient = blobServiceClient.getContainerClient(container);
+    await containerClient.createIfNotExists();
+    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+    const buffer = Buffer.from(input.data, "base64");
+    await blockBlobClient.uploadData(buffer, {
+      blobHTTPHeaders: { blobContentType: input.contentType }
+    });
+  }
 
   const result = await query(
     `insert into file_assets (owner_id, container_name, blob_name, content_type, size_bytes, url, metadata)
@@ -25,8 +42,10 @@ export async function createAzureBlobAsset(input: {
 
   return {
     ...result.rows[0],
-    uploadMode: config.azure.storageConnectionString ? "azure-blob-configured" : "azure-blob-metadata-only",
-    note: "Use this blobName with Azure Blob SDK or managed identity upload in production."
+    uploadMode: input.data ? "azure-blob-uploaded" : config.azure.storageConnectionString ? "azure-blob-configured" : "azure-blob-metadata-only",
+    note: input.data
+      ? "Document uploaded to Azure Blob storage."
+      : "Use this blobName with Azure Blob SDK or managed identity upload in production."
   };
 }
 

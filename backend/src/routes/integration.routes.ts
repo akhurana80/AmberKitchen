@@ -14,7 +14,8 @@ integrationRoutes.post("/azure/blob/assets", async (req, res, next) => {
       fileName: z.string().min(1),
       contentType: z.string().min(3),
       sizeBytes: z.number().int().positive(),
-      metadata: z.record(z.unknown()).optional()
+      metadata: z.record(z.unknown()).optional(),
+      data: z.string().optional()
     }).parse(req.body);
     res.status(201).json(await createAzureBlobAsset({ ownerId: req.user!.id, ...body }));
   } catch (error) {

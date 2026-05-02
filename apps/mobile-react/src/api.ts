@@ -79,15 +79,15 @@ export class ApiClient {
     return this.post("/api/v1/marketplace/support/tickets", { category, subject, message, orderId }, { token });
   }
 
-  async createOrder(token: string, restaurantId: string, lat: number, lng: number) {
+  async createOrder(token: string, restaurantId: string, lat: number, lng: number, items?: Array<{ name: string; quantity: number; pricePaise: number }>) {
     return this.post<{ id: string; totalPaise: number; status: string; estimatedDeliveryAt: string }>(
       "/api/v1/orders",
       {
         restaurantId,
-        deliveryAddress: "Mobile delivery address",
+        deliveryAddress: "Mobile app delivery address",
         deliveryLat: lat,
         deliveryLng: lng,
-        items: [{ name: "Mobile Demo Thali", quantity: 1, pricePaise: 24900 }]
+        items: items && items.length > 0 ? items : [{ name: "Sample Item", quantity: 1, pricePaise: 24900 }]
       },
       { token, idempotencyKey: `mobile-${Date.now()}` }
     );
@@ -399,8 +399,8 @@ export class ApiClient {
     return this.patch(`/api/v1/wallet/payouts/${id}/approval`, { status, note }, { token });
   }
 
-  async createAzureBlobAsset(token: string, fileName: string, contentType: string, sizeBytes: number) {
-    return this.post("/api/v1/integrations/azure/blob/assets", { fileName, contentType, sizeBytes }, { token });
+  async createAzureBlobAsset(token: string, fileName: string, contentType: string, sizeBytes: number, data?: string) {
+    return this.post("/api/v1/integrations/azure/blob/assets", { fileName, contentType, sizeBytes, data }, { token });
   }
 
   async verifyAzureOcr(token: string, imageUrl: string) {

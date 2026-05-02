@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Image,
   Linking,
   Platform,
   Pressable,
@@ -12,7 +13,10 @@ import {
   View
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
 import * as Location from "expo-location";
+import * as Network from "expo-network";
 import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
@@ -30,18 +34,21 @@ import {
   WalletSummary
 } from "./src/types";
 
-type Tab = "customer" | "driver" | "restaurant" | "admin";
+type Tab = "driver" | "restaurant" | "admin";
 
-const roleOptions: Role[] = ["customer", "driver", "restaurant", "admin", "super_admin", "delivery_admin"];
+const roleOptions: Role[] = ["driver", "restaurant", "admin", "super_admin", "delivery_admin"];
 
 export default function App() {
   const [token, setToken] = useState("");
-  const [phone, setPhone] = useState("+919999000001");
+  const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [googleIdToken, setGoogleIdToken] = useState("");
-  const [role, setRole] = useState<Role>("customer");
-  const [tab, setTab] = useState<Tab>("customer");
-  const [notice, setNotice] = useState("Ready for OTP, Google login, ordering, tracking, payments, driver, restaurant, and admin flows.");
+  const [role, setRole] = useState<Role>("driver");
+  const [tab, setTab] = useState<Tab>("driver");
+  const [notice, setNotice] = useState("Ready for operations login, dispatch, restaurant, and admin workflows.");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
   const [location, setLocation] = useState({ lat: 28.6139, lng: 77.209 });
   const [restaurants, setRestaurants] = useState<RestaurantSearchResult[]>([]);
   const [trending, setTrending] = useState<TrendingRestaurant[]>([]);
@@ -55,6 +62,17 @@ export default function App() {
   const [driverApplication, setDriverApplication] = useState<DriverOnboardingApplication | null>(null);
   const [driverApplications, setDriverApplications] = useState<DriverOnboardingApplication[]>([]);
   const [driverReferrals, setDriverReferrals] = useState<Array<{ id: string; referral_code: string; status: string; reward_paise: number; referrer_phone: string | null; referred_phone: string | null }>>([]);
+  const [selectedAadhaarFront, setSelectedAadhaarFront] = useState<string | null>(null);
+  const [selectedAadhaarBack, setSelectedAadhaarBack] = useState<string | null>(null);
+  const [selectedSelfie, setSelectedSelfie] = useState<string | null>(null);
+  const [driverFullName, setDriverFullName] = useState("");
+  const [driverAadhaarLast4, setDriverAadhaarLast4] = useState("");
+  const [driverBankLast4, setDriverBankLast4] = useState("");
+  const [driverUpiId, setDriverUpiId] = useState("");
+  const [restaurantName, setRestaurantName] = useState("");
+  const [restaurantAddress, setRestaurantAddress] = useState("");
+  const [restaurantCuisine, setRestaurantCuisine] = useState("");
+  const [restaurantPhone, setRestaurantPhone] = useState("");
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [walletTransactions, setWalletTransactions] = useState<Array<{ id: string; type: string; amount_paise: number; status: string }>>([]);
   const [restaurantAccounts, setRestaurantAccounts] = useState<Array<{ id: string; name: string; approval_status: string; onboarding_status: string }>>([]);
@@ -80,9 +98,23 @@ export default function App() {
   const [demandPredictions, setDemandPredictions] = useState<Array<{ id: string; zone_key: string; cuisine_type: string | null; hour_start: string; predicted_orders: number; confidence: string }>>([]);
 
   const authed = Boolean(token);
+  const availableTabs = useMemo(() => {
+    if (role === "driver") return ["driver"] as Tab[];
+    if (role === "restaurant") return ["restaurant"] as Tab[];
+    return ["admin"] as Tab[];
+  }, [role]);
+
   const firstRestaurant = restaurants[0]?.restaurant_id ?? trending[0]?.id ?? selectedRestaurantId;
 
+  useEffect(() => {
+    if (!availableTabs.includes(tab)) {
+      setTab(availableTabs[0]);
+    }
+  }, [availableTabs, tab]);
+
   const run = useCallback(async (label: string, work: () => Promise<unknown>) => {
+    setError(null);
+    setLoading(true);
     try {
       setNotice(`${label}...`);
       const result = await work();
@@ -90,9 +122,12 @@ export default function App() {
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unexpected mobile app error";
+      setError(message);
       setNotice(message);
       Alert.alert(label, message);
       return null;
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -103,6 +138,31 @@ export default function App() {
       }
     });
   }, []);
+
+  useEffect(() => {
+    const updateNetwork = async () => {
+      try {
+        const state = await Network.getNetworkStateAsync();
+        setIsOffline(!state.isConnected || state.isInternetReachable === false);
+      } catch {
+        setIsOffline(true);
+      }
+    };
+
+    updateNetwork();
+    const interval = setInterval(updateNetwork, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (role === "driver") {
+      setTab("driver");
+    } else if (role === "restaurant") {
+      setTab("restaurant");
+    } else {
+      setTab("admin");
+    }
+  }, [role]);
 
   useEffect(() => {
     if (!token || !orderId) {
@@ -130,9 +190,17 @@ export default function App() {
     await SecureStore.setItemAsync("amberkitchen.token", nextToken);
   }
 
+  async function logout() {
+    setToken("");
+    setNotice("Logged out.");
+    setError(null);
+    setTab("driver");
+    await SecureStore.deleteItemAsync("amberkitchen.token");
+  }
+
   async function requestOtp() {
     const response = await run("Sending OTP", () => api.requestOtp(phone));
-    if (response && typeof response === "object" && "devCode" in response && response.devCode) {
+    if (__DEV__ && response && typeof response === "object" && "devCode" in response && response.devCode) {
       setOtp(String(response.devCode));
     }
   }
@@ -263,6 +331,21 @@ export default function App() {
     await Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${destination.lat},${destination.lng}`);
   }
 
+  async function pickImage(setValue: (uri: string | null) => void) {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      throw new Error("Photo access is required for driver onboarding documents.");
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+      allowsEditing: true
+    });
+    if (!result.canceled && result.assets[0]?.uri) {
+      setValue(result.assets[0].uri);
+    }
+  }
+
   async function loadDriverWork() {
     if (!token) {
       return;
@@ -295,17 +378,43 @@ export default function App() {
     if (!token) {
       return;
     }
-    const response = await run("Submitting driver onboarding", () => api.submitDriverOnboarding(token, {
-      fullName: "Mobile Driver",
-      aadhaarLast4: "1234",
-      aadhaarFrontUrl: "https://example.com/aadhaar-front.jpg",
-      aadhaarBackUrl: "https://example.com/aadhaar-back.jpg",
-      selfieUrl: "https://example.com/selfie.jpg",
-      bankAccountLast4: "6789",
-      upiId: "driver@upi"
-    }));
+    if (!driverFullName || !driverAadhaarLast4 || !selectedAadhaarFront || !selectedAadhaarBack || !selectedSelfie) {
+      Alert.alert("Driver onboarding", "Please complete the onboarding form and attach Aadhaar front/back and a selfie.");
+      return;
+    }
+
+    const response = await run("Submitting driver onboarding with uploads", async () => {
+      const [frontData, backData, selfieData] = await Promise.all([
+        FileSystem.readAsStringAsync(selectedAadhaarFront, { encoding: FileSystem.EncodingType.Base64 }),
+        FileSystem.readAsStringAsync(selectedAadhaarBack, { encoding: FileSystem.EncodingType.Base64 }),
+        FileSystem.readAsStringAsync(selectedSelfie, { encoding: FileSystem.EncodingType.Base64 })
+      ]);
+
+      const [frontAsset, backAsset, selfieAsset] = await Promise.all([
+        api.createAzureBlobAsset(token, "aadhaar-front.jpg", "image/jpeg", 250000, frontData),
+        api.createAzureBlobAsset(token, "aadhaar-back.jpg", "image/jpeg", 250000, backData),
+        api.createAzureBlobAsset(token, "selfie.jpg", "image/jpeg", 200000, selfieData)
+      ]);
+
+      const frontUrl = (frontAsset as { url: string }).url;
+      const backUrl = (backAsset as { url: string }).url;
+      const selfieUrl = (selfieAsset as { url: string }).url;
+
+      return api.submitDriverOnboarding(token, {
+        fullName: driverFullName,
+        aadhaarLast4: driverAadhaarLast4,
+        aadhaarFrontUrl: frontUrl,
+        aadhaarBackUrl: backUrl,
+        selfieUrl: selfieUrl,
+        bankAccountLast4: driverBankLast4,
+        upiId: driverUpiId
+      });
+    });
     if (response) {
       setDriverApplication(response as DriverOnboardingApplication);
+      setSelectedAadhaarFront(null);
+      setSelectedAadhaarBack(null);
+      setSelectedSelfie(null);
     }
   }
 
@@ -331,15 +440,19 @@ export default function App() {
     if (!token) {
       return;
     }
+    if (!restaurantName || !restaurantAddress || !restaurantPhone) {
+      Alert.alert("Restaurant onboarding", "Please provide name, address, and contact phone.");
+      return;
+    }
     await run("Submitting restaurant onboarding", () => api.onboardRestaurant(token, {
-      name: "Amber Mobile Kitchen",
-      address: "Delhi NCR",
-      contactName: "Mobile Owner",
-      contactPhone: phone,
-      cuisineType: "North Indian",
-      fssaiLicense: "FSSAI-MOBILE",
-      gstNumber: "GST-MOBILE",
-      bankAccountLast4: "4321"
+      name: restaurantName,
+      address: restaurantAddress,
+      contactName: restaurantName,
+      contactPhone: restaurantPhone,
+      cuisineType: restaurantCuisine || "General",
+      fssaiLicense: "",
+      gstNumber: "",
+      bankAccountLast4: ""
     }));
     await loadRestaurantPanel();
   }
@@ -348,14 +461,18 @@ export default function App() {
     if (!token || !restaurantAccounts[0]?.id) {
       return;
     }
+    if (!restaurantName) {
+      Alert.alert("Menu item", "Enter restaurant name and item details first.");
+      return;
+    }
     await run("Adding menu item", () => api.createMenuItem(token, restaurantAccounts[0].id, {
-      name: "Mobile Paneer Bowl",
-      description: "Paneer, rice, salad, and chutney",
-      pricePaise: 24900,
-      photoUrl: "https://placehold.co/640x480?text=Mobile+Paneer+Bowl",
+      name: `${restaurantName} Menu Item`,
+      description: "Created from mobile operations app",
+      pricePaise: 29900,
+      photoUrl: "",
       isVeg: true,
-      cuisineType: "North Indian",
-      rating: 4.3
+      cuisineType: restaurantCuisine || "General",
+      rating: 4.0
     }));
   }
 
@@ -363,28 +480,50 @@ export default function App() {
     if (!token || !restaurantAccounts[0]?.id) {
       return;
     }
-    await run("Importing menu with photos", () => api.importMenuItems(token, restaurantAccounts[0].id, [
-      {
-        name: "Imported Mobile Thali",
-        description: "Imported menu item with cuisine, photo, veg flag, and rating",
-        pricePaise: 27900,
-        photoUrl: googlePlaces[0]?.photoUrl ?? "https://placehold.co/640x480?text=Imported+Thali",
-        isVeg: true,
-        cuisineType: "North Indian",
-        rating: 4.2,
-        googlePlaceId: googlePlaces[0]?.name
-      }
-    ]));
+    if (googlePlaces.length === 0) {
+      Alert.alert("Import menu", "Load Google Places restaurants first to import menu items.");
+      return;
+    }
+    const items = googlePlaces.slice(0, 3).map(place => ({
+      name: place.name,
+      description: `Imported restaurant item (rating ${place.rating})`,
+      pricePaise: 34900,
+      photoUrl: place.photoUrl ?? "",
+      isVeg: true,
+      cuisineType: restaurantCuisine || "General",
+      rating: place.rating,
+      googlePlaceId: place.name
+    }));
+    await run("Importing menu items", () => api.importMenuItems(token, restaurantAccounts[0].id, items));
   }
 
   async function runVerificationChecks() {
     if (!token) {
       return;
     }
+    if (!selectedAadhaarFront || !selectedAadhaarBack || !selectedSelfie) {
+      Alert.alert("Verification checks", "Select Aadhaar front, back, and selfie before running verification.");
+      return;
+    }
     await run("Running Azure verification checks", async () => {
-      await api.createAzureBlobAsset(token, "mobile-aadhaar.jpg", "image/jpeg", 250000);
-      await api.verifyAzureOcr(token, "https://example.com/aadhaar-front.jpg");
-      await api.verifyAzureFace(token, "https://example.com/selfie.jpg", "https://example.com/aadhaar-front.jpg");
+      const [frontData, backData, selfieData] = await Promise.all([
+        FileSystem.readAsStringAsync(selectedAadhaarFront, { encoding: FileSystem.EncodingType.Base64 }),
+        FileSystem.readAsStringAsync(selectedAadhaarBack, { encoding: FileSystem.EncodingType.Base64 }),
+        FileSystem.readAsStringAsync(selectedSelfie, { encoding: FileSystem.EncodingType.Base64 })
+      ]);
+
+      const [frontAsset, backAsset, selfieAsset] = await Promise.all([
+        api.createAzureBlobAsset(token, "aadhaar-front.jpg", "image/jpeg", 250000, frontData),
+        api.createAzureBlobAsset(token, "aadhaar-back.jpg", "image/jpeg", 250000, backData),
+        api.createAzureBlobAsset(token, "selfie.jpg", "image/jpeg", 200000, selfieData)
+      ]);
+
+      const frontUrl = (frontAsset as { url: string }).url;
+      const backUrl = (backAsset as { url: string }).url;
+      const selfieUrl = (selfieAsset as { url: string }).url;
+
+      await api.verifyAzureOcr(token, frontUrl);
+      await api.verifyAzureFace(token, selfieUrl, frontUrl);
     });
   }
 
@@ -454,6 +593,7 @@ export default function App() {
 
         <Card title="Login">
           <Text style={styles.notice}>{notice}</Text>
+          <Text style={[styles.status, isOffline && styles.statusOffline]}>{isOffline ? "Offline connection detected" : loading ? "Loading..." : error ? `Error: ${error}` : `Role: ${role}`}</Text>
           <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="Phone" keyboardType="phone-pad" />
           <TextInput style={styles.input} value={otp} onChangeText={setOtp} placeholder="OTP" keyboardType="number-pad" />
           <Segmented values={roleOptions} value={role} onChange={next => setRole(next as Role)} />
@@ -467,66 +607,36 @@ export default function App() {
             <Button label="Use Location" onPress={useCurrentLocation} />
             <Button label="Enable Push" onPress={enablePush} disabled={!authed} />
             <Button label="Test Push" onPress={sendPushTest} disabled={!authed} />
+            {authed ? <Button label="Logout" onPress={logout} /> : null}
           </View>
         </Card>
 
-        <Segmented values={["customer", "driver", "restaurant", "admin"]} value={tab} onChange={next => setTab(next as Tab)} />
-
-        {tab === "customer" && (
-          <Card title="Customer App">
-            <View style={styles.actions}>
-              <Button label="Search + Trending" onPress={loadMarketplace} disabled={!authed} />
-              <Button label="Place Order" onPress={createOrder} disabled={!authed} />
-              <Button label="Load Order" onPress={loadOrder} disabled={!orderId} />
-              <Button label="ETA + Route" onPress={loadEta} disabled={!orderId} />
-            </View>
-            <View style={styles.actions}>
-              <Button label="PhonePe" onPress={() => pay("phonepe")} disabled={!orderId} />
-              <Button label="Paytm" onPress={() => pay("paytm")} disabled={!orderId} />
-              <Button label="Razorpay" onPress={() => pay("razorpay")} disabled={!orderId} />
-              <Button label="Navigation" onPress={openNavigation} disabled={!eta} />
-            </View>
-            <View style={styles.actions}>
-              <Button label="Edit Order" onPress={() => token && orderId && api.editOrder(token, orderId, "Updated mobile address", location.lat, location.lng)} disabled={!orderId} />
-              <Button label="Cancel" onPress={() => token && orderId && api.cancelOrder(token, orderId, "Mobile cancellation")} disabled={!orderId} />
-              <Button label="Refund" onPress={() => token && orderId && api.requestRefund(token, orderId, "Mobile refund", 1000)} disabled={!orderId} />
-              <Button label="Reorder" onPress={() => token && orderId && api.reorder(token, orderId)} disabled={!orderId} />
-              <Button label="Review" onPress={() => token && firstRestaurant && api.createRestaurantReview(token, firstRestaurant, 5, "Mobile review", orderId || undefined)} disabled={!authed} />
-              <Button label="Support" onPress={() => token && api.createSupportTicket(token, "order", "Mobile support", "Need help from mobile app", orderId || undefined)} disabled={!authed} />
-            </View>
-
-            <MobileMap location={location} order={order} routeLine={routeLine} />
-            <Text style={styles.sectionTitle}>Google Places Delhi NCR</Text>
-            {googlePlaces.slice(0, 3).map(item => (
-              <ListItem key={`${item.name}-${item.address}`} title={`${item.name} - ${item.rating}`} subtitle={item.address} />
-            ))}
-            <Text style={styles.sectionTitle}>Offers</Text>
-            {offers.slice(0, 3).map(item => (
-              <ListItem key={item.id} title={`${item.code} - ${item.title}`} subtitle={`${item.discount_type} ${item.discount_value}`} />
-            ))}
-            <Text style={styles.sectionTitle}>Trending</Text>
-            {trending.slice(0, 4).map(item => (
-              <ListItem key={item.id} title={`${item.name} - ${item.predicted_eta_minutes} min`} subtitle={`${item.cuisine_type ?? "Cuisine"} | ${item.distance_km ?? "-"} km | score ${item.trending_score}`} onPress={() => setSelectedRestaurantId(item.id)} />
-            ))}
-            <Text style={styles.sectionTitle}>Search Results</Text>
-            {restaurants.slice(0, 5).map(item => (
-              <ListItem key={item.menu_item_id} title={`${item.menu_item_name} - ${formatCurrency(item.price_paise)}`} subtitle={`${item.restaurant_name} | ${item.is_veg ? "Veg" : "Non Veg"} | ${item.rating ?? "-"} rating`} onPress={() => setSelectedRestaurantId(item.restaurant_id)} />
-            ))}
-            {order && <Summary title={`Order ${order.status}`} lines={[order.id, order.delivery_address, `Driver: ${order.driver_phone ?? "Not assigned"}`, `Total: ${formatCurrency(order.total_paise)}`]} />}
-            {eta && <Summary title="Live ETA" lines={[`${eta.predictedEtaMinutes} minutes`, `${eta.route.distanceToPickupKm.toFixed(1)} km to pickup`, `${eta.route.distanceToDropoffKm.toFixed(1)} km to dropoff`]} />}
-            {etaLoop.slice(0, 3).map(item => (
-              <ListItem key={item.id} title={`ETA loop ${item.predicted_eta_minutes} min`} subtitle={`${item.distance_to_pickup_km ?? "-"} km pickup | ${item.distance_to_dropoff_km ?? "-"} km dropoff`} />
-            ))}
-          </Card>
-        )}
+        <Segmented values={availableTabs} value={tab} onChange={next => setTab(next as Tab)} />
 
         {tab === "driver" && (
           <Card title="Delivery Partner App">
             <View style={styles.actions}>
               <Button label="Load Driver App" onPress={loadDriverWork} disabled={!authed} />
-              <Button label="Onboard Driver" onPress={submitDriverOnboarding} disabled={!authed} />
               <Button label="Background Check" onPress={() => token && run("Background check", () => api.runDriverBackgroundCheck(token))} disabled={!authed} />
               <Button label="Share Location" onPress={shareDriverLocation} disabled={!orderId} />
+            </View>
+            <Text style={styles.sectionTitle}>Driver onboarding</Text>
+            <TextInput style={styles.input} value={driverFullName} onChangeText={setDriverFullName} placeholder="Full name" />
+            <TextInput style={styles.input} value={driverAadhaarLast4} onChangeText={setDriverAadhaarLast4} placeholder="Aadhaar last 4 digits" keyboardType="number-pad" />
+            <TextInput style={styles.input} value={driverBankLast4} onChangeText={setDriverBankLast4} placeholder="Bank account last 4 digits" keyboardType="number-pad" />
+            <TextInput style={styles.input} value={driverUpiId} onChangeText={setDriverUpiId} placeholder="UPI ID" />
+            <View style={styles.actions}>
+              <Button label="Pick Aadhaar Front" onPress={() => pickImage(setSelectedAadhaarFront)} disabled={!authed} />
+              <Button label="Pick Aadhaar Back" onPress={() => pickImage(setSelectedAadhaarBack)} disabled={!authed} />
+              <Button label="Pick Selfie" onPress={() => pickImage(setSelectedSelfie)} disabled={!authed} />
+            </View>
+            <View style={[styles.actions, styles.uploadPreviews]}>
+              {selectedAadhaarFront ? <Image source={{ uri: selectedAadhaarFront }} style={styles.uploadPreview} /> : null}
+              {selectedAadhaarBack ? <Image source={{ uri: selectedAadhaarBack }} style={styles.uploadPreview} /> : null}
+              {selectedSelfie ? <Image source={{ uri: selectedSelfie }} style={styles.uploadPreview} /> : null}
+            </View>
+            <View style={styles.actions}>
+              <Button label="Submit Onboarding" onPress={submitDriverOnboarding} disabled={!authed} />
             </View>
             {driverApplication && <Summary title="Onboarding" lines={[driverApplication.full_name, `OCR: ${driverApplication.ocr_status}`, `Selfie: ${driverApplication.selfie_status}`, `Approval: ${driverApplication.approval_status}`]} />}
             {incentives.slice(0, 2).map(item => <ListItem key={item.id} title={item.title} subtitle={`${item.target_deliveries} deliveries | ${formatCurrency(item.reward_paise)}`} />)}
@@ -548,9 +658,16 @@ export default function App() {
 
         {tab === "restaurant" && (
           <Card title="Restaurant Panel">
+            <Text style={styles.sectionTitle}>Restaurant onboarding details</Text>
+            <TextInput style={styles.input} value={restaurantName} onChangeText={setRestaurantName} placeholder="Restaurant name" />
+            <TextInput style={styles.input} value={restaurantAddress} onChangeText={setRestaurantAddress} placeholder="Restaurant address" />
+            <TextInput style={styles.input} value={restaurantPhone} onChangeText={setRestaurantPhone} placeholder="Contact phone" keyboardType="phone-pad" />
+            <TextInput style={styles.input} value={restaurantCuisine} onChangeText={setRestaurantCuisine} placeholder="Cuisine type" />
             <View style={styles.actions}>
               <Button label="Onboard Restaurant" onPress={onboardRestaurant} disabled={!authed} />
               <Button label="Load Panel" onPress={loadRestaurantPanel} disabled={!authed} />
+            </View>
+            <View style={styles.actions}>
               <Button label="Add Menu + Photo" onPress={addMenuItem} disabled={!restaurantAccounts[0]?.id} />
               <Button label="Import Menu Photos" onPress={importMobileMenu} disabled={!restaurantAccounts[0]?.id} />
               <Button label="OCR + Face Check" onPress={runVerificationChecks} disabled={!authed} />
@@ -740,6 +857,15 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 6
   },
+  status: {
+    color: "#0f766e",
+    fontWeight: "700",
+    marginTop: 4,
+    marginBottom: 6
+  },
+  statusOffline: {
+    color: "#b91c1c"
+  },
   input: {
     borderColor: "#cbd5e1",
     borderWidth: 1,
@@ -764,6 +890,15 @@ const styles = StyleSheet.create({
   buttonText: {
     color: "#ffffff",
     fontWeight: "700"
+  },
+  uploadPreviews: {
+    justifyContent: "flex-start"
+  },
+  uploadPreview: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginTop: 8
   },
   segmented: {
     gap: 8,
