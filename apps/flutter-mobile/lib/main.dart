@@ -316,12 +316,36 @@ class CustomerAppState extends ChangeNotifier with WidgetsBindingObserver {
     }
     final restaurants = byRestaurant.values.toList();
     restaurants.sort((a, b) {
-      final distanceCompare = (a.distanceKm ?? double.infinity)
-          .compareTo(b.distanceKm ?? double.infinity);
-      if (distanceCompare != 0) {
-        return distanceCompare;
+      switch (filters.sort) {
+        case 'rating_desc':
+          final ratingCompare = b.ratingValue.compareTo(a.ratingValue);
+          if (ratingCompare != 0) return ratingCompare;
+          return (a.distanceKm ?? double.infinity)
+              .compareTo(b.distanceKm ?? double.infinity);
+        case 'price_asc':
+          final priceCompare = a.startingPricePaise
+              .compareTo(b.startingPricePaise);
+          if (priceCompare != 0) return priceCompare;
+          return b.ratingValue.compareTo(a.ratingValue);
+        case 'price_desc':
+          final priceCompare = b.startingPricePaise
+              .compareTo(a.startingPricePaise);
+          if (priceCompare != 0) return priceCompare;
+          return b.ratingValue.compareTo(a.ratingValue);
+        case 'eta':
+          final etaCompare = (a.predictedEtaMinutes ?? 9999)
+              .compareTo(b.predictedEtaMinutes ?? 9999);
+          if (etaCompare != 0) return etaCompare;
+          return (a.distanceKm ?? double.infinity)
+              .compareTo(b.distanceKm ?? double.infinity);
+        default:
+          final distanceCompare = (a.distanceKm ?? double.infinity)
+              .compareTo(b.distanceKm ?? double.infinity);
+          if (distanceCompare != 0) {
+            return distanceCompare;
+          }
+          return b.ratingValue.compareTo(a.ratingValue);
       }
-      return b.ratingValue.compareTo(a.ratingValue);
     });
     return restaurants;
   }
@@ -1712,15 +1736,24 @@ class RestaurantSummary {
   final int menuCount;
 
   double get ratingValue => rating ?? 0;
+  bool get isPremium => rating != null && rating! >= 4.3;
+  String get etaBadge => predictedEtaMinutes != null
+      ? '$predictedEtaMinutes min'
+      : 'ETA TBD';
+  String get distanceBadge => distanceKm != null
+      ? '${distanceKm!.toStringAsFixed(1)} km'
+      : 'Nearby';
+  String get priceBadge =>
+      startingPricePaise > 0 ? 'From ${formatCurrency(startingPricePaise)}' : 'Price TBD';
   String get listingSubtitle {
     final details = <String>[
       cuisineType ?? 'Cuisine',
       if (rating != null) '${rating!.toStringAsFixed(1)} rating',
-      if (distanceKm != null) '${distanceKm!.toStringAsFixed(1)} km',
       if (predictedEtaMinutes != null) '$predictedEtaMinutes min ETA',
-      if (menuCount > 0) '$menuCount menu items',
+      if (distanceKm != null) '${distanceKm!.toStringAsFixed(1)} km',
+      if (menuCount > 0) '$menuCount dishes',
     ];
-    return details.join(' - ');
+    return details.join(' • ');
   }
 
   RestaurantSummary copyWith({
@@ -1970,13 +2003,37 @@ class HomeScreen extends StatelessWidget {
           if (state.offers.isNotEmpty) ...[
             const SectionTitle(title: 'Offers'),
             SizedBox(
-              height: 92,
+              height: 112,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: state.offers.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (context, index) =>
                     OfferTile(offer: state.offers[index]),
+              ),
+            ),
+          ],
+          if (state.restaurantSummaries.isNotEmpty) ...[
+            const SectionTitle(title: 'Premium discovery'),
+            SizedBox(
+              height: 210,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: state.restaurantSummaries
+                    .where((restaurant) => restaurant.isPremium)
+                    .take(4)
+                    .length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final premium = state.restaurantSummaries
+                      .where((restaurant) => restaurant.isPremium)
+                      .take(4)
+                      .toList()[index];
+                  return PremiumDiscoveryTile(
+                    restaurant: premium,
+                    onTap: () => state.selectRestaurant(premium.id),
+                  );
+                },
               ),
             ),
           ],
@@ -1988,7 +2045,7 @@ class HomeScreen extends StatelessWidget {
                     leading: ItemImage(url: restaurant.photoUrl, size: 52),
                     title: Text(restaurant.name),
                     subtitle: Text(
-                        '${restaurant.cuisineType ?? 'Cuisine'} - ${restaurant.predictedEtaMinutes} min ETA'),
+                        '${restaurant.cuisineType ?? 'Cuisine'} • ${restaurant.predictedEtaMinutes} min ETA'),
                     trailing: restaurant.distanceKm == null
                         ? null
                         : Text(
@@ -2118,6 +2175,7 @@ class RestaurantsScreen extends StatelessWidget {
           AppBanner(state: state),
           ScreenStateBanner(
               state: state, screen: CustomerScreenKey.restaurants),
+          PremiumDiscoverySection(state: state),
           RestaurantListingScreen(state: state),
           const SizedBox(height: 12),
           RestaurantDetailsScreen(state: state),
@@ -2150,7 +2208,8 @@ class RestaurantListingScreen extends StatelessWidget {
           TextFormField(
             initialValue: state.filters.query,
             decoration: const InputDecoration(
-                labelText: 'Search dishes or restaurants'),
+                labelText: 'Search dishes or restaurants',
+                prefixIcon: Icon(Icons.search)),
             onChanged: (value) => state.filters.query = value,
             onFieldSubmitted: (_) => state.loadRestaurants(),
           ),
@@ -2191,6 +2250,7 @@ class RestaurantListingScreen extends StatelessWidget {
                         value: 'distance', child: Text('Distance')),
                     DropdownMenuItem(
                         value: 'rating_desc', child: Text('Rating')),
+                    DropdownMenuItem(value: 'eta', child: Text('ETA')),
                     DropdownMenuItem(
                         value: 'price_asc', child: Text('Price low')),
                     DropdownMenuItem(
@@ -2246,22 +2306,69 @@ class RestaurantListingScreen extends StatelessWidget {
                 title: 'No restaurants yet',
                 body:
                     'Try fewer filters or refresh after restaurants are live.')
-          else
+          else ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text('${restaurants.length} restaurants found',
+                  style: Theme.of(context).textTheme.bodyLarge),
+            ),
             ...restaurants.map((restaurant) {
               final selected = restaurant.id == state.selectedRestaurant?.id;
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: ItemImage(url: restaurant.photoUrl, size: 52),
-                title: Text(restaurant.name),
-                subtitle: Text(restaurant.listingSubtitle),
-                trailing: selected
-                    ? const Icon(Icons.check_circle, color: Color(0xff0f766e))
-                    : const Icon(Icons.chevron_right),
-                onTap: () => state.selectRestaurant(restaurant.id),
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: RestaurantSummaryCard(
+                  restaurant: restaurant,
+                  selected: selected,
+                  onTap: () => state.selectRestaurant(restaurant.id),
+                ),
               );
             }),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class PremiumDiscoverySection extends StatelessWidget {
+  const PremiumDiscoverySection({required this.state, super.key});
+
+  final CustomerAppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final premiumRecommendations = state.restaurantSummaries
+        .where((restaurant) => restaurant.isPremium)
+        .take(4)
+        .toList();
+    if (premiumRecommendations.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionTitle(title: 'Premium discovery'),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 200,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: premiumRecommendations.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              final restaurant = premiumRecommendations[index];
+              return SizedBox(
+                width: 260,
+                child: PremiumDiscoveryTile(
+                  restaurant: restaurant,
+                  onTap: () => state.selectRestaurant(restaurant.id),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
     );
   }
 }
@@ -2315,32 +2422,44 @@ class RestaurantDetailsScreen extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: [
+              if (restaurant.isPremium)
+                Chip(
+                  label: const Text('Premium'),
+                  backgroundColor: const Color(0xffd8f5e1),
+                ),
               if (restaurant.cuisineType != null)
                 Chip(label: Text(restaurant.cuisineType!)),
               if (restaurant.rating != null)
                 Chip(
                     label: Text(
                         '${restaurant.rating!.toStringAsFixed(1)} rating')),
-              if (restaurant.distanceKm != null)
-                Chip(
-                    label: Text(
-                        '${restaurant.distanceKm!.toStringAsFixed(1)} km')),
-              if (restaurant.predictedEtaMinutes != null)
-                Chip(label: Text('${restaurant.predictedEtaMinutes} min ETA')),
-              if (restaurant.startingPricePaise > 0)
-                Chip(
-                    label: Text(
-                        'From ${formatCurrency(restaurant.startingPricePaise)}')),
+              Chip(label: Text(restaurant.etaBadge)),
+              Chip(label: Text(restaurant.distanceBadge)),
+              Chip(label: Text(restaurant.priceBadge)),
             ],
           ),
           const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: state.selectedRestaurantMenuItems.isEmpty
-                ? null
-                : () =>
-                    state.addToCart(state.selectedRestaurantMenuItems.first),
-            icon: const Icon(Icons.add_shopping_cart),
-            label: const Text('Add first item'),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: state.selectedRestaurantMenuItems.isEmpty
+                      ? null
+                      : () => state.addToCart(
+                          state.selectedRestaurantMenuItems.first),
+                  icon: const Icon(Icons.add_shopping_cart),
+                  label: const Text('Add first item'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: state.selectedRestaurantMenuItems.isEmpty
+                    ? null
+                    : () => state.openRestaurants(),
+                icon: const Icon(Icons.restaurant_menu),
+                label: const Text('Browse menu'),
+              ),
+            ],
           ),
         ],
       ),
@@ -3569,18 +3688,29 @@ class MenuItemTile extends StatelessWidget {
                         .textTheme
                         .titleMedium
                         ?.copyWith(fontWeight: FontWeight.w800)),
-                Text(item.restaurantName),
+                const SizedBox(height: 4),
+                Text(item.restaurantName,
+                    style: Theme.of(context).textTheme.bodySmall),
                 if (item.description != null)
-                  Text(item.description!,
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6, bottom: 4),
+                    child: Text(item.description!,
+                        maxLines: 2, overflow: TextOverflow.ellipsis),
+                  ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
                   children: [
-                    Chip(label: Text(formatCurrency(item.pricePaise))),
+                    Chip(
+                        label: Text(formatCurrency(item.pricePaise)),
+                        backgroundColor: const Color(0xfff1f5f9)),
                     if (item.isVeg != null)
-                      Chip(label: Text(item.isVeg! ? 'Veg' : 'Non veg')),
+                      Chip(
+                          label: Text(item.isVeg! ? 'Veg' : 'Non veg'),
+                          backgroundColor: item.isVeg!
+                              ? const Color(0xffecfdf5)
+                              : const Color(0xfffff1f2)),
                     if (item.rating != null)
                       Chip(
                           label: Text(
@@ -3754,18 +3884,176 @@ class ItemImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
         width: size,
         height: size,
         color: const Color(0xffe2e8f0),
         child: url == null || url!.isEmpty
-            ? const Icon(Icons.restaurant)
+            ? const Icon(Icons.restaurant, size: 32, color: Color(0xff475569))
             : Image.network(
                 url!,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const Icon(Icons.restaurant),
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.restaurant,
+                  size: 32,
+                  color: Color(0xff475569),
+                ),
               ),
+      ),
+    );
+  }
+}
+
+class RestaurantSummaryCard extends StatelessWidget {
+  const RestaurantSummaryCard({
+    required this.restaurant,
+    required this.selected,
+    required this.onTap,
+    super.key,
+  });
+
+  final RestaurantSummary restaurant;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ItemImage(url: restaurant.photoUrl, size: 88),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Text(restaurant.name,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w800)),
+                          ),
+                          if (selected)
+                            const Icon(Icons.check_circle,
+                                color: Color(0xff0f766e)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(restaurant.address,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          if (restaurant.isPremium)
+                            Chip(
+                                label: const Text('Premium'),
+                                backgroundColor: const Color(0xffd8f5e1)),
+                          if (restaurant.cuisineType != null)
+                            Chip(label: Text(restaurant.cuisineType!)),
+                          if (restaurant.rating != null)
+                            Chip(label: Text(
+                                '${restaurant.rating!.toStringAsFixed(1)} rating')),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Chip(label: Text(restaurant.etaBadge)),
+                Chip(label: Text(restaurant.distanceBadge)),
+                Chip(label: Text(restaurant.priceBadge)),
+                if (restaurant.menuCount > 0)
+                  Chip(label: Text('${restaurant.menuCount} dishes')),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                FilledButton(
+                  onPressed: onTap,
+                  child: const Text('View menu'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: onTap,
+                  child: const Text('Choose restaurant'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class PremiumDiscoveryTile extends StatelessWidget {
+  const PremiumDiscoveryTile({
+    required this.restaurant,
+    required this.onTap,
+    super.key,
+  });
+
+  final RestaurantSummary restaurant;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        width: 240,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xffe2e8f0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: ItemImage(url: restaurant.photoUrl, size: 148)),
+            const SizedBox(height: 10),
+            Text(restaurant.name,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Text(restaurant.listingSubtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              if (restaurant.isPremium)
+                Chip(label: const Text('Premium')),
+              Chip(label: Text(restaurant.etaBadge)),
+            ]),
+          ],
+        ),
       ),
     );
   }
