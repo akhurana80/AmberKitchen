@@ -94,7 +94,7 @@ export class ApiClient {
         deliveryAddress: "Mobile app delivery address",
         deliveryLat: lat,
         deliveryLng: lng,
-        items: items && items.length > 0 ? items : [{ name: "Sample Item", quantity: 1, pricePaise: 24900 }]
+        items: items && items.length > 0 ? items : (__DEV__ ? [{ name: "Sample Item", quantity: 1, pricePaise: 24900 }] : [])
       },
       { token, idempotencyKey: `mobile-${Date.now()}` }
     );

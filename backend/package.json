@@ -14,7 +14,7 @@
     "test:smoke": "node scripts/smoke-test.js"
   },
   "dependencies": {
-    "@azure/storage-blob": "^13.6.0",
+    "@azure/storage-blob": "^12.24.0",
     "axios": "^1.7.9",
     "@azure/communication-sms": "^1.0.0",
     "bcryptjs": "^2.4.3",

@@ -1,0 +1,46 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - uses: azure/docker-login@v2
+        with:
+          login-server: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
+          username: ${{ secrets.AZURE_CLIENT_ID }}
+          password: ${{ secrets.AZURE_CLIENT_SECRET }}
+      - name: Build and push Docker image
+        run: |
+          docker build -t ${{ secrets.AZURE_CONTAINER_REGISTRY }}/amberkitchen-backend:${{ github.sha }} ./backend
+          docker push ${{ secrets.AZURE_CONTAINER_REGISTRY }}/amberkitchen-backend:${{ github.sha }}
+      - name: Deploy to Azure Container App
+        uses: azure/CLI@v2
+        with:
+          inlineScript: |
+            az containerapp update \
+              --name amberkitchen-backend \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --image ${{ secrets.AZURE_CONTAINER_REGISTRY }}/amberkitchen-backend:${{ github.sha }} \
+              --set-env-vars \
+                DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+                JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+                GOOGLE_PLACES_API_KEY="${{ secrets.GOOGLE_PLACES_API_KEY }}" \
+                PAYTM_MERCHANT_ID="${{ secrets.PAYTM_MERCHANT_ID }}" \
+                PAYTM_MERCHANT_KEY="${{ secrets.PAYTM_MERCHANT_KEY }}" \
+                PHONEPE_MERCHANT_ID="${{ secrets.PHONEPE_MERCHANT_ID }}" \
+                PHONEPE_SALT_KEY="${{ secrets.PHONEPE_SALT_KEY }}" \
+                RAZORPAY_KEY_ID="${{ secrets.RAZORPAY_KEY_ID }}" \
+                RAZORPAY_KEY_SECRET="${{ secrets.RAZORPAY_KEY_SECRET }}" \
+                SERVICE_REGION_NAME="${{ secrets.SERVICE_REGION_NAME }}" \
+                SERVICE_REGION_LAT="${{ secrets.SERVICE_REGION_LAT }}" \
+                SERVICE_REGION_LNG="${{ secrets.SERVICE_REGION_LNG }}"

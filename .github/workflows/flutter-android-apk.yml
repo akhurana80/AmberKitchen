@@ -1,0 +1,45 @@
+name: Build Flutter Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+      - name: Install dependencies
+        run: cd apps/flutter-mobile && flutter pub get
+      - name: Create google-services.json
+        run: |
+          echo '${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}' | base64 -d > apps/flutter-mobile/android/app/google-services.json
+      - name: Create GoogleService-Info.plist
+        run: |
+          echo '${{ secrets.FIREBASE_GOOGLE_SERVICE_INFO_PLIST }}' | base64 -d > apps/flutter-mobile/ios/Runner/GoogleService-Info.plist
+      - name: Build APK
+        run: |
+          cd apps/flutter-mobile
+          flutter build apk --release \
+            --dart-define=API_BASE_URL=${{ secrets.FLUTTER_API_BASE_URL }} \
+            --dart-define=GOOGLE_MAPS_API_KEY=${{ secrets.FLUTTER_GOOGLE_MAPS_API_KEY }} \
+            --dart-define=GOOGLE_SERVER_CLIENT_ID=${{ secrets.FLUTTER_GOOGLE_SERVER_CLIENT_ID }} \
+            --dart-define=GOOGLE_IOS_CLIENT_ID=${{ secrets.FLUTTER_GOOGLE_IOS_CLIENT_ID }} \
+            --dart-define=GOOGLE_IOS_REVERSED_CLIENT_ID=${{ secrets.FLUTTER_GOOGLE_IOS_REVERSED_CLIENT_ID }} \
+            --dart-define=SERVICE_REGION_NAME=${{ secrets.FLUTTER_SERVICE_REGION_NAME }} \
+            --dart-define=SERVICE_REGION_LAT=${{ secrets.FLUTTER_SERVICE_REGION_LAT }} \
+            --dart-define=SERVICE_REGION_LNG=${{ secrets.FLUTTER_SERVICE_REGION_LNG }} \
+            --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FLUTTER_FIREBASE_PROJECT_ID }} \
+            --dart-define=FIREBASE_API_KEY=${{ secrets.FLUTTER_FIREBASE_API_KEY }} \
+            --dart-define=FIREBASE_APP_ID=${{ secrets.FLUTTER_FIREBASE_APP_ID }} \
+            --dart-define=FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FLUTTER_FIREBASE_MESSAGING_SENDER_ID }}
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-apk
+          path: apps/flutter-mobile/build/app/outputs/flutter-apk/app-release.apk

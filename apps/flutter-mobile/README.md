@@ -19,6 +19,18 @@ Production Flutter customer app for iOS and Android.
 
 Admin, driver, and restaurant tools are intentionally not exposed in this app.
 
+## Firebase Setup
+
+1. Create a Firebase project at https://console.firebase.google.com/
+2. Enable Authentication with Google provider
+3. Enable Cloud Messaging for push notifications
+4. Add Android app with package name `com.amberkitchen.customer`
+5. Add iOS app with bundle ID `com.amberkitchen.customer`
+6. Download and place config files:
+   - `android/app/google-services.json`
+   - `ios/Runner/GoogleService-Info.plist`
+7. Configure Firebase Cloud Messaging in the Firebase console
+
 ## Required Build Values
 
 The app intentionally does not default to localhost or demo data. Provide these values for every live build:
@@ -33,6 +45,10 @@ GOOGLE_IOS_REVERSED_CLIENT_ID=your-ios-reversed-client-id
 SERVICE_REGION_NAME=Ghaziabad
 SERVICE_REGION_LAT=28.6692
 SERVICE_REGION_LNG=77.4538
+FIREBASE_PROJECT_ID=your-firebase-project-id
+FIREBASE_API_KEY=your-firebase-api-key
+FIREBASE_APP_ID=your-firebase-app-id
+FIREBASE_MESSAGING_SENDER_ID=your-firebase-sender-id
 ```
 
 ## Run Locally
