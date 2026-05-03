@@ -30,9 +30,9 @@ GOOGLE_SERVER_CLIENT_ID=your-web-oauth-client-id
 GOOGLE_CLIENT_ID=optional-platform-client-id
 GOOGLE_IOS_CLIENT_ID=your-ios-oauth-client-id
 GOOGLE_IOS_REVERSED_CLIENT_ID=your-ios-reversed-client-id
-SERVICE_REGION_NAME=Delhi NCR
-SERVICE_REGION_LAT=28.6139
-SERVICE_REGION_LNG=77.2090
+SERVICE_REGION_NAME=Ghaziabad
+SERVICE_REGION_LAT=28.6692
+SERVICE_REGION_LNG=77.4538
 ```
 
 ## Run Locally
@@ -40,9 +40,9 @@ SERVICE_REGION_LNG=77.2090
 ```bash
 GOOGLE_MAPS_API_KEY=your-google-maps-key flutter run \
   --dart-define=API_BASE_URL=http://localhost:4000 \
-  --dart-define=SERVICE_REGION_NAME="Delhi NCR" \
-  --dart-define=SERVICE_REGION_LAT=28.6139 \
-  --dart-define=SERVICE_REGION_LNG=77.2090 \
+  --dart-define=SERVICE_REGION_NAME="Ghaziabad" \
+  --dart-define=SERVICE_REGION_LAT=28.6692 \
+  --dart-define=SERVICE_REGION_LNG=77.4538 \
   --dart-define=GOOGLE_SERVER_CLIENT_ID=your-web-oauth-client-id
 ```
 
@@ -51,9 +51,9 @@ For Android emulator:
 ```bash
 GOOGLE_MAPS_API_KEY=your-google-maps-key flutter run \
   --dart-define=API_BASE_URL=http://10.0.2.2:4000 \
-  --dart-define=SERVICE_REGION_NAME="Delhi NCR" \
-  --dart-define=SERVICE_REGION_LAT=28.6139 \
-  --dart-define=SERVICE_REGION_LNG=77.2090 \
+  --dart-define=SERVICE_REGION_NAME="Ghaziabad" \
+  --dart-define=SERVICE_REGION_LAT=28.6692 \
+  --dart-define=SERVICE_REGION_LNG=77.4538 \
   --dart-define=GOOGLE_SERVER_CLIENT_ID=your-web-oauth-client-id
 ```
 

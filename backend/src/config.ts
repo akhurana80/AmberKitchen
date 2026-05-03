@@ -12,6 +12,9 @@ export const config = {
   rateLimitMax: Number(process.env.RATE_LIMIT_MAX ?? 120),
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
   googlePlacesApiKey: process.env.GOOGLE_PLACES_API_KEY ?? "",
+  serviceRegionName: process.env.SERVICE_REGION_NAME ?? "Delhi NCR",
+  googlePlacesDefaultLat: Number(process.env.GOOGLE_PLACES_DEFAULT_LAT ?? 28.6139),
+  googlePlacesDefaultLng: Number(process.env.GOOGLE_PLACES_DEFAULT_LNG ?? 77.2090),
   otpTtlSeconds: Number(process.env.OTP_TTL_SECONDS ?? 300),
   paytm: {
     mid: process.env.PAYTM_MID ?? "",

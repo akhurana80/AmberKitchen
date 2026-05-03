@@ -18,6 +18,13 @@ const DELHI_NCR_CENTER = {
   longitude: 77.209
 };
 
+function getDefaultSearchCenter() {
+  return {
+    latitude: config.googlePlacesDefaultLat ?? DELHI_NCR_CENTER.latitude,
+    longitude: config.googlePlacesDefaultLng ?? DELHI_NCR_CENTER.longitude
+  };
+}
+
 export async function searchDelhiNcrRestaurants(options: {
   lat?: number;
   lng?: number;
@@ -42,8 +49,8 @@ export async function searchDelhiNcrRestaurants(options: {
       locationRestriction: {
         circle: {
           center: {
-            latitude: options.lat ?? DELHI_NCR_CENTER.latitude,
-            longitude: options.lng ?? DELHI_NCR_CENTER.longitude
+            latitude: options.lat ?? getDefaultSearchCenter().latitude,
+            longitude: options.lng ?? getDefaultSearchCenter().longitude
           },
           radius
         }

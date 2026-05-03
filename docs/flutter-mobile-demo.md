@@ -9,7 +9,7 @@ The Flutter app in `apps/flutter-mobile` is now the production customer app for 
 - Provider state management with a customer repository over the API service layer
 - Per-screen loading/error/offline state with retry actions
 - Proper customer screens: Home, Location selection, Restaurant listing, Restaurant details, Menu browsing, Cart, Checkout, Payment status, Order tracking, Order history, Profile, and Support
-- Delhi/NCR restaurant search with cuisine, veg/non-veg, rating, distance, and price sorting
+- Delhi/NCR and Ghaziabad restaurant search with cuisine, veg/non-veg, rating, distance, and price sorting
 - Trending restaurants and customer offers
 - Persistent same-restaurant cart with quantity controls, item modifiers, coupon application, taxes/fees, delivery fee, address selection, and final checkout review
 - Checkout from real backend menu data with backend-authoritative pricing
@@ -28,6 +28,18 @@ The Flutter app in `apps/flutter-mobile` is now the production customer app for 
 This Flutter app does not expose admin, delivery partner, or restaurant tools. Those remain in the Angular web app and React Native all-role operations app.
 
 ## Run
+
+```bash
+cd apps/flutter-mobile
+GOOGLE_MAPS_API_KEY=your-google-maps-key flutter run \
+  --dart-define=API_BASE_URL=https://your-azure-backend.example.com \
+  --dart-define=SERVICE_REGION_NAME="Ghaziabad" \
+  --dart-define=SERVICE_REGION_LAT=28.6692 \
+  --dart-define=SERVICE_REGION_LNG=77.4538 \
+  --dart-define=GOOGLE_SERVER_CLIENT_ID=your-web-oauth-client-id
+```
+
+For Delhi/NCR builds, use:
 
 ```bash
 cd apps/flutter-mobile

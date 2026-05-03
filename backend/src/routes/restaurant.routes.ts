@@ -266,7 +266,28 @@ restaurantRoutes.get("/google-places/delhi-ncr", requireRole("admin", "super_adm
 
     res.json({
       source: "google-places",
-      region: "Delhi NCR",
+      region: config.serviceRegionName,
+      minRating: query.minRating,
+      restaurants: await searchDelhiNcrRestaurants(query)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+restaurantRoutes.get("/google-places/region", requireRole("admin", "super_admin", "restaurant"), async (req, res, next) => {
+  try {
+    const query = z.object({
+      lat: z.coerce.number().optional(),
+      lng: z.coerce.number().optional(),
+      radiusMeters: z.coerce.number().optional(),
+      minRating: z.coerce.number().default(3),
+      limit: z.coerce.number().int().default(20)
+    }).parse(req.query);
+
+    res.json({
+      source: "google-places",
+      region: config.serviceRegionName,
       minRating: query.minRating,
       restaurants: await searchDelhiNcrRestaurants(query)
     });

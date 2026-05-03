@@ -71,6 +71,13 @@ export class ApiClient {
     );
   }
 
+  async googlePlacesRegion(token: string, minRating = 3) {
+    return this.get<{ restaurants: Array<{ name: string; address: string; rating: number; lat: number; lng: number; photoUrl: string | null }> }>(
+      `/api/v1/restaurants/google-places/region?minRating=${minRating}`,
+      { token }
+    );
+  }
+
   async createRestaurantReview(token: string, restaurantId: string, rating: number, comment?: string, orderId?: string) {
     return this.post(`/api/v1/marketplace/restaurants/${restaurantId}/reviews`, { rating, comment, orderId }, { token });
   }

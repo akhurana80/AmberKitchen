@@ -42,7 +42,7 @@
 - Customer offers, restaurant ratings/reviews, and support ticket APIs
 - Restaurant onboarding with business details, contact information, compliance IDs, bank reference, and Super Admin approval
 - Separate restaurant panel login in `apps/restaurant-panel/` for restaurant onboarding and operations
-- Google Places API integration for real Delhi NCR restaurants with rating filter, names, addresses, photos, and lat/lng
+- Google Places API integration for real Delhi NCR and Ghaziabad restaurants with rating filter, names, addresses, photos, and lat/lng
 - Restaurant/menu search by keyword, cuisine, veg/non-veg, minimum rating, max price, distance, and price sorting
 - Trending restaurant ranking with recent order demand, ratings, nearby distance, and delivery ETA predictions
 - AI demand prediction jobs with zone/cuisine/hour forecasts and job history
