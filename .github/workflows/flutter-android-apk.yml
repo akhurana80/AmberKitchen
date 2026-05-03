@@ -8,7 +8,6 @@ on:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    environment: production
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -18,26 +17,34 @@ jobs:
         run: cd apps/flutter-mobile && flutter pub get
       - name: Create google-services.json
         run: |
-          echo '${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}' | base64 -d > apps/flutter-mobile/android/app/google-services.json
+          if [ -n "${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}" ]; then
+            echo '${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}' | base64 -d > apps/flutter-mobile/android/app/google-services.json
+          else
+            echo "Firebase config not available, skipping..."
+          fi
       - name: Create GoogleService-Info.plist
         run: |
-          echo '${{ secrets.FIREBASE_GOOGLE_SERVICE_INFO_PLIST }}' | base64 -d > apps/flutter-mobile/ios/Runner/GoogleService-Info.plist
+          if [ -n "${{ secrets.FIREBASE_GOOGLE_SERVICE_INFO_PLIST }}" ]; then
+            echo '${{ secrets.FIREBASE_GOOGLE_SERVICE_INFO_PLIST }}' | base64 -d > apps/flutter-mobile/ios/Runner/GoogleService-Info.plist
+          else
+            echo "Firebase config not available, skipping..."
+          fi
       - name: Build APK
         run: |
           cd apps/flutter-mobile
           flutter build apk --release \
-            --dart-define=API_BASE_URL=${{ secrets.FLUTTER_API_BASE_URL }} \
-            --dart-define=GOOGLE_MAPS_API_KEY=${{ secrets.FLUTTER_GOOGLE_MAPS_API_KEY }} \
-            --dart-define=GOOGLE_SERVER_CLIENT_ID=${{ secrets.FLUTTER_GOOGLE_SERVER_CLIENT_ID }} \
-            --dart-define=GOOGLE_IOS_CLIENT_ID=${{ secrets.FLUTTER_GOOGLE_IOS_CLIENT_ID }} \
-            --dart-define=GOOGLE_IOS_REVERSED_CLIENT_ID=${{ secrets.FLUTTER_GOOGLE_IOS_REVERSED_CLIENT_ID }} \
-            --dart-define=SERVICE_REGION_NAME=${{ secrets.FLUTTER_SERVICE_REGION_NAME }} \
-            --dart-define=SERVICE_REGION_LAT=${{ secrets.FLUTTER_SERVICE_REGION_LAT }} \
-            --dart-define=SERVICE_REGION_LNG=${{ secrets.FLUTTER_SERVICE_REGION_LNG }} \
-            --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FLUTTER_FIREBASE_PROJECT_ID }} \
-            --dart-define=FIREBASE_API_KEY=${{ secrets.FLUTTER_FIREBASE_API_KEY }} \
-            --dart-define=FIREBASE_APP_ID=${{ secrets.FLUTTER_FIREBASE_APP_ID }} \
-            --dart-define=FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FLUTTER_FIREBASE_MESSAGING_SENDER_ID }}
+            --dart-define=API_BASE_URL=${{ secrets.FLUTTER_API_BASE_URL || 'https://api.amberkitchen.com' }} \
+            --dart-define=GOOGLE_MAPS_API_KEY=${{ secrets.FLUTTER_GOOGLE_MAPS_API_KEY || 'test-key' }} \
+            --dart-define=GOOGLE_SERVER_CLIENT_ID=${{ secrets.FLUTTER_GOOGLE_SERVER_CLIENT_ID || 'test-client-id' }} \
+            --dart-define=GOOGLE_IOS_CLIENT_ID=${{ secrets.FLUTTER_GOOGLE_IOS_CLIENT_ID || 'test-ios-client-id' }} \
+            --dart-define=GOOGLE_IOS_REVERSED_CLIENT_ID=${{ secrets.FLUTTER_GOOGLE_IOS_REVERSED_CLIENT_ID || 'test-reversed-id' }} \
+            --dart-define=SERVICE_REGION_NAME=${{ secrets.FLUTTER_SERVICE_REGION_NAME || 'Delhi' }} \
+            --dart-define=SERVICE_REGION_LAT=${{ secrets.FLUTTER_SERVICE_REGION_LAT || '28.6139' }} \
+            --dart-define=SERVICE_REGION_LNG=${{ secrets.FLUTTER_SERVICE_REGION_LNG || '77.2090' }} \
+            --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FLUTTER_FIREBASE_PROJECT_ID || 'test-project' }} \
+            --dart-define=FIREBASE_API_KEY=${{ secrets.FLUTTER_FIREBASE_API_KEY || 'test-api-key' }} \
+            --dart-define=FIREBASE_APP_ID=${{ secrets.FLUTTER_FIREBASE_APP_ID || 'test-app-id' }} \
+            --dart-define=FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FLUTTER_FIREBASE_MESSAGING_SENDER_ID || '123456789' }}
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:

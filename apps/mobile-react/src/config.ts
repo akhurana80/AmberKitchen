@@ -1,3 +1,7 @@
+import Constants from 'expo-constants';
+
+const extra = Constants.expoConfig?.extra ?? {};
+
 const apiBaseUrl = (process.env.EXPO_PUBLIC_API_BASE_URL ?? extra.apiBaseUrl ?? "").trim();
 const socketUrl = (process.env.EXPO_PUBLIC_SOCKET_URL ?? extra.socketUrl ?? apiBaseUrl).trim();
 const googleMapsApiKey = (process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? extra.googleMapsApiKey ?? "").trim();
