@@ -1,6 +1,6 @@
 # AmberKitchen Flutter Customer App
 
-Production Flutter customer app for iOS and Android.
+Production Flutter customer app for iOS, Android, and Web.
 
 ## Customer Scope
 
@@ -26,28 +26,52 @@ Admin, driver, and restaurant tools are intentionally not exposed in this app.
 3. Enable Cloud Messaging for push notifications
 4. Add Android app with package name `com.amberkitchen.customer`
 5. Add iOS app with bundle ID `com.amberkitchen.customer`
-6. Download and place config files:
+6. Add Web app for Chrome support
+7. Download and place config files:
    - `android/app/google-services.json`
    - `ios/Runner/GoogleService-Info.plist`
-7. Configure Firebase Cloud Messaging in the Firebase console
+   - `web/firebase-config.js` (create this file with web config)
+8. Configure Firebase Cloud Messaging in the Firebase console
+
+## Running on Chrome
+
+To run the app in Chrome for development:
+
+```bash
+flutter run -d chrome --dart-define=PRODUCTION=false
+```
+
+For production build:
+
+```bash
+flutter build web --dart-define=PRODUCTION=true
+```
 
 ## Required Build Values
 
 The app intentionally does not default to localhost or demo data. Provide these values for every live build:
 
+### Local Development (Chrome)
 ```bash
-API_BASE_URL=https://your-azure-backend.example.com
-GOOGLE_MAPS_API_KEY=your-google-maps-key
-GOOGLE_SERVER_CLIENT_ID=your-web-oauth-client-id
-GOOGLE_CLIENT_ID=optional-platform-client-id
-GOOGLE_IOS_CLIENT_ID=your-ios-oauth-client-id
-GOOGLE_IOS_REVERSED_CLIENT_ID=your-ios-reversed-client-id
-SERVICE_REGION_NAME=Ghaziabad
-SERVICE_REGION_LAT=28.6692
-SERVICE_REGION_LNG=77.4538
-FIREBASE_PROJECT_ID=your-firebase-project-id
-FIREBASE_API_KEY=your-firebase-api-key
-FIREBASE_APP_ID=your-firebase-app-id
+API_BASE_URL=http://localhost:3000
+GOOGLE_CLIENT_ID=your-local-web-google-client-id
+GOOGLE_SERVER_CLIENT_ID=your-local-google-server-client-id
+SERVICE_REGION_NAME=Delhi NCR
+SERVICE_REGION_LAT=28.6139
+SERVICE_REGION_LNG=77.2090
+```
+
+### Production
+```bash
+API_BASE_URL=https://api.amberkitchen.com
+GOOGLE_CLIENT_ID=your-production-web-google-client-id
+GOOGLE_SERVER_CLIENT_ID=your-production-google-server-client-id
+SERVICE_REGION_NAME=Delhi NCR
+SERVICE_REGION_LAT=28.6139
+SERVICE_REGION_LNG=77.2090
+```
+
+For mobile builds, additional platform-specific values may be required.
 FIREBASE_MESSAGING_SENDER_ID=your-firebase-sender-id
 ```
 

@@ -14,16 +14,16 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:url_launcher/url_launcher.dart';
 
 import 'api_client.dart';
+import 'config.dart';
 import 'customer_repository.dart';
 
-const apiBaseUrl = String.fromEnvironment('API_BASE_URL');
-const googleClientId = String.fromEnvironment('GOOGLE_CLIENT_ID');
-const googleServerClientId = String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
-const serviceRegionName =
-    String.fromEnvironment('SERVICE_REGION_NAME', defaultValue: 'Delhi NCR');
+const apiBaseUrl = AppConfig.apiBaseUrl;
+const googleClientId = AppConfig.googleClientId;
+const googleServerClientId = AppConfig.googleServerClientId;
+const serviceRegionName = AppConfig.serviceRegionName;
 final serviceRegionCenter = GeoPoint(
-  lat: double.tryParse(const String.fromEnvironment('SERVICE_REGION_LAT')) ?? 0,
-  lng: double.tryParse(const String.fromEnvironment('SERVICE_REGION_LNG')) ?? 0,
+  lat: AppConfig.serviceRegionLat,
+  lng: AppConfig.serviceRegionLng,
 );
 
 enum CustomerScreenKey {
