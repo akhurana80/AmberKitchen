@@ -42,6 +42,30 @@ export class ApiService {
     );
   }
 
+  createOrderWithItems(
+    restaurantId: string,
+    items: Array<{ name: string; quantity: number; pricePaise: number }>,
+    deliveryAddress: string,
+    deliveryLat: number,
+    deliveryLng: number
+  ) {
+    return this.http.post<{ id: string; totalPaise: number; status: string; estimatedDeliveryAt: string }>(
+      `${this.baseUrl}/api/orders`,
+      { restaurantId, items, deliveryAddress, deliveryLat, deliveryLng },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  myOrders() {
+    return this.http.get<Array<{
+      id: string;
+      status: string;
+      total_paise: number;
+      restaurant_name: string;
+      created_at: string;
+    }>>(`${this.baseUrl}/api/orders/mine`, { headers: this.authHeaders() });
+  }
+
   getOrder(orderId: string) {
     return this.http.get<{
       id: string;
