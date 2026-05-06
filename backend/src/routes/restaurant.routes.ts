@@ -162,6 +162,15 @@ restaurantRoutes.get("/trending", requireAuth, async (req, res, next) => {
   }
 });
 
+restaurantRoutes.get("/:restaurantId/menu", requireAuth, async (req, res, next) => {
+  try {
+    const result = await query("select * from menu_items where restaurant_id = $1 and is_available = true order by created_at desc", [req.params.restaurantId]);
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
 restaurantRoutes.use(requireAuth, requireRole("restaurant", "admin", "super_admin"));
 
 restaurantRoutes.post("/", async (req, res, next) => {

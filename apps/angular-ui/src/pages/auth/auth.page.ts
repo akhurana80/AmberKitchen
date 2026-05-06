@@ -1,5 +1,4 @@
 import { Component, inject, signal, AfterViewInit, ViewChild, ElementRef } from "@angular/core";
-import { Router } from "@angular/router";
 import { FormsModule } from "@angular/forms";
 import { ApiService } from "../../services/api.service";
 import { AuthService } from "../../services/auth.service";
@@ -21,64 +20,85 @@ type Role = "customer" | "driver" | "restaurant" | "admin" | "super_admin" | "de
           <div class="auth-logo-sub">India's smartest cloud kitchen platform</div>
         </div>
 
-        @if (step() === 'phone') {
-          <div class="mb-16">
-            <div class="form-group mb-16">
-              <label class="form-label">Mobile Number</label>
-              <div class="phone-field">
-                <span class="phone-prefix">🇮🇳 +91</span>
-                <input class="phone-input" [(ngModel)]="phone" placeholder="9999 999 999" maxlength="10" type="tel" (keyup.enter)="sendOtp()">
-              </div>
+        <!-- Already logged in banner -->
+        @if (alreadyLoggedIn()) {
+          <div class="card mb-16" style="border:2px solid var(--primary);text-align:center">
+            <div class="card-body">
+              <div style="font-size:32px;margin-bottom:8px">👋</div>
+              <div class="font-bold mb-4">You're signed in as <span style="color:var(--primary)">{{ auth.role().replace('_', ' ') | titlecase }}</span></div>
+              <div class="text-muted text-sm mb-16">{{ auth.userName() || 'Welcome back!' }}</div>
+              <button class="btn btn-primary btn-full mb-8" (click)="continueSession()">Continue →</button>
+              <button class="btn btn-ghost btn-full btn-sm" (click)="signOut()">Sign out & use a different account</button>
             </div>
-
-            <div class="form-group mb-16">
-              <label class="form-label">Sign in as</label>
-              <div class="role-grid">
-                @for (r of roles; track r.value) {
-                  <button class="role-chip" [class.active]="role === r.value" (click)="role = r.value">
-                    <span class="role-emoji">{{ r.emoji }}</span>
-                    <span>{{ r.label }}</span>
-                  </button>
-                }
-              </div>
-            </div>
-
-            <button class="btn btn-primary btn-full btn-lg" (click)="sendOtp()" [disabled]="loading() || phone.length < 10">
-              @if (loading()) { <span class="spinner spinner-sm"></span> }
-              Send OTP
-            </button>
-
-            @if (environment.googleClientId) {
-              <div class="divider-or mt-24 mb-16">or</div>
-              <div #googleButton class="flex justify-center"></div>
-            }
           </div>
         }
 
-        @if (step() === 'otp') {
-          <div>
-            <div class="alert alert-info mb-16">
-              OTP sent to +91 {{ phone }}
-            </div>
-            <div class="form-group mb-24">
-              <label class="form-label">Enter 6-digit OTP</label>
-              <div class="otp-row">
-                <input class="otp-digit form-input" [(ngModel)]="otp" maxlength="6" placeholder="------" type="text" (keyup.enter)="verifyOtp()">
+        @if (!alreadyLoggedIn()) {
+          @if (step() === 'phone') {
+            <div class="mb-16">
+              <div class="form-group mb-16">
+                <label class="form-label">Mobile Number</label>
+                <div class="phone-field">
+                  <span class="phone-prefix">🇮🇳 +91</span>
+                  <input #phoneInput class="phone-input" [(ngModel)]="phone" placeholder="10-digit number" maxlength="10"
+                    type="tel" inputmode="numeric" pattern="[0-9]*"
+                    (input)="onPhoneInput($event)"
+                    (keyup.enter)="sendOtp()">
+                </div>
+                @if (phone.length > 0 && digits().length < 10) {
+                  <div class="text-sm mt-4" style="color:var(--danger)">Enter 10 digits ({{ digits().length }}/10)</div>
+                }
               </div>
-              @if (devOtp()) {
-                <span class="text-sm text-muted mt-8 flex items-center gap-4">
-                  <span>Dev OTP:</span>
-                  <strong>{{ devOtp() }}</strong>
-                  <button class="btn btn-sm btn-secondary" (click)="otp = devOtp()">Use it</button>
-                </span>
+
+              <div class="form-group mb-16">
+                <label class="form-label">Sign in as</label>
+                <div class="role-grid">
+                  @for (r of roles; track r.value) {
+                    <button class="role-chip" [class.active]="role === r.value" (click)="role = r.value">
+                      <span class="role-emoji">{{ r.emoji }}</span>
+                      <span>{{ r.label }}</span>
+                    </button>
+                  }
+                </div>
+              </div>
+
+              <button class="btn btn-primary btn-full btn-lg" (click)="sendOtp()" [disabled]="loading() || digits().length < 10">
+                @if (loading()) { <span class="spinner spinner-sm"></span> }
+                @if (!loading()) { Send OTP }
+              </button>
+
+              @if (environment.googleClientId) {
+                <div class="divider-or mt-24 mb-16">or</div>
+                <div #googleButton class="flex justify-center"></div>
               }
             </div>
-            <button class="btn btn-primary btn-full btn-lg" (click)="verifyOtp()" [disabled]="loading() || otp.length < 6">
-              @if (loading()) { <span class="spinner spinner-sm"></span> }
-              Verify & Continue
-            </button>
-            <button class="btn btn-ghost btn-full mt-8" (click)="step.set('phone')">← Back</button>
-          </div>
+          }
+
+          @if (step() === 'otp') {
+            <div>
+              <div class="alert alert-info mb-16">
+                OTP sent to <strong>+91 {{ phone }}</strong>
+              </div>
+              <div class="form-group mb-24">
+                <label class="form-label">Enter 6-digit OTP</label>
+                <input class="form-input" [(ngModel)]="otp" maxlength="6" placeholder="Enter OTP"
+                  type="text" inputmode="numeric" pattern="[0-9]*"
+                  style="font-size:24px;letter-spacing:8px;text-align:center"
+                  (keyup.enter)="verifyOtp()">
+                @if (devOtp()) {
+                  <div class="text-sm text-muted mt-8" style="display:flex;align-items:center;gap:8px">
+                    <span>Dev OTP: <strong>{{ devOtp() }}</strong></span>
+                    <button class="btn btn-sm btn-secondary" (click)="otp = devOtp()">Use it</button>
+                  </div>
+                }
+              </div>
+              <button class="btn btn-primary btn-full btn-lg" (click)="verifyOtp()" [disabled]="loading() || otp.length < 6">
+                @if (loading()) { <span class="spinner spinner-sm"></span> }
+                @if (!loading()) { Verify & Sign In }
+              </button>
+              <button class="btn btn-ghost btn-full mt-8" (click)="step.set('phone')">← Change number</button>
+            </div>
+          }
         }
       </div>
 
@@ -92,9 +112,8 @@ export class AuthPage implements AfterViewInit {
   @ViewChild("googleButton") googleButtonRef!: ElementRef<HTMLDivElement>;
 
   private api = inject(ApiService);
-  private authService = inject(AuthService);
+  auth = inject(AuthService);
   private toast = inject(ToastService);
-  private router = inject(Router);
 
   environment = environment;
 
@@ -104,6 +123,7 @@ export class AuthPage implements AfterViewInit {
   step = signal<"phone" | "otp">("phone");
   loading = signal(false);
   devOtp = signal("");
+  alreadyLoggedIn = signal(false);
 
   roles: Array<{ value: Role; label: string; emoji: string }> = [
     { value: "customer", label: "Customer", emoji: "🛒" },
@@ -114,17 +134,37 @@ export class AuthPage implements AfterViewInit {
     { value: "delivery_admin", label: "Delivery Admin", emoji: "📦" }
   ];
 
+  digits() {
+    return this.phone.replace(/\D/g, "");
+  }
+
+  onPhoneInput(e: Event) {
+    const val = (e.target as HTMLInputElement).value.replace(/\D/g, "");
+    this.phone = val.slice(0, 10);
+    (e.target as HTMLInputElement).value = this.phone;
+  }
+
   ngAfterViewInit() {
-    this.initGoogleLogin();
-    if (this.authService.isLoggedIn()) {
-      this.authService.navigateAfterLogin();
+    if (this.auth.isLoggedIn()) {
+      this.alreadyLoggedIn.set(true);
     }
+    this.initGoogleLogin();
+  }
+
+  continueSession() {
+    this.auth.navigateAfterLogin();
+  }
+
+  signOut() {
+    this.auth.logout();
+    this.alreadyLoggedIn.set(false);
   }
 
   sendOtp() {
-    if (this.phone.length < 10) return;
+    const d = this.digits();
+    if (d.length < 10) return;
     this.loading.set(true);
-    const fullPhone = "+91" + this.phone.replace(/\D/g, "");
+    const fullPhone = "+91" + d;
     this.api.requestOtp(fullPhone).subscribe({
       next: res => {
         this.loading.set(false);
@@ -136,9 +176,10 @@ export class AuthPage implements AfterViewInit {
           this.toast.success("OTP sent to your phone!");
         }
       },
-      error: () => {
+      error: (err) => {
         this.loading.set(false);
-        this.toast.error("Failed to send OTP. Please try again.");
+        const msg = err?.error?.message || err?.error?.error || "Failed to send OTP. Is the backend running?";
+        this.toast.error(msg);
       }
     });
   }
@@ -146,24 +187,27 @@ export class AuthPage implements AfterViewInit {
   verifyOtp() {
     if (this.otp.length < 6) return;
     this.loading.set(true);
-    const fullPhone = "+91" + this.phone.replace(/\D/g, "");
+    const fullPhone = "+91" + this.digits();
     this.api.verifyOtp(fullPhone, this.otp, this.role).subscribe({
       next: res => {
         this.loading.set(false);
         this.handleLogin(res.token, this.role);
       },
-      error: () => {
+      error: (err) => {
         this.loading.set(false);
-        this.toast.error("Invalid OTP. Please check and try again.");
+        const msg = err?.error?.message || err?.error?.error || "Invalid OTP. Please check and try again.";
+        this.toast.error(msg);
       }
     });
   }
 
   private handleLogin(token: string, role: string) {
     this.authService.setSession(token, role);
-    this.toast.success(`Welcome! Signed in as ${role.replace("_", " ")}.`);
+    this.toast.success(`Welcome! Signed in as ${role.replace(/_/g, " ")}.`);
     this.authService.navigateAfterLogin();
   }
+
+  private get authService() { return this.auth; }
 
   private initGoogleLogin() {
     if (!environment.googleClientId || !this.googleButtonRef?.nativeElement) return;

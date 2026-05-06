@@ -536,21 +536,33 @@ orderRoutes.patch("/:id/status", requireRole("restaurant", "driver", "admin"), a
       status: z.enum(["accepted", "preparing", "ready", "picked_up", "delivered", "cancelled"])
     }).parse(req.body);
 
+    const etaInterval = body.status === "accepted" ? "45 minutes"
+      : body.status === "preparing" ? "35 minutes"
+      : body.status === "ready" ? "25 minutes"
+      : body.status === "picked_up" ? "20 minutes"
+      : null;
+
     const result = await query(
       `update orders
-       set status = $1,
+       set status = $1::order_status,
            estimated_delivery_at = case
-             when $1 = 'accepted' then coalesce(estimated_delivery_at, now() + interval '45 minutes')
-             when $1 = 'preparing' then coalesce(estimated_delivery_at, now() + interval '35 minutes')
-             when $1 = 'ready' then coalesce(estimated_delivery_at, now() + interval '25 minutes')
-             when $1 = 'picked_up' then now() + interval '20 minutes'
+             when $2::boolean then coalesce(estimated_delivery_at, now() + $3::interval)
+             when $4::boolean then now() + $3::interval
              else estimated_delivery_at
            end,
            updated_at = now()
-       where id = $2
-         and ($3::text <> 'driver' or driver_id = $4)
+       where id = $5
+         and ($6::text <> 'driver' or driver_id = $7)
        returning *`,
-      [body.status, req.params.id, req.user!.role, req.user!.id]
+      [
+        body.status,
+        etaInterval !== null && body.status !== "picked_up",
+        etaInterval ? `${etaInterval}` : "0 minutes",
+        body.status === "picked_up",
+        req.params.id,
+        req.user!.role,
+        req.user!.id
+      ]
     );
 
     if (!result.rows[0]) {
@@ -558,7 +570,7 @@ orderRoutes.patch("/:id/status", requireRole("restaurant", "driver", "admin"), a
     }
 
     emitOrderUpdate(routeParam(req.params.id), result.rows[0]);
-    await recordStatusHistory(routeParam(req.params.id), body.status, req.user!.id, `Status changed to ${body.status}`);
+    await recordStatusHistory(routeParam(req.params.id), body.status as string, req.user!.id, `Status changed to ${body.status}`);
     if (body.status === "delivered" && result.rows[0].driver_id) {
       await recordDriverEarning(result.rows[0].driver_id, routeParam(req.params.id), Number(result.rows[0].total_paise));
     }

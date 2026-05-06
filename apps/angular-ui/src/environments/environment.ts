@@ -1,5 +1,5 @@
 export const environment = {
-  apiBaseUrl: "http://localhost:8080",
+  apiBaseUrl: "https://executives-teachers-issues-franchise.trycloudflare.com",
   googleMapsApiKey: "",
   googleClientId: "",
   firebaseVapidKey: "",

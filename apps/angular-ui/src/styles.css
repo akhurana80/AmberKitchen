@@ -322,8 +322,8 @@ button,input,select,textarea { font-family: inherit; font-size: inherit; }
   padding: 48px var(--px) 56px;
   position: relative; overflow: hidden;
 }
-.hero::after { content: ''; position: absolute; inset: 0; background: url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='20' cy='20' r='15' fill='none' stroke='white' stroke-opacity='.06' stroke-width='1'/%3E%3C/svg%3E"); }
-.hero-inner { position: relative; max-width: 600px; margin: 0 auto; text-align: center; }
+.hero::after { content: ''; position: absolute; inset: 0; background: url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='20' cy='20' r='15' fill='none' stroke='white' stroke-opacity='.06' stroke-width='1'/%3E%3C/svg%3E"); pointer-events: none; }
+.hero-inner { position: relative; z-index: 1; max-width: 600px; margin: 0 auto; text-align: center; }
 .hero-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.2); color: white; padding: 4px 12px; border-radius: var(--radius-full); font-size: 13px; font-weight: 600; margin-bottom: 16px; backdrop-filter: blur(4px); }
 .hero-title { font-size: 36px; font-weight: 900; color: white; letter-spacing: -0.5px; margin-bottom: 10px; line-height: 1.1; }
 .hero-subtitle { font-size: 16px; color: rgba(255,255,255,0.85); margin-bottom: 28px; }

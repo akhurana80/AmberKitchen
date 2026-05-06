@@ -56,14 +56,14 @@ export class ApiService {
     );
   }
 
-  myOrders() {
+  myOrders() {  // GET /orders returns the caller's own orders (customer, driver, or restaurant)
     return this.http.get<Array<{
       id: string;
       status: string;
       total_paise: number;
       restaurant_name: string;
       created_at: string;
-    }>>(`${this.baseUrl}/api/orders/mine`, { headers: this.authHeaders() });
+    }>>(`${this.baseUrl}/api/orders`, { headers: this.authHeaders() });
   }
 
   getOrder(orderId: string) {
@@ -105,10 +105,10 @@ export class ApiService {
     );
   }
 
-  createPayment(provider: "paytm" | "phonepe" | "razorpay", orderId: string) {
+  createPayment(provider: "paytm" | "phonepe" | "razorpay", orderId: string, amountPaise: number) {
     return this.http.post(
       `${this.baseUrl}/api/payments/create`,
-      { provider, orderId, amountPaise: 24900 },
+      { provider, orderId, amountPaise },
       { headers: this.authHeaders() }
     );
   }
@@ -673,7 +673,8 @@ export class ApiService {
   }
 
   private authHeaders() {
-    return new HttpHeaders({ Authorization: `Bearer ${this.token}` });
+    const token = this.token || localStorage.getItem("ak_token") || "";
+    return new HttpHeaders({ Authorization: `Bearer ${token}` });
   }
 }
 
