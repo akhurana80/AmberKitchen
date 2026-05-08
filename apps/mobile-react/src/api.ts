@@ -439,20 +439,32 @@ export class ApiClient {
   }
 
   private async request<T>(path: string, init: RequestInit, options?: RequestOptions): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      ...init,
-      headers: {
-        "content-type": "application/json",
-        ...(options?.token ? { authorization: `Bearer ${options.token}` } : {}),
-        ...(options?.idempotencyKey ? { "idempotency-key": options.idempotencyKey } : {})
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    try {
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        ...init,
+        signal: controller.signal,
+        headers: {
+          "content-type": "application/json",
+          ...(options?.token ? { authorization: `Bearer ${options.token}` } : {}),
+          ...(options?.idempotencyKey ? { "idempotency-key": options.idempotencyKey } : {})
+        }
+      });
+      const text = await response.text();
+      const body = text ? JSON.parse(text) : null;
+      if (!response.ok) {
+        throw new Error(body?.error ?? `Request failed: ${response.status}`);
       }
-    });
-    const text = await response.text();
-    const body = text ? JSON.parse(text) : null;
-    if (!response.ok) {
-      throw new Error(body?.error ?? `Request failed: ${response.status}`);
+      return body as T;
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new Error(`Request timed out: ${path}`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
     }
-    return body as T;
   }
 }
 

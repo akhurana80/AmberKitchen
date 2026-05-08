@@ -502,7 +502,7 @@ export default function App() {
   async function loadAdmin() {
     if (!token) return;
     await run("Loading admin dashboard", async () => {
-      const [dash, restaurantsList, users, orders, reports, liveOrders, drivers, load, zoneList, offerList, campaignList, incentiveList, payouts, tickets, audits, checks, jobs, predictions, onboardingApps, referrals] = await Promise.all([
+      const results = await Promise.allSettled([
         api.adminDashboard(token),
         api.adminRestaurants(token),
         api.adminUsers(token),
@@ -524,26 +524,31 @@ export default function App() {
         api.driverOnboardingApplications(token),
         api.driverReferrals(token)
       ]);
-      setDashboard(dash);
-      setAdminRestaurants(restaurantsList);
-      setAdminUsers(users);
-      setAdminOrders(orders);
-      setPaymentReports(reports);
-      setDeliveryOrders(liveOrders);
-      setDeliveryDrivers(drivers);
-      setDriverLoad(load);
-      setZones(zoneList);
-      setOffers(offerList);
-      setCampaigns(campaignList);
-      setIncentives(incentiveList);
-      setAdminPayouts(payouts);
-      setSupportTickets(tickets);
-      setAuditLogs(audits);
-      setVerificationChecks(checks);
-      setAnalyticsJobs(jobs);
-      setDemandPredictions(predictions);
-      setDriverApplications(onboardingApps);
-      setDriverReferrals(referrals);
+      const ok = <T>(r: PromiseSettledResult<T>, fallback: T): T => r.status === "fulfilled" ? r.value : fallback;
+      setDashboard(ok(results[0], null) as AdminDashboard | null);
+      setAdminRestaurants(ok(results[1], []));
+      setAdminUsers(ok(results[2], []));
+      setAdminOrders(ok(results[3], []));
+      setPaymentReports(ok(results[4], []));
+      setDeliveryOrders(ok(results[5], []));
+      setDeliveryDrivers(ok(results[6], []));
+      setDriverLoad(ok(results[7], []));
+      setZones(ok(results[8], []));
+      setOffers(ok(results[9], []));
+      setCampaigns(ok(results[10], []));
+      setIncentives(ok(results[11], []));
+      setAdminPayouts(ok(results[12], []));
+      setSupportTickets(ok(results[13], []));
+      setAuditLogs(ok(results[14], []));
+      setVerificationChecks(ok(results[15], []));
+      setAnalyticsJobs(ok(results[16], []));
+      setDemandPredictions(ok(results[17], []));
+      setDriverApplications(ok(results[18], []));
+      setDriverReferrals(ok(results[19], []));
+      const failed = results.filter(r => r.status === "rejected").length;
+      if (failed > 0) {
+        setNotice(`Admin dashboard loaded (${failed} section${failed > 1 ? "s" : ""} unavailable — check backend logs).`);
+      }
     });
   }
 
