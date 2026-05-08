@@ -1,0 +1,15 @@
+node_modules/
+coverage/
+.expo/
+ios/build/
+android/build/
+android/.gradle/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+.env
+.env.local
