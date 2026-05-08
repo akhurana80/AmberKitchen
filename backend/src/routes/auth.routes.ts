@@ -73,10 +73,11 @@ async function upsertUser(input: {
            email = coalesce($3, email),
            name = coalesce($4, name),
            google_id = coalesce($5, google_id),
+           role = $6,
            updated_at = now()
        where id = $1
        returning id, phone, email, name, role`,
-      [existing.rows[0].id, input.phone ?? null, input.email ?? null, input.name ?? null, input.googleId ?? null]
+      [existing.rows[0].id, input.phone ?? null, input.email ?? null, input.name ?? null, input.googleId ?? null, input.role]
     );
 
     return result.rows[0];

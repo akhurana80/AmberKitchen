@@ -109,10 +109,10 @@ adminRoutes.patch("/restaurants/:id/approval", requireRole("super_admin"), async
 
     const result = await query(
       `update restaurants
-       set approval_status = $1,
+       set approval_status = $1::text,
            onboarding_status = case
-             when $1 = 'approved' then 'approved'
-             when $1 = 'rejected' then 'rejected'
+             when $1::text = 'approved' then 'approved'
+             when $1::text = 'rejected' then 'rejected'
              else onboarding_status
            end
        where id = $2

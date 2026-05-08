@@ -174,10 +174,10 @@ driverOnboardingRoutes.patch("/admin/applications/:id/approval", requireRole("de
     const result = await transaction(async client => {
       const application = await client.query<{ user_id: string }>(
         `update driver_onboarding
-         set approval_status = $1,
+         set approval_status = $1::text,
              admin_note = $2,
-             approved_by = case when $1 = 'approved' then $3 else approved_by end,
-             approved_at = case when $1 = 'approved' then now() else approved_at end,
+             approved_by = case when $1::text = 'approved' then $3 else approved_by end,
+             approved_at = case when $1::text = 'approved' then now() else approved_at end,
              updated_at = now()
          where id = $4
          returning *`,

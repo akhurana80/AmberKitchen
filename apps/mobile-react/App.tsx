@@ -12,7 +12,6 @@ import {
   TextInput,
   View
 } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
 import * as Location from "expo-location";
@@ -176,6 +175,18 @@ export default function App() {
   }, [role]);
 
   useEffect(() => {
+    if (!token) return;
+    if (role === "driver") {
+      void loadDriverWork();
+    } else if (role === "restaurant") {
+      void loadRestaurantPanel();
+    } else {
+      void loadAdmin();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
     if (!token || !orderId) {
       return undefined;
     }
@@ -220,6 +231,10 @@ export default function App() {
     const response = await run("Verifying OTP", () => api.verifyOtp(phone, otp, role));
     if (response && typeof response === "object" && "token" in response) {
       await saveToken(String(response.token));
+      const userRole = (response as { user?: { role?: string } }).user?.role;
+      if (userRole && roleOptions.includes(userRole as Role)) {
+        setRole(userRole as Role);
+      }
     }
   }
 
@@ -588,13 +603,6 @@ export default function App() {
     });
   }
 
-  const routeLine = useMemo(() => {
-    if (!eta) {
-      return [];
-    }
-    return [eta.route.origin, eta.route.pickup, eta.route.dropoff];
-  }, [eta]);
-
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
@@ -750,32 +758,6 @@ export default function App() {
   );
 }
 
-function MobileMap({ location, order, routeLine }: {
-  location: { lat: number; lng: number };
-  order: OrderSummary | null;
-  routeLine: Array<{ lat: number; lng: number }>;
-}) {
-  const markers = [
-    { key: "current", title: "Current", coordinate: { latitude: location.lat, longitude: location.lng } },
-    ...(order ? [{ key: "dropoff", title: "Dropoff", coordinate: { latitude: Number(order.delivery_lat), longitude: Number(order.delivery_lng) } }] : [])
-  ];
-  return (
-    <MapView
-      style={styles.map}
-      initialRegion={{ latitude: location.lat, longitude: location.lng, latitudeDelta: 0.08, longitudeDelta: 0.08 }}
-      region={{ latitude: location.lat, longitude: location.lng, latitudeDelta: 0.08, longitudeDelta: 0.08 }}
-    >
-      {markers.map(marker => <Marker key={marker.key} title={marker.title} coordinate={marker.coordinate} />)}
-      {routeLine.length > 1 && (
-        <Polyline
-          coordinates={routeLine.map(point => ({ latitude: point.lat, longitude: point.lng }))}
-          strokeColor="#0f766e"
-          strokeWidth={4}
-        />
-      )}
-    </MapView>
-  );
-}
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (

@@ -159,10 +159,10 @@ walletRoutes.patch("/payouts/:id/approval", requireRole("admin", "super_admin"),
 
       const updated = await client.query(
         `update payouts
-         set status = $1,
+         set status = $1::text,
              admin_note = $2,
              approved_by = $3,
-             processed_at = case when $1 in ('paid', 'rejected') then now() else processed_at end,
+             processed_at = case when $1::text in ('paid', 'rejected') then now() else processed_at end,
              updated_at = now()
          where id = $4
          returning *`,

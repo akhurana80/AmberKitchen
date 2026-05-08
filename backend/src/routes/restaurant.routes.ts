@@ -463,9 +463,9 @@ restaurantRoutes.patch("/orders/:orderId/decision", async (req, res, next) => {
 
     const result = await query(
       `update orders
-       set status = $1,
+       set status = $1::order_status,
            estimated_delivery_at = case
-             when $1 = 'accepted' then coalesce(estimated_delivery_at, now() + interval '45 minutes')
+             when $1::text = 'accepted' then coalesce(estimated_delivery_at, now() + interval '45 minutes')
              else estimated_delivery_at
            end,
            updated_at = now()

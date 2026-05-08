@@ -1,5 +1,5 @@
 export const environment = {
-  apiBaseUrl: "https://executives-teachers-issues-franchise.trycloudflare.com",
+  apiBaseUrl: "https://solving-nova-improvements-secrets.trycloudflare.com",
   googleMapsApiKey: "",
   googleClientId: "",
   firebaseVapidKey: "",

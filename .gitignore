@@ -5,3 +5,6 @@ out-tsc/
 .env
 *.log
 .expo/
+ios/Pods/
+ios/build/
+.claude/

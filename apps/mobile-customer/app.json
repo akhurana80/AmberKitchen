@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "AmberKitchen",
+    "slug": "amberkitchen-mobile-customer",
+    "scheme": "amberkitchencustomer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.amberkitchen.customer",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "AmberKitchen uses your location to find nearby restaurants and estimate delivery time.",
+        "NSCameraUsageDescription": "AmberKitchen uses your camera for profile photo.",
+        "NSPhotoLibraryUsageDescription": "AmberKitchen uses your photo library for profile photo."
+      }
+    },
+    "android": {
+      "package": "com.amberkitchen.customer",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-location",
+      "expo-notifications"
+    ]
+  }
+}
