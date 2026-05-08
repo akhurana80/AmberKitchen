@@ -528,7 +528,7 @@ export default function App() {
         api.driverOnboardingApplications(token),
         api.driverReferrals(token)
       ]);
-      const ok = <T>(r: PromiseSettledResult<T>, fallback: T): T => r.status === "fulfilled" ? r.value : fallback;
+      const ok = <T,>(r: PromiseSettledResult<T>, fallback: T): T => r.status === "fulfilled" ? r.value : fallback;
       setDashboard(ok(results[0], null) as AdminDashboard | null);
       setAdminRestaurants(ok(results[1], []));
       setAdminUsers(ok(results[2], []));
@@ -883,11 +883,43 @@ export default function App() {
         {/* ── Admin Tab ── */}
         {tab === "admin" && (
           <Card title="Admin + Operations Dashboard">
-            <Text style={styles.sectionHint}>Platform health, approvals, live monitoring, analytics and launch controls.</Text>
+
+            {/* ── Stats banner — changes immediately when data loads ── */}
+            {dashboard ? (
+              <View style={styles.statsBanner}>
+                <StatChip label="Users" value={String(dashboard.users)} />
+                <StatChip label="Revenue" value={formatCurrency(dashboard.revenuePaise)} />
+                <StatChip label="Restaurants" value={String(adminRestaurants.length)} />
+                <StatChip label="Orders" value={String(adminOrders.length)} />
+                <StatChip label="Drivers" value={String(driverLoad.length)} />
+              </View>
+            ) : (
+              <View style={styles.statsBannerEmpty}>
+                <Text style={styles.statsBannerEmptyText}>No data loaded — tap "Load Admin Dashboard" below</Text>
+              </View>
+            )}
+
+            {dashboard && (
+              <View style={styles.statsBanner}>
+                {dashboard.ordersByStatus.map(s => (
+                  <StatChip key={s.status} label={titleCase(s.status)} value={String(s.count)} />
+                ))}
+              </View>
+            )}
+
             <View style={styles.actions}>
               <Button label={loading ? "Loading…" : "Load Admin Dashboard"} onPress={loadAdmin} disabled={!authed || loading} />
               <Button label={loading ? "Loading…" : "Load Marketplace"} onPress={loadMarketplace} disabled={!authed || loading} />
             </View>
+
+            {(restaurants.length > 0 || trending.length > 0) && (
+              <View style={styles.statsBanner}>
+                <StatChip label="Nearby" value={String(restaurants.length)} />
+                <StatChip label="Trending" value={String(trending.length)} />
+                <StatChip label="Offers" value={String(offers.length)} />
+              </View>
+            )}
+
             <View style={styles.actions}>
               <Button
                 label="Run Demand Prediction"
@@ -897,12 +929,11 @@ export default function App() {
             </View>
 
             {dashboard && (
-              <Summary title="Platform Analytics" lines={[
-                `Total users: ${dashboard.users}`,
-                `Revenue: ${formatCurrency(dashboard.revenuePaise)}`,
-                `Recent orders: ${dashboard.recentOrders.length}`,
-                ...dashboard.ordersByStatus.slice(0, 4).map(s => `  ${titleCase(s.status)}: ${s.count}`)
-              ]} />
+              <Summary title="Recent Orders" lines={
+                dashboard.recentOrders.slice(0, 3).map(o =>
+                  `${o.restaurant_name} — ${titleCase(o.status)} · ${formatCurrency(o.total_paise)}`
+                )
+              } />
             )}
 
             {/* Order Operations */}
@@ -1119,6 +1150,15 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
+function StatChip({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.statChip}>
+      <Text style={styles.statChipValue}>{value}</Text>
+      <Text style={styles.statChipLabel}>{label}</Text>
+    </View>
+  );
+}
+
 function Divider({ label }: { label: string }) {
   return (
     <View style={styles.divider}>
@@ -1293,5 +1333,50 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 4,
     backgroundColor: "#ffffff"
+  },
+
+  // Stats banner (admin dashboard)
+  statsBanner: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    backgroundColor: "#f0fdf4",
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#bbf7d0"
+  },
+  statsBannerEmpty: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    alignItems: "center" as const
+  },
+  statsBannerEmptyText: {
+    color: "#94a3b8",
+    fontSize: 13,
+    fontStyle: "italic" as const
+  },
+  statChip: {
+    alignItems: "center" as const,
+    backgroundColor: "#ffffff",
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#d1fae5",
+    minWidth: 60
+  },
+  statChipValue: {
+    color: TEAL,
+    fontWeight: "800" as const,
+    fontSize: 15
+  },
+  statChipLabel: {
+    color: "#64748b",
+    fontSize: 11,
+    marginTop: 1
   }
 });
