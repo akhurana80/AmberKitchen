@@ -82,14 +82,32 @@ registerRoutes("/api");
 registerRoutes("/api/v1");
 
 const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
-  const status = error.name === "ZodError" ? 400 : 500;
-  if (status === 500) {
-    console.error("[ERROR]", error?.message, error?.stack?.split("\n")[1]);
+  // Zod validation errors
+  if (error.name === "ZodError") {
+    return res.status(400).json({ error: "Validation error", details: error.errors });
   }
-  res.status(status).json({
-    error: status === 500 ? "Internal server error" : "Validation error",
-    details: status === 500 ? undefined : error.errors
-  });
+  // PostgreSQL unique constraint violation (e.g. duplicate offer code)
+  if (error.code === "23505") {
+    const detail: string = error.detail ?? error.message ?? "";
+    const match = detail.match(/\(([^)]+)\)=\(([^)]+)\)/);
+    const friendly = match ? `${match[1]} '${match[2]}' already exists.` : "A record with that value already exists.";
+    return res.status(409).json({ error: friendly });
+  }
+  // PostgreSQL foreign key violation
+  if (error.code === "23503") {
+    return res.status(400).json({ error: "Invalid reference: the related record does not exist." });
+  }
+  // PostgreSQL invalid input / bad UUID format
+  if (error.code === "22P02" || error.code === "22003") {
+    return res.status(400).json({ error: "Invalid ID or value format provided." });
+  }
+  // PostgreSQL feature not supported (e.g. FOR UPDATE on outer join)
+  if (error.code === "0A000") {
+    console.error("[ERROR] Unsupported SQL feature:", error?.message);
+    return res.status(500).json({ error: "Database query error. Contact support." });
+  }
+  console.error("[ERROR]", error?.message, error?.stack?.split("\n")[1]);
+  res.status(500).json({ error: "Internal server error" });
 };
 
 app.use(errorHandler);

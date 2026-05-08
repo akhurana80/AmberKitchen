@@ -143,7 +143,18 @@ export default function App() {
 
   useEffect(() => {
     void SecureStore.getItemAsync("amberkitchen.token").then(saved => {
-      if (saved) setToken(saved);
+      if (!saved) return;
+      // Decode role from JWT payload (base64 middle segment) so the correct
+      // tab and data-load function are used without requiring a fresh login.
+      try {
+        const payload = JSON.parse(atob(saved.split(".")[1]));
+        if (payload?.role && roleOptions.includes(payload.role)) {
+          setRole(payload.role as Role);
+        }
+      } catch {
+        // malformed token — ignore, verifyOtp will clear it on next login
+      }
+      setToken(saved);
     });
   }, []);
 
@@ -960,12 +971,12 @@ export default function App() {
             {/* Zones / Campaigns / Incentives */}
             <Divider label="Zones, Campaigns & Incentives" />
             <View style={styles.actions}>
-              <Button label="Create Zone" onPress={() => run("Creating zone", () => api.createZone(token, "Mobile Zone", "Delhi NCR", location.lat, location.lng, 3, 20))} disabled={!authed} />
-              <Button label="Create Offer" onPress={() => run("Creating offer", () => api.createOffer(token, "MOBILE50", "Mobile Offer", "flat", 5000, 19900))} disabled={!authed} />
+              <Button label="Create Zone" onPress={() => run("Creating zone", () => api.createZone(token, `Zone ${Date.now().toString(36).slice(-4).toUpperCase()}`, "Delhi NCR", location.lat, location.lng, 3, 20))} disabled={!authed} />
+              <Button label="Create Offer" onPress={() => run("Creating offer", () => api.createOffer(token, `MOB${Date.now().toString(36).slice(-5).toUpperCase()}`, "Mobile Offer", "flat", 5000, 19900))} disabled={!authed} />
             </View>
             <View style={styles.actions}>
-              <Button label="Create Campaign" onPress={() => run("Creating campaign", () => api.createCampaign(token, "Mobile Push Campaign", "push", 100000, "AI mobile lunch creative"))} disabled={!authed} />
-              <Button label="Create Incentive" onPress={() => run("Creating incentive", () => api.createDriverIncentive(token, "Mobile delivery bonus", 5, 7500))} disabled={!authed} />
+              <Button label="Create Campaign" onPress={() => run("Creating campaign", () => api.createCampaign(token, `Campaign ${Date.now().toString(36).slice(-4).toUpperCase()}`, "push", 100000, "AI mobile launch creative"))} disabled={!authed} />
+              <Button label="Create Incentive" onPress={() => run("Creating incentive", () => api.createDriverIncentive(token, `Delivery Bonus ${Date.now().toString(36).slice(-4).toUpperCase()}`, 5, 7500))} disabled={!authed} />
             </View>
             {zones.length === 0
               ? <Text style={styles.emptyHint}>No zones. Tap "Create Zone" to add one.</Text>

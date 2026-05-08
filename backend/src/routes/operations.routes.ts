@@ -125,7 +125,7 @@ operationsRoutes.post("/orders/:orderId/assign-best-driver", requireRole("delive
         `select o.id, r.lat as restaurant_lat, r.lng as restaurant_lng
          from orders o
          left join restaurants r on r.id = o.restaurant_id
-         where o.id = $1 for update`,
+         where o.id = $1 for update of o`,
         [orderId]
       );
       if (!order.rows[0]) {
