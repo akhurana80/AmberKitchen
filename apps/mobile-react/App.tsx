@@ -44,7 +44,7 @@ export default function App() {
   const [googleIdToken, setGoogleIdToken] = useState("");
   const [role, setRole] = useState<Role>("driver");
   const [tab, setTab] = useState<Tab>("driver");
-  const [notice, setNotice] = useState("Ready for operations login, dispatch, restaurant, and admin workflows.");
+  const [notice, setNotice] = useState("Select a role, enter your phone number, and tap Send OTP to begin.");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
@@ -108,11 +108,11 @@ export default function App() {
   const roleHelp = useMemo(() => {
     switch (role) {
       case "driver":
-        return "Driver mode guides delivery partners through onboarding, live orders, and payout readiness.";
+        return "Driver mode — onboarding, live deliveries, wallet and payout requests.";
       case "restaurant":
-        return "Restaurant mode helps you manage onboarding, menu items, active orders, and earnings.";
+        return "Restaurant mode — onboarding, menu management, orders and earnings.";
       default:
-        return "Admin mode gives you fast access to platform health, approvals, monitoring, and launch controls.";
+        return "Admin mode — platform health, approvals, live tracking, analytics and payouts.";
     }
   }, [role]);
 
@@ -126,15 +126,15 @@ export default function App() {
     setError(null);
     setLoading(true);
     try {
-      setNotice(`${label}...`);
+      setNotice(`${label}…`);
       const result = await work();
       setNotice(`${label} complete.`);
       return result;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unexpected mobile app error";
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error. Check your connection and try again.";
       setError(message);
       setNotice(message);
-      Alert.alert(label, message);
+      Alert.alert(label + " failed", message);
       return null;
     } finally {
       setLoading(false);
@@ -143,9 +143,7 @@ export default function App() {
 
   useEffect(() => {
     void SecureStore.getItemAsync("amberkitchen.token").then(saved => {
-      if (saved) {
-        setToken(saved);
-      }
+      if (saved) setToken(saved);
     });
   }, []);
 
@@ -158,43 +156,31 @@ export default function App() {
         setIsOffline(true);
       }
     };
-
     updateNetwork();
     const interval = setInterval(updateNetwork, 15000);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
-    if (role === "driver") {
-      setTab("driver");
-    } else if (role === "restaurant") {
-      setTab("restaurant");
-    } else {
-      setTab("admin");
-    }
+    if (role === "driver") setTab("driver");
+    else if (role === "restaurant") setTab("restaurant");
+    else setTab("admin");
   }, [role]);
 
   useEffect(() => {
     if (!token) return;
-    if (role === "driver") {
-      void loadDriverWork();
-    } else if (role === "restaurant") {
-      void loadRestaurantPanel();
-    } else {
-      void loadAdmin();
-    }
+    if (role === "driver") void loadDriverWork();
+    else if (role === "restaurant") void loadRestaurantPanel();
+    else void loadAdmin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   useEffect(() => {
-    if (!token || !orderId) {
-      return undefined;
-    }
-
+    if (!token || !orderId) return undefined;
     const socket: Socket = io(config.socketUrl, { auth: { token }, transports: ["websocket"] });
     socket.emit("join-order", orderId);
     socket.on("order:update", payload => {
-      setNotice(`Live order update: ${payload?.status ?? "updated"}`);
+      setNotice(`Live update: order status → ${payload?.status ?? "updated"}`);
       void loadOrder();
     });
     socket.on("tracking:location", payload => {
@@ -202,9 +188,7 @@ export default function App() {
         setLocation({ lat: Number(payload.lat), lng: Number(payload.lng) });
       }
     });
-    return () => {
-      socket.disconnect();
-    };
+    return () => { socket.disconnect(); };
   }, [token, orderId]);
 
   async function saveToken(nextToken: string) {
@@ -214,31 +198,46 @@ export default function App() {
 
   async function logout() {
     setToken("");
-    setNotice("Logged out.");
+    setNotice("Logged out successfully.");
     setError(null);
     setTab("driver");
+    setOrder(null);
+    setOrderId("");
+    setWallet(null);
+    setDashboard(null);
     await SecureStore.deleteItemAsync("amberkitchen.token");
   }
 
   async function requestOtp() {
+    if (!phone.trim()) {
+      Alert.alert("Phone required", "Enter your phone number before requesting an OTP.");
+      return;
+    }
     const response = await run("Sending OTP", () => api.requestOtp(phone));
     if (__DEV__ && response && typeof response === "object" && "devCode" in response && response.devCode) {
       setOtp(String(response.devCode));
+      setNotice(`OTP sent. Dev code auto-filled: ${String(response.devCode)}`);
     }
   }
 
   async function verifyOtp() {
+    if (!phone.trim() || !otp.trim()) {
+      Alert.alert("Fields required", "Enter both phone number and OTP.");
+      return;
+    }
     const response = await run("Verifying OTP", () => api.verifyOtp(phone, otp, role));
     if (response && typeof response === "object" && "token" in response) {
       await saveToken(String(response.token));
       const userRole = (response as { user?: { role?: string } }).user?.role;
-      if (userRole && roleOptions.includes(userRole as Role)) {
-        setRole(userRole as Role);
-      }
+      if (userRole && roleOptions.includes(userRole as Role)) setRole(userRole as Role);
     }
   }
 
   async function loginWithGoogleToken() {
+    if (!googleIdToken.trim()) {
+      Alert.alert("Token required", "Paste a Google ID token to sign in with Google.");
+      return;
+    }
     const response = await run("Google login", () => api.googleLogin(googleIdToken, role));
     if (response && typeof response === "object" && "token" in response) {
       await saveToken(String(response.token));
@@ -246,52 +245,34 @@ export default function App() {
   }
 
   async function useCurrentLocation() {
-    await run("Getting mobile location", async () => {
+    await run("Getting location", async () => {
       const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== "granted") {
-        throw new Error("Location permission is required for live tracking and nearby restaurants.");
-      }
+      if (permission.status !== "granted") throw new Error("Location permission denied. Enable it in Settings.");
       const current = await Location.getCurrentPositionAsync({});
       setLocation({ lat: current.coords.latitude, lng: current.coords.longitude });
     });
   }
 
   async function enablePush() {
-    if (!token) {
-      Alert.alert("Login required", "Login before registering push notifications.");
-      return;
-    }
-    await run("Registering push notifications", async () => {
+    if (!token) { Alert.alert("Login required", "Log in before registering for push notifications."); return; }
+    await run("Registering push", async () => {
       const permission = await Notifications.requestPermissionsAsync();
-      if (!permission.granted) {
-        throw new Error("Push notification permission was not granted.");
-      }
+      if (!permission.granted) throw new Error("Push notification permission denied. Enable it in Settings.");
       const pushToken = await Notifications.getExpoPushTokenAsync();
       await api.registerDeviceToken(token, pushToken.data);
     });
   }
 
   async function sendPushTest() {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
     await run("Sending test push", () => api.sendTestNotification(token));
   }
 
   async function loadMarketplace() {
-    if (!token) {
-      return;
-    }
-    await run("Loading restaurants", async () => {
+    if (!token) return;
+    await run("Loading marketplace", async () => {
       const [nearby, hot, places, activeOffers] = await Promise.all([
-        api.searchRestaurants(token, {
-          q: "",
-          diet: "all",
-          minRating: 3,
-          sort: "distance",
-          lat: location.lat,
-          lng: location.lng
-        }),
+        api.searchRestaurants(token, { q: "", diet: "all", minRating: 3, sort: "distance", lat: location.lat, lng: location.lng }),
         api.trendingRestaurants(token, location.lat, location.lng),
         api.googlePlacesDelhiNcr(token, 3),
         api.marketplaceOffers(token)
@@ -305,51 +286,40 @@ export default function App() {
   }
 
   async function createOrder() {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
     const response = await run("Creating order", () => api.createOrder(token, firstRestaurant, location.lat, location.lng));
     if (response && typeof response === "object" && "id" in response) {
-      setOrderId(String(response.id));
+      setOrderId(String((response as { id: string }).id));
     }
   }
 
   async function loadOrder() {
-    if (!token || !orderId) {
-      return;
-    }
+    if (!token || !orderId) { Alert.alert("Order required", "Create or accept an order first."); return; }
     const response = await run("Loading order", () => api.getOrder(token, orderId));
-    if (response) {
-      setOrder(response as OrderSummary);
-    }
+    if (response) setOrder(response as OrderSummary);
   }
 
   async function pay(provider: "paytm" | "phonepe" | "razorpay") {
-    if (!token || !orderId) {
-      return;
-    }
-    const response = await run(`Starting ${provider}`, () => api.createPayment(token, provider, orderId));
-    const url = response && typeof response === "object" ? (response as { redirectUrl?: string; paymentUrl?: string }).redirectUrl ?? (response as { paymentUrl?: string }).paymentUrl : undefined;
+    if (!token || !orderId) return;
+    const response = await run(`Initiating ${provider} payment`, () => api.createPayment(token, provider, orderId));
+    const url = response && typeof response === "object"
+      ? (response as { redirectUrl?: string; paymentUrl?: string }).redirectUrl ?? (response as { paymentUrl?: string }).paymentUrl
+      : undefined;
     if (url) {
       await Linking.openURL(url);
+    } else {
+      Alert.alert("Payment gateway", "No redirect URL returned. Payment gateway may not be configured for test mode.");
     }
   }
 
   async function loadEta() {
-    if (!token || !orderId) {
-      return;
-    }
+    if (!token || !orderId) { Alert.alert("Order required", "Create or accept an order first."); return; }
     const response = await run("Calculating ETA", async () => {
-      const [nextEta, loop] = await Promise.all([
-        api.orderEta(token, orderId),
-        api.orderEtaLoop(token, orderId)
-      ]);
+      const [nextEta, loop] = await Promise.all([api.orderEta(token, orderId), api.orderEtaLoop(token, orderId)]);
       setEtaLoop(loop);
       return nextEta;
     });
-    if (response) {
-      setEta(response as Awaited<ReturnType<typeof api.orderEta>>);
-    }
+    if (response) setEta(response as Awaited<ReturnType<typeof api.orderEta>>);
   }
 
   async function openNavigation() {
@@ -359,23 +329,13 @@ export default function App() {
 
   async function pickImage(setValue: (uri: string | null) => void) {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      throw new Error("Photo access is required for driver onboarding documents.");
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-      allowsEditing: true
-    });
-    if (!result.canceled && result.assets[0]?.uri) {
-      setValue(result.assets[0].uri);
-    }
+    if (!permission.granted) { Alert.alert("Permission denied", "Photo library access is required for document uploads."); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, allowsEditing: true });
+    if (!result.canceled && result.assets[0]?.uri) setValue(result.assets[0].uri);
   }
 
   async function loadDriverWork() {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
     await run("Loading driver workspace", async () => {
       const [available, application, walletSummary, transactions, incentivesList] = await Promise.all([
         api.availableDeliveryOrders(token),
@@ -393,45 +353,34 @@ export default function App() {
   }
 
   async function shareDriverLocation() {
-    if (!token || !orderId) {
-      return;
-    }
+    if (!token || !orderId) { Alert.alert("Order required", "Accept a delivery order first before sharing location."); return; }
     await useCurrentLocation();
-    await run("Sharing live driver location", () => api.sendDriverLocation(token, orderId, location.lat, location.lng));
+    await run("Sharing live location", () => api.sendDriverLocation(token, orderId, location.lat, location.lng));
   }
 
   async function submitDriverOnboarding() {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
     if (!driverFullName || !driverAadhaarLast4 || !selectedAadhaarFront || !selectedAadhaarBack || !selectedSelfie) {
-      Alert.alert("Driver onboarding", "Please complete the onboarding form and attach Aadhaar front/back and a selfie.");
+      Alert.alert("Incomplete form", "Fill in your name, Aadhaar last 4, and attach all three documents (Aadhaar front, back, and selfie).");
       return;
     }
-
-    const response = await run("Submitting driver onboarding with uploads", async () => {
+    const response = await run("Submitting onboarding", async () => {
       const [frontData, backData, selfieData] = await Promise.all([
         FileSystem.readAsStringAsync(selectedAadhaarFront, { encoding: FileSystem.EncodingType.Base64 }),
         FileSystem.readAsStringAsync(selectedAadhaarBack, { encoding: FileSystem.EncodingType.Base64 }),
         FileSystem.readAsStringAsync(selectedSelfie, { encoding: FileSystem.EncodingType.Base64 })
       ]);
-
       const [frontAsset, backAsset, selfieAsset] = await Promise.all([
         api.createAzureBlobAsset(token, "aadhaar-front.jpg", "image/jpeg", 250000, frontData),
         api.createAzureBlobAsset(token, "aadhaar-back.jpg", "image/jpeg", 250000, backData),
         api.createAzureBlobAsset(token, "selfie.jpg", "image/jpeg", 200000, selfieData)
       ]);
-
-      const frontUrl = (frontAsset as { url: string }).url;
-      const backUrl = (backAsset as { url: string }).url;
-      const selfieUrl = (selfieAsset as { url: string }).url;
-
       return api.submitDriverOnboarding(token, {
         fullName: driverFullName,
         aadhaarLast4: driverAadhaarLast4,
-        aadhaarFrontUrl: frontUrl,
-        aadhaarBackUrl: backUrl,
-        selfieUrl: selfieUrl,
+        aadhaarFrontUrl: (frontAsset as { url: string }).url,
+        aadhaarBackUrl: (backAsset as { url: string }).url,
+        selfieUrl: (selfieAsset as { url: string }).url,
         bankAccountLast4: driverBankLast4,
         upiId: driverUpiId
       });
@@ -445,9 +394,7 @@ export default function App() {
   }
 
   async function loadRestaurantPanel() {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
     await run("Loading restaurant panel", async () => {
       const mine = await api.myRestaurants(token);
       setRestaurantAccounts(mine);
@@ -463,11 +410,9 @@ export default function App() {
   }
 
   async function onboardRestaurant() {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
     if (!restaurantName || !restaurantAddress || !restaurantPhone) {
-      Alert.alert("Restaurant onboarding", "Please provide name, address, and contact phone.");
+      Alert.alert("Incomplete form", "Provide restaurant name, address, and contact phone number.");
       return;
     }
     await run("Submitting restaurant onboarding", () => api.onboardRestaurant(token, {
@@ -484,16 +429,11 @@ export default function App() {
   }
 
   async function addMenuItem() {
-    if (!token || !restaurantAccounts[0]?.id) {
-      return;
-    }
-    if (!restaurantName) {
-      Alert.alert("Menu item", "Enter restaurant name and item details first.");
-      return;
-    }
+    if (!token || !restaurantAccounts[0]?.id) return;
+    if (!restaurantName) { Alert.alert("Name required", "Enter a restaurant name or item name in the field above."); return; }
     await run("Adding menu item", () => api.createMenuItem(token, restaurantAccounts[0].id, {
-      name: `${restaurantName} Menu Item`,
-      description: "Created from mobile operations app",
+      name: `${restaurantName} Special`,
+      description: "Added from AK Ops mobile app",
       pricePaise: 29900,
       photoUrl: "",
       isVeg: true,
@@ -503,16 +443,14 @@ export default function App() {
   }
 
   async function importMobileMenu() {
-    if (!token || !restaurantAccounts[0]?.id) {
-      return;
-    }
+    if (!token || !restaurantAccounts[0]?.id) return;
     if (googlePlaces.length === 0) {
-      Alert.alert("Import menu", "Load Google Places restaurants first to import menu items.");
+      Alert.alert("No Google Places data", "Load marketplace data first (use Load Marketplace in the Driver tab or Admin tab).");
       return;
     }
     const items = googlePlaces.slice(0, 3).map(place => ({
       name: place.name,
-      description: `Imported restaurant item (rating ${place.rating})`,
+      description: `Imported item (rating ${place.rating})`,
       pricePaise: 34900,
       photoUrl: place.photoUrl ?? "",
       isVeg: true,
@@ -524,40 +462,31 @@ export default function App() {
   }
 
   async function runVerificationChecks() {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
     if (!selectedAadhaarFront || !selectedAadhaarBack || !selectedSelfie) {
-      Alert.alert("Verification checks", "Select Aadhaar front, back, and selfie before running verification.");
+      Alert.alert("Documents required", "Pick Aadhaar front, Aadhaar back, and selfie before running verification.");
       return;
     }
-    await run("Running Azure verification checks", async () => {
+    await run("Running Azure verification", async () => {
       const [frontData, backData, selfieData] = await Promise.all([
         FileSystem.readAsStringAsync(selectedAadhaarFront, { encoding: FileSystem.EncodingType.Base64 }),
         FileSystem.readAsStringAsync(selectedAadhaarBack, { encoding: FileSystem.EncodingType.Base64 }),
         FileSystem.readAsStringAsync(selectedSelfie, { encoding: FileSystem.EncodingType.Base64 })
       ]);
-
       const [frontAsset, backAsset, selfieAsset] = await Promise.all([
         api.createAzureBlobAsset(token, "aadhaar-front.jpg", "image/jpeg", 250000, frontData),
         api.createAzureBlobAsset(token, "aadhaar-back.jpg", "image/jpeg", 250000, backData),
         api.createAzureBlobAsset(token, "selfie.jpg", "image/jpeg", 200000, selfieData)
       ]);
-
-      const frontUrl = (frontAsset as { url: string }).url;
-      const backUrl = (backAsset as { url: string }).url;
-      const selfieUrl = (selfieAsset as { url: string }).url;
-
-      await api.verifyAzureOcr(token, frontUrl);
-      await api.verifyAzureFace(token, selfieUrl, frontUrl);
+      await api.verifyAzureOcr(token, (frontAsset as { url: string }).url);
+      await api.verifyAzureFace(token, (selfieAsset as { url: string }).url, (frontAsset as { url: string }).url);
+      void backAsset;
     });
   }
 
   async function loadAdmin() {
-    if (!token) {
-      return;
-    }
-    await run("Loading admin operations", async () => {
+    if (!token) return;
+    await run("Loading admin dashboard", async () => {
       const [dash, restaurantsList, users, orders, reports, liveOrders, drivers, load, zoneList, offerList, campaignList, incentiveList, payouts, tickets, audits, checks, jobs, predictions, onboardingApps, referrals] = await Promise.all([
         api.adminDashboard(token),
         api.adminRestaurants(token),
@@ -607,21 +536,39 @@ export default function App() {
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>AmberKitchen Mobile</Text>
-        <Text style={styles.subtitle}>React Native app for iPhone and Android.</Text>
 
+        <Text style={styles.title}>AK Ops</Text>
+        <Text style={styles.subtitle}>Operations platform for drivers, restaurants and admins.</Text>
+
+        {/* ── Login Card ── */}
         <Card title="Login">
           <Text style={styles.notice}>{notice}</Text>
-          <Text style={[styles.status, isOffline && styles.statusOffline]}>{isOffline ? "Offline connection detected" : loading ? "Loading..." : error ? `Error: ${error}` : `Role: ${titleCase(role)}`}</Text>
+
+          {/* Status pill */}
+          <View style={[styles.statusRow, isOffline && styles.statusRowOffline, !!error && !isOffline && styles.statusRowError]}>
+            <Text style={styles.statusDot}>{isOffline ? "⚠" : error ? "✕" : loading ? "↻" : "●"}</Text>
+            <Text style={styles.statusText}>
+              {isOffline
+                ? "Offline — check your connection"
+                : loading
+                  ? "Loading…"
+                  : error
+                    ? error
+                    : authed
+                      ? `Signed in as ${titleCase(role)}`
+                      : "Not signed in"}
+            </Text>
+          </View>
+
           <Text style={styles.helperText}>{roleHelp}</Text>
-          <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="Phone" keyboardType="phone-pad" />
-          <TextInput style={styles.input} value={otp} onChangeText={setOtp} placeholder="OTP" keyboardType="number-pad" />
+          <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="Phone (e.g. +919999000003)" keyboardType="phone-pad" />
+          <TextInput style={styles.input} value={otp} onChangeText={setOtp} placeholder="OTP (auto-filled in dev mode)" keyboardType="number-pad" />
           <Segmented values={roleOptions} value={role} onChange={next => setRole(next as Role)} />
           <View style={styles.actions}>
             <Button label="Send OTP" onPress={requestOtp} />
             <Button label="Verify OTP" onPress={verifyOtp} />
           </View>
-          <TextInput style={styles.input} value={googleIdToken} onChangeText={setGoogleIdToken} placeholder="Google ID token for mobile login" />
+          <TextInput style={styles.input} value={googleIdToken} onChangeText={setGoogleIdToken} placeholder="Google ID token (optional)" />
           <Button label="Login With Google Token" onPress={loginWithGoogleToken} />
           <View style={styles.actions}>
             <Button label="Use Location" onPress={useCurrentLocation} />
@@ -629,23 +576,119 @@ export default function App() {
             <Button label="Test Push" onPress={sendPushTest} disabled={!authed} />
             {authed ? <Button label="Logout" onPress={logout} /> : null}
           </View>
+          <Text style={styles.testHint}>Test accounts: driver +919999000003 | restaurant +919999000002 | admin +919999000004</Text>
         </Card>
 
-        <Segmented values={availableTabs} value={tab} onChange={next => setTab(next as Tab)} />
+        {authed && (
+          <Segmented values={availableTabs} value={tab} onChange={next => setTab(next as Tab)} />
+        )}
 
+        {/* ── Driver Tab ── */}
         {tab === "driver" && (
           <Card title="Delivery Partner App">
-            <Text style={styles.sectionHint}>Start here to onboard safely, accept deliveries and stay visible while on shift.</Text>
+            <Text style={styles.sectionHint}>Onboard, browse orders, manage deliveries, and track earnings.</Text>
             <View style={styles.actions}>
-              <Button label="Load driver workspace" onPress={loadDriverWork} disabled={!authed} />
-              <Button label="Run background check" onPress={() => token && run("Background check", () => api.runDriverBackgroundCheck(token))} disabled={!authed} />
-              <Button label="Share live location" onPress={shareDriverLocation} disabled={!orderId} />
+              <Button label="Load Driver Workspace" onPress={loadDriverWork} disabled={!authed} />
+              <Button label="Run Background Check" onPress={() => run("Background check", () => api.runDriverBackgroundCheck(token))} disabled={!authed} />
             </View>
-            <Text style={styles.sectionTitle}>Driver onboarding</Text>
+
+            {/* Marketplace & Orders */}
+            <Divider label="Marketplace & Orders" />
+            <Text style={styles.sectionHint}>Load restaurants, create a test order, then pay and track end-to-end.</Text>
+            <View style={styles.actions}>
+              <Button label="Load Marketplace" onPress={loadMarketplace} disabled={!authed} />
+              <Button label="Create Order" onPress={createOrder} disabled={!authed} />
+            </View>
+
+            {restaurants.length === 0 && trending.length === 0
+              ? <Text style={styles.emptyHint}>No restaurants loaded — tap "Load Marketplace" first.</Text>
+              : null
+            }
+            {restaurants.slice(0, 3).map(item => (
+              <ListItem
+                key={item.menu_item_id}
+                title={`${item.restaurant_name} — ${item.menu_item_name}`}
+                subtitle={`₹${(item.price_paise / 100).toFixed(0)}${item.distance_km ? ` · ${Number(item.distance_km).toFixed(1)} km` : ""}${item.is_veg ? " · 🟢 Veg" : ""}`}
+                onPress={() => setSelectedRestaurantId(item.restaurant_id)}
+              />
+            ))}
+            {trending.slice(0, 2).map(item => (
+              <ListItem
+                key={item.id}
+                title={`${item.name} (Trending)`}
+                subtitle={`${item.recent_orders} recent orders${item.distance_km ? ` · ${Number(item.distance_km).toFixed(1)} km` : ""}`}
+                onPress={() => setSelectedRestaurantId(item.id)}
+              />
+            ))}
+            {offers.slice(0, 2).map(item => (
+              <ListItem key={item.id} title={`Offer: ${item.code} — ${item.title}`} subtitle={`${item.discount_type === "flat" ? `₹${item.discount_value / 100}` : `${item.discount_value}%`} off`} />
+            ))}
+
+            {orderId ? (
+              <View style={styles.orderIdRow}>
+                <Text style={styles.fieldLabel}>Active Order ID: </Text>
+                <Text style={styles.fieldValue}>{orderId.slice(-12).toUpperCase()}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.actions}>
+              <Button label="Load Order" onPress={loadOrder} disabled={!orderId} />
+              <Button label="Load ETA" onPress={loadEta} disabled={!orderId} />
+              <Button label="Navigate" onPress={openNavigation} disabled={!orderId} />
+            </View>
+            <View style={styles.actions}>
+              <Button label="Pay Paytm" onPress={() => pay("paytm")} disabled={!orderId} />
+              <Button label="Pay PhonePe" onPress={() => pay("phonepe")} disabled={!orderId} />
+              <Button label="Pay Razorpay" onPress={() => pay("razorpay")} disabled={!orderId} />
+            </View>
+            <View style={styles.actions}>
+              <Button
+                label="Cancel Order"
+                onPress={() => run("Cancelling order", () => api.cancelOrder(token, orderId, "Test cancellation from AK Ops"))}
+                disabled={!orderId}
+              />
+              <Button
+                label="Request Refund"
+                onPress={() => run("Requesting refund", () => api.requestRefund(token, orderId, "Test refund from AK Ops"))}
+                disabled={!orderId}
+              />
+              <Button
+                label="Reorder"
+                onPress={async () => {
+                  const res = await run("Reordering", () => api.reorder(token, orderId));
+                  if (res && typeof res === "object" && "id" in res) setOrderId(String((res as { id: string }).id));
+                }}
+                disabled={!orderId}
+              />
+            </View>
+
+            {order && (
+              <Summary title="Order Details" lines={[
+                `Status: ${titleCase(order.status)}`,
+                `Total: ${formatCurrency(order.total_paise)}`,
+                `Address: ${order.delivery_address}`,
+                order.driver_name ? `Driver: ${order.driver_name}` : "No driver assigned yet",
+                ...(order.history.slice(0, 2).map(h => `  ${titleCase(h.status)}${h.note ? ` — ${h.note}` : ""}`))
+              ]} />
+            )}
+            {eta && (
+              <Summary title="Delivery ETA" lines={[
+                `ETA: ${eta.predictedEtaMinutes} min`,
+                `To pickup: ${eta.route.distanceToPickupKm.toFixed(1)} km`,
+                `To dropoff: ${eta.route.distanceToDropoffKm.toFixed(1)} km`,
+                `Delivery by: ${new Date(eta.predictedDeliveryAt).toLocaleTimeString()}`
+              ]} />
+            )}
+            {etaLoop.slice(0, 2).map(item => (
+              <ListItem key={item.id} title={`ETA ${item.predicted_eta_minutes} min (${item.source})`} subtitle={new Date(item.created_at).toLocaleTimeString()} />
+            ))}
+
+            {/* Driver Onboarding */}
+            <Divider label="Driver Onboarding" />
             <TextInput style={styles.input} value={driverFullName} onChangeText={setDriverFullName} placeholder="Full name" />
             <TextInput style={styles.input} value={driverAadhaarLast4} onChangeText={setDriverAadhaarLast4} placeholder="Aadhaar last 4 digits" keyboardType="number-pad" />
-            <TextInput style={styles.input} value={driverBankLast4} onChangeText={setDriverBankLast4} placeholder="Bank account last 4 digits" keyboardType="number-pad" />
-            <TextInput style={styles.input} value={driverUpiId} onChangeText={setDriverUpiId} placeholder="UPI ID" />
+            <TextInput style={styles.input} value={driverBankLast4} onChangeText={setDriverBankLast4} placeholder="Bank account last 4 digits (optional)" keyboardType="number-pad" />
+            <TextInput style={styles.input} value={driverUpiId} onChangeText={setDriverUpiId} placeholder="UPI ID (e.g. name@upi)" />
             <View style={styles.actions}>
               <Button label="Pick Aadhaar Front" onPress={() => pickImage(setSelectedAadhaarFront)} disabled={!authed} />
               <Button label="Pick Aadhaar Back" onPress={() => pickImage(setSelectedAadhaarBack)} disabled={!authed} />
@@ -656,114 +699,399 @@ export default function App() {
               {selectedAadhaarBack ? <Image source={{ uri: selectedAadhaarBack }} style={styles.uploadPreview} /> : null}
               {selectedSelfie ? <Image source={{ uri: selectedSelfie }} style={styles.uploadPreview} /> : null}
             </View>
+            {(!selectedAadhaarFront || !selectedAadhaarBack || !selectedSelfie) && (
+              <Text style={styles.emptyHint}>
+                {`Attached: ${[selectedAadhaarFront ? "Aadhaar front ✓" : null, selectedAadhaarBack ? "Aadhaar back ✓" : null, selectedSelfie ? "Selfie ✓" : null].filter(Boolean).join(", ") || "none yet"}`}
+              </Text>
+            )}
             <View style={styles.actions}>
-              <Button label="Submit onboarding" onPress={submitDriverOnboarding} disabled={!authed} />
-              <Button label="Run verification checks" onPress={runVerificationChecks} disabled={!authed} />
+              <Button label="Submit Onboarding" onPress={submitDriverOnboarding} disabled={!authed} />
+              <Button label="Run Verification Checks" onPress={runVerificationChecks} disabled={!authed} />
             </View>
-            {driverApplication && <Summary title="Onboarding" lines={[driverApplication.full_name, `OCR: ${driverApplication.ocr_status}`, `Selfie: ${driverApplication.selfie_status}`, `Approval: ${driverApplication.approval_status}`]} />}
-            {incentives.slice(0, 2).map(item => <ListItem key={item.id} title={item.title} subtitle={`${item.target_deliveries} deliveries | ${formatCurrency(item.reward_paise)}`} />)}
-            {driverOrders.map(item => (
-              <ListItem key={item.id} title={`${item.restaurant_name} -> ${item.delivery_address}`} subtitle={`${item.status} | ${formatCurrency(item.total_paise)}`} onPress={() => {
-                setOrderId(item.id);
-                void (token && api.acceptDeliveryOrder(token, item.id));
-              }} />
-            ))}
+            {driverApplication ? (
+              <Summary title="Onboarding Status" lines={[
+                driverApplication.full_name,
+                `OCR: ${driverApplication.ocr_status}`,
+                `Selfie: ${driverApplication.selfie_status}`,
+                `Background check: ${driverApplication.background_check_status}`,
+                `Approval: ${driverApplication.approval_status}`,
+                ...(driverApplication.referral_code ? [`Referral code: ${driverApplication.referral_code}`] : []),
+                ...(driverApplication.admin_note ? [`Admin note: ${driverApplication.admin_note}`] : [])
+              ]} />
+            ) : (
+              <Text style={styles.emptyHint}>No onboarding application found for this account.</Text>
+            )}
+
+            {/* Active Deliveries */}
+            <Divider label="Active Deliveries" />
             <View style={styles.actions}>
-              <Button label="Picked Up" onPress={() => token && orderId && api.updateOrderStatus(token, orderId, "picked_up")} disabled={!orderId} />
-              <Button label="Delivered" onPress={() => token && orderId && api.updateOrderStatus(token, orderId, "delivered")} disabled={!orderId} />
-              <Button label="Request Payout" onPress={() => token && api.requestPayout(token, 50000, "upi", "driver@upi")} disabled={!authed} />
+              <Button label="Share Live Location" onPress={shareDriverLocation} disabled={!orderId} />
             </View>
-            {wallet && <Summary title="Wallet + Earnings" lines={[`Balance: ${formatCurrency(wallet.wallet.balance_paise)}`, `Earnings: ${formatCurrency(Number(wallet.earnings.earned_paise ?? 0))}`, `Deliveries: ${wallet.earnings.deliveries}`]} />}
-            {walletTransactions.slice(0, 3).map(item => <ListItem key={item.id} title={`${item.type} ${formatCurrency(item.amount_paise)}`} subtitle={item.status} />)}
+            {driverOrders.length === 0
+              ? <Text style={styles.emptyHint}>No available delivery orders. Load driver workspace to refresh.</Text>
+              : driverOrders.map(item => (
+                <ListItem
+                  key={item.id}
+                  title={`${item.restaurant_name} → ${item.delivery_address}`}
+                  subtitle={`${titleCase(item.status)} · ${formatCurrency(item.total_paise)} — Tap to accept`}
+                  onPress={() => {
+                    setOrderId(item.id);
+                    void run("Accepting delivery", () => api.acceptDeliveryOrder(token, item.id));
+                  }}
+                />
+              ))
+            }
+            <View style={styles.actions}>
+              <Button
+                label="Mark Picked Up"
+                onPress={() => run("Marking picked up", () => api.updateOrderStatus(token, orderId, "picked_up"))}
+                disabled={!orderId}
+              />
+              <Button
+                label="Mark Delivered"
+                onPress={() => run("Marking delivered", () => api.updateOrderStatus(token, orderId, "delivered"))}
+                disabled={!orderId}
+              />
+              <Button
+                label="Request Payout"
+                onPress={() => run("Requesting payout", () => api.requestPayout(token, 50000, "upi", "driver@upi"))}
+                disabled={!authed}
+              />
+            </View>
+
+            {/* Incentives */}
+            {incentives.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>Driver Incentives</Text>
+                {incentives.slice(0, 3).map(item => (
+                  <ListItem key={item.id} title={item.title} subtitle={`${item.target_deliveries} deliveries → ${formatCurrency(item.reward_paise)} · ${titleCase(item.status)}`} />
+                ))}
+              </>
+            )}
+
+            {/* Wallet */}
+            <Divider label="Wallet & Earnings" />
+            {wallet ? (
+              <Summary title="Wallet Summary" lines={[
+                `Balance: ${formatCurrency(wallet.wallet.balance_paise)}`,
+                `Total earnings: ${formatCurrency(Number(wallet.earnings.earned_paise ?? 0))}`,
+                `Deliveries completed: ${wallet.earnings.deliveries}`,
+                `Pending payout: ${formatCurrency(Number(wallet.pendingPayouts?.requested_paise ?? 0))}`
+              ]} />
+            ) : (
+              <Text style={styles.emptyHint}>Wallet data not loaded. Tap "Load Driver Workspace" above.</Text>
+            )}
+            {walletTransactions.length === 0
+              ? <Text style={styles.emptyHint}>No wallet transactions yet.</Text>
+              : walletTransactions.slice(0, 3).map(item => (
+                <ListItem key={item.id} title={`${titleCase(item.type)} — ${formatCurrency(item.amount_paise)}`} subtitle={titleCase(item.status)} />
+              ))
+            }
           </Card>
         )}
 
+        {/* ── Restaurant Tab ── */}
         {tab === "restaurant" && (
           <Card title="Restaurant Panel">
-            <Text style={styles.sectionHint}>Use restaurant mode to approve menus, monitor earnings, and manage your first active orders.</Text>
-            <Text style={styles.sectionTitle}>Restaurant onboarding details</Text>
+            <Text style={styles.sectionHint}>Manage onboarding, menu items, incoming orders and earnings.</Text>
+
+            <Divider label="Restaurant Onboarding" />
             <TextInput style={styles.input} value={restaurantName} onChangeText={setRestaurantName} placeholder="Restaurant name" />
             <TextInput style={styles.input} value={restaurantAddress} onChangeText={setRestaurantAddress} placeholder="Restaurant address" />
             <TextInput style={styles.input} value={restaurantPhone} onChangeText={setRestaurantPhone} placeholder="Contact phone" keyboardType="phone-pad" />
-            <TextInput style={styles.input} value={restaurantCuisine} onChangeText={setRestaurantCuisine} placeholder="Cuisine type" />
+            <TextInput style={styles.input} value={restaurantCuisine} onChangeText={setRestaurantCuisine} placeholder="Cuisine type (e.g. North Indian)" />
             <View style={styles.actions}>
-              <Button label="Onboard restaurant" onPress={onboardRestaurant} disabled={!authed} />
-              <Button label="Load restaurant panel" onPress={loadRestaurantPanel} disabled={!authed} />
+              <Button label="Onboard Restaurant" onPress={onboardRestaurant} disabled={!authed} />
+              <Button label="Load My Restaurants" onPress={loadRestaurantPanel} disabled={!authed} />
             </View>
-            <Text style={styles.sectionHint}>After onboarding, load your restaurant panel, then add menu items or import sample photos for launch testing.</Text>
+            {restaurantAccounts.length === 0
+              ? <Text style={styles.emptyHint}>No restaurants found. Fill the form and tap "Onboard Restaurant", or tap "Load My Restaurants" to refresh.</Text>
+              : restaurantAccounts.map(item => (
+                <ListItem key={item.id} title={item.name} subtitle={`${titleCase(item.approval_status)} · ${titleCase(item.onboarding_status)}`} />
+              ))
+            }
+
+            {restaurantAccounts[0]?.id && (
+              <>
+                <Divider label="Menu Management" />
+                <Text style={styles.sectionHint}>Add items individually or import a batch from Google Places data.</Text>
+                <View style={styles.actions}>
+                  <Button label="Add Menu Item" onPress={addMenuItem} disabled={!restaurantAccounts[0]?.id} />
+                  <Button label="Import Menu Items" onPress={importMobileMenu} disabled={!restaurantAccounts[0]?.id} />
+                </View>
+              </>
+            )}
+
+            <Divider label="Incoming Orders" />
             <View style={styles.actions}>
-              <Button label="Add menu item" onPress={addMenuItem} disabled={!restaurantAccounts[0]?.id} />
-              <Button label="Import menu items" onPress={importMobileMenu} disabled={!restaurantAccounts[0]?.id} />
+              <Button label="Refresh Orders" onPress={loadRestaurantPanel} disabled={!authed} />
             </View>
-            {restaurantAccounts.map(item => <ListItem key={item.id} title={item.name} subtitle={`${item.approval_status} | ${item.onboarding_status}`} />)}
-            {restaurantOrders.map(item => (
-              <ListItem key={item.id} title={`Order ${item.status}`} subtitle={formatCurrency(item.total_paise)} onPress={() => token && api.decideRestaurantOrder(token, item.id, "accepted")} />
-            ))}
-            {restaurantEarnings && <Summary title="Restaurant Earnings" lines={[`${restaurantEarnings.orders} orders`, `Gross ${formatCurrency(Number(restaurantEarnings.gross_paise))}`, `Payout ${formatCurrency(Number(restaurantEarnings.estimated_payout_paise))}`]} />}
+            {restaurantOrders.length === 0
+              ? <Text style={styles.emptyHint}>No pending orders. Create a test order from the Driver tab first.</Text>
+              : restaurantOrders.map(item => (
+                <View key={item.id} style={styles.orderCard}>
+                  <Text style={styles.listTitle}>Order #{item.id.slice(-8).toUpperCase()}</Text>
+                  <Text style={styles.listSubtitle}>{titleCase(item.status)} · {formatCurrency(item.total_paise)}</Text>
+                  <View style={[styles.actions, { marginTop: 8 }]}>
+                    <Button
+                      label="Accept"
+                      onPress={() => run("Accepting order", () => api.decideRestaurantOrder(token, item.id, "accepted"))}
+                    />
+                    <Button
+                      label="Reject"
+                      onPress={() => run("Rejecting order", () => api.decideRestaurantOrder(token, item.id, "cancelled"))}
+                    />
+                  </View>
+                </View>
+              ))
+            }
+
+            {restaurantEarnings && (
+              <Summary title="Earnings Summary" lines={[
+                `Orders: ${restaurantEarnings.orders}`,
+                `Gross: ${formatCurrency(Number(restaurantEarnings.gross_paise))}`,
+                `Estimated payout: ${formatCurrency(Number(restaurantEarnings.estimated_payout_paise))}`
+              ]} />
+            )}
           </Card>
         )}
 
+        {/* ── Admin Tab ── */}
         {tab === "admin" && (
           <Card title="Admin + Operations Dashboard">
-            <Text style={styles.sectionHint}>Admin mode gives you a concise control plane for launch readiness: platform health, approvals, orders, and payouts.</Text>
+            <Text style={styles.sectionHint}>Platform health, approvals, live monitoring, analytics and launch controls.</Text>
             <View style={styles.actions}>
-              <Button label="Load admin dashboard" onPress={loadAdmin} disabled={!authed} />
-              <Button label="Run demand prediction" onPress={() => token && run("Running AI demand prediction", () => api.runDemandPredictionJob(token))} disabled={!authed} />
+              <Button label="Load Admin Dashboard" onPress={loadAdmin} disabled={!authed} />
+              <Button label="Load Marketplace" onPress={loadMarketplace} disabled={!authed} />
             </View>
             <View style={styles.actions}>
-              <Button label="Assign best driver" onPress={() => token && orderId && api.assignBestDriver(token, orderId)} disabled={!orderId} />
-              <Button label="Assign first available driver" onPress={() => token && orderId && deliveryDrivers[0]?.id && api.assignDriver(token, orderId, deliveryDrivers[0].id)} disabled={!orderId || !deliveryDrivers[0]} />
+              <Button
+                label="Run Demand Prediction"
+                onPress={() => run("AI demand prediction", () => api.runDemandPredictionJob(token))}
+                disabled={!authed}
+              />
+            </View>
+
+            {dashboard && (
+              <Summary title="Platform Analytics" lines={[
+                `Total users: ${dashboard.users}`,
+                `Revenue: ${formatCurrency(dashboard.revenuePaise)}`,
+                `Recent orders: ${dashboard.recentOrders.length}`,
+                ...dashboard.ordersByStatus.slice(0, 4).map(s => `  ${titleCase(s.status)}: ${s.count}`)
+              ]} />
+            )}
+
+            {/* Order Operations */}
+            <Divider label="Order Operations" />
+            <TextInput
+              style={styles.input}
+              value={orderId}
+              onChangeText={setOrderId}
+              placeholder="Paste Order ID for driver assignment"
+            />
+            {!orderId && <Text style={styles.emptyHint}>Enter an Order ID above to enable driver assignment.</Text>}
+            <View style={styles.actions}>
+              <Button
+                label="Assign Best Driver"
+                onPress={() => run("Assigning best driver", () => api.assignBestDriver(token, orderId))}
+                disabled={!orderId}
+              />
+              <Button
+                label="Assign First Available"
+                onPress={() => run("Assigning driver", () => api.assignDriver(token, orderId, deliveryDrivers[0].id))}
+                disabled={!orderId || !deliveryDrivers[0]}
+              />
+            </View>
+
+            {/* User Management */}
+            <Divider label="User Management" />
+            {adminUsers.length === 0
+              ? <Text style={styles.emptyHint}>Load admin dashboard to see users.</Text>
+              : adminUsers.slice(0, 5).map(item => (
+                <ListItem key={item.id} title={item.name ?? item.phone ?? item.email ?? item.id} subtitle={titleCase(item.role)} />
+              ))
+            }
+
+            {/* Restaurant Approvals */}
+            <Divider label="Restaurant Approvals" />
+            <Text style={styles.sectionHint}>Tap a restaurant row to approve it instantly.</Text>
+            {adminRestaurants.length === 0
+              ? <Text style={styles.emptyHint}>No restaurants to review. Load admin dashboard first.</Text>
+              : adminRestaurants.slice(0, 6).map(item => (
+                <ListItem
+                  key={item.id}
+                  title={item.name}
+                  subtitle={`${titleCase(item.approval_status)} — tap to approve`}
+                  onPress={() => run("Approving restaurant", () => api.updateRestaurantApproval(token, item.id, "approved"))}
+                />
+              ))
+            }
+
+            {/* Order + Payment Monitoring */}
+            <Divider label="Order + Payment Monitoring" />
+            {adminOrders.length === 0
+              ? <Text style={styles.emptyHint}>No orders yet.</Text>
+              : adminOrders.slice(0, 4).map(item => (
+                <ListItem key={item.id} title={`${item.restaurant_name} — ${titleCase(item.status)}`} subtitle={formatCurrency(item.total_paise)} />
+              ))
+            }
+            {paymentReports.length === 0
+              ? <Text style={styles.emptyHint}>No payment report data.</Text>
+              : paymentReports.map(item => (
+                <ListItem key={`${item.provider}-${item.status}`} title={`${titleCase(item.provider)} — ${titleCase(item.status)}`} subtitle={`${item.transactions} tx · ${formatCurrency(item.amount_paise)}`} />
+              ))
+            }
+
+            {/* Live Tracking */}
+            <Divider label="Live Tracking + Driver Load" />
+            {deliveryOrders.length === 0
+              ? <Text style={styles.emptyHint}>No active deliveries in progress.</Text>
+              : deliveryOrders.slice(0, 3).map(item => (
+                <ListItem key={item.id} title={`${item.restaurant_name} — ${titleCase(item.status)}`} subtitle={item.last_driver_lat ? `Driver at ${item.last_driver_lat}, ${item.last_driver_lng}` : "Driver location not available"} />
+              ))
+            }
+            {driverLoad.length === 0
+              ? <Text style={styles.emptyHint}>No driver load data.</Text>
+              : driverLoad.slice(0, 3).map(item => (
+                <ListItem key={item.id} title={item.phone ?? item.id} subtitle={`Active orders: ${item.active_orders} · Capacity score: ${item.capacity_score}`} />
+              ))
+            }
+
+            {/* Zones / Campaigns / Incentives */}
+            <Divider label="Zones, Campaigns & Incentives" />
+            <View style={styles.actions}>
+              <Button label="Create Zone" onPress={() => run("Creating zone", () => api.createZone(token, "Mobile Zone", "Delhi NCR", location.lat, location.lng, 3, 20))} disabled={!authed} />
+              <Button label="Create Offer" onPress={() => run("Creating offer", () => api.createOffer(token, "MOBILE50", "Mobile Offer", "flat", 5000, 19900))} disabled={!authed} />
             </View>
             <View style={styles.actions}>
-              <Button label="Create zone" onPress={() => token && api.createZone(token, "Mobile Zone", "Delhi NCR", location.lat, location.lng, 3, 20)} disabled={!authed} />
-              <Button label="Create offer" onPress={() => token && api.createOffer(token, "MOBILE50", "Mobile Offer", "flat", 5000, 19900)} disabled={!authed} />
+              <Button label="Create Campaign" onPress={() => run("Creating campaign", () => api.createCampaign(token, "Mobile Push Campaign", "push", 100000, "AI mobile lunch creative"))} disabled={!authed} />
+              <Button label="Create Incentive" onPress={() => run("Creating incentive", () => api.createDriverIncentive(token, "Mobile delivery bonus", 5, 7500))} disabled={!authed} />
             </View>
+            {zones.length === 0
+              ? <Text style={styles.emptyHint}>No zones. Tap "Create Zone" to add one.</Text>
+              : zones.slice(0, 3).map(item => (
+                <ListItem key={item.id} title={`${item.name} — ${item.city}`} subtitle={`SLA ${item.sla_minutes} min · Surge ${item.surge_multiplier}x`} />
+              ))
+            }
+            {campaigns.length === 0
+              ? <Text style={styles.emptyHint}>No campaigns. Tap "Create Campaign" to add one.</Text>
+              : campaigns.slice(0, 3).map(item => (
+                <ListItem key={item.id} title={`${item.name} (${item.channel})`} subtitle={`${titleCase(item.status)} · ${formatCurrency(item.budget_paise)}`} />
+              ))
+            }
+            {incentives.length === 0
+              ? <Text style={styles.emptyHint}>No driver incentives. Tap "Create Incentive" to add one.</Text>
+              : incentives.slice(0, 3).map(item => (
+                <ListItem key={item.id} title={item.title} subtitle={`${item.target_deliveries} deliveries → ${formatCurrency(item.reward_paise)} · ${titleCase(item.status)}`} />
+              ))
+            }
+
+            {/* Analytics */}
+            <Divider label="Analytics & Predictions" />
+            {analyticsJobs.length === 0
+              ? <Text style={styles.emptyHint}>No analytics jobs yet. Tap "Run Demand Prediction" to trigger one.</Text>
+              : analyticsJobs.slice(0, 3).map(item => (
+                <ListItem key={item.id} title={`${item.job_type} — ${titleCase(item.status)}`} subtitle={new Date(item.created_at).toLocaleString()} />
+              ))
+            }
+            {demandPredictions.length === 0
+              ? <Text style={styles.emptyHint}>No demand predictions yet.</Text>
+              : demandPredictions.slice(0, 3).map(item => (
+                <ListItem key={item.id} title={`${item.zone_key} — ${item.predicted_orders} predicted orders`} subtitle={`${item.cuisine_type ?? "All cuisines"} · Confidence: ${item.confidence}`} />
+              ))
+            }
+
+            {/* Driver Onboarding Admin */}
+            <Divider label="Driver Onboarding Admin" />
+            <Text style={styles.sectionHint}>Tap an application to approve it.</Text>
+            {driverApplications.length === 0
+              ? <Text style={styles.emptyHint}>No driver applications pending.</Text>
+              : driverApplications.slice(0, 4).map(item => (
+                <ListItem
+                  key={item.id}
+                  title={`${item.full_name} — ${titleCase(item.approval_status)}`}
+                  subtitle={`OCR: ${item.ocr_status} · Selfie: ${item.selfie_status}`}
+                  onPress={() => run("Approving application", () => api.updateDriverApplicationApproval(token, item.id, "approved", "Approved from AK Ops mobile"))}
+                />
+              ))
+            }
+            {driverReferrals.length === 0
+              ? <Text style={styles.emptyHint}>No driver referral records.</Text>
+              : driverReferrals.slice(0, 3).map(item => (
+                <ListItem key={item.id} title={`${item.referral_code} — ${titleCase(item.status)}`} subtitle={`${item.referrer_phone ?? "–"} → ${item.referred_phone ?? "–"} · ${formatCurrency(item.reward_paise)}`} />
+              ))
+            }
+
+            {/* Payouts */}
+            <Divider label="Payouts" />
+            <Text style={styles.sectionHint}>Tap a payout row to approve it.</Text>
+            {adminPayouts.length === 0
+              ? <Text style={styles.emptyHint}>No pending payouts.</Text>
+              : adminPayouts.slice(0, 4).map(item => (
+                <ListItem
+                  key={item.id}
+                  title={`${titleCase(item.role)} payout — ${titleCase(item.status)}`}
+                  subtitle={`${item.phone ?? "–"} · ${formatCurrency(item.amount_paise)} via ${item.method}`}
+                  onPress={() => run("Approving payout", () => api.updatePayoutApproval(token, item.id, "approved", "Approved from AK Ops mobile"))}
+                />
+              ))
+            }
+
+            {/* Support Tickets */}
+            <Divider label="Support Tickets" />
             <View style={styles.actions}>
-              <Button label="Create campaign" onPress={() => token && api.createCampaign(token, "Mobile Push Campaign", "push", 100000, "AI mobile lunch creative")} disabled={!authed} />
-              <Button label="Create incentive" onPress={() => token && api.createDriverIncentive(token, "Mobile delivery bonus", 5, 7500)} disabled={!authed} />
+              <Button
+                label="Create Test Ticket"
+                onPress={() => run("Creating support ticket", () => api.createSupportTicket(token, "technical", "Mobile test ticket", "Test ticket created from AK Ops mobile app."))}
+                disabled={!authed}
+              />
             </View>
-            {dashboard && <Summary title="Platform Analytics" lines={[`Users ${dashboard.users}`, `Revenue ${formatCurrency(dashboard.revenuePaise)}`, `${dashboard.recentOrders.length} recent orders`]} />}
-            <Text style={styles.sectionTitle}>User Management</Text>
-            {adminUsers.slice(0, 4).map(item => <ListItem key={item.id} title={item.name ?? item.phone ?? item.email ?? item.id} subtitle={item.role} />)}
-            <Text style={styles.sectionTitle}>Restaurant Approvals</Text>
-            {adminRestaurants.slice(0, 5).map(item => (
-              <ListItem key={item.id} title={item.name} subtitle={item.approval_status} onPress={() => token && api.updateRestaurantApproval(token, item.id, "approved")} />
-            ))}
-            <Text style={styles.sectionTitle}>Order + Payment Monitoring</Text>
-            {adminOrders.slice(0, 4).map(item => <ListItem key={item.id} title={`${item.restaurant_name} ${item.status}`} subtitle={formatCurrency(item.total_paise)} />)}
-            {paymentReports.map(item => <ListItem key={`${item.provider}-${item.status}`} title={`${item.provider} ${item.status}`} subtitle={`${item.transactions} tx | ${formatCurrency(item.amount_paise)}`} />)}
-            <Text style={styles.sectionTitle}>Live Tracking + Driver Load</Text>
-            {deliveryOrders.slice(0, 3).map(item => <ListItem key={item.id} title={`${item.restaurant_name} ${item.status}`} subtitle={`${item.last_driver_lat ?? "-"}, ${item.last_driver_lng ?? "-"}`} />)}
-            {driverLoad.slice(0, 3).map(item => <ListItem key={item.id} title={item.phone ?? item.id} subtitle={`Active ${item.active_orders} | capacity ${item.capacity_score}`} />)}
-            <Text style={styles.sectionTitle}>Zones, Campaigns, Incentives</Text>
-            {zones.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.name} ${item.city}`} subtitle={`SLA ${item.sla_minutes} min | surge ${item.surge_multiplier}`} />)}
-            {campaigns.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.name} ${item.channel}`} subtitle={`${item.status} | ${formatCurrency(item.budget_paise)}`} />)}
-            {incentives.slice(0, 2).map(item => <ListItem key={item.id} title={item.title} subtitle={`${item.target_deliveries} deliveries | ${formatCurrency(item.reward_paise)}`} />)}
-            {analyticsJobs.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.job_type} ${item.status}`} subtitle={item.created_at} />)}
-            {demandPredictions.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.zone_key} ${item.predicted_orders} orders`} subtitle={`${item.cuisine_type ?? "all cuisines"} | confidence ${item.confidence}`} />)}
-            <Text style={styles.sectionTitle}>Driver Onboarding Admin</Text>
-            {driverApplications.slice(0, 2).map(item => (
-              <ListItem key={item.id} title={`${item.full_name} ${item.approval_status}`} subtitle={`OCR ${item.ocr_status} | Selfie ${item.selfie_status}`} onPress={() => token && api.updateDriverApplicationApproval(token, item.id, "approved", "Approved from mobile admin")} />
-            ))}
-            {driverReferrals.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.referral_code} ${item.status}`} subtitle={`${item.referrer_phone ?? "-"} -> ${item.referred_phone ?? "-"} | ${formatCurrency(item.reward_paise)}`} />)}
-            <Text style={styles.sectionTitle}>Payouts, Support, Security</Text>
-            {adminPayouts.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.role} payout ${item.status}`} subtitle={`${item.phone ?? "-"} | ${formatCurrency(item.amount_paise)}`} onPress={() => token && api.updatePayoutApproval(token, item.id, "approved", "Approved from mobile admin")} />)}
-            {supportTickets.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.category} ${item.status}`} subtitle={item.subject} />)}
-            {auditLogs.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.method} ${item.path}`} subtitle={`HTTP ${item.status_code}`} />)}
-            {verificationChecks.slice(0, 2).map(item => <ListItem key={item.id} title={`${item.provider} ${item.check_type}`} subtitle={item.status} />)}
+            {supportTickets.length === 0
+              ? <Text style={styles.emptyHint}>No support tickets. Tap "Create Test Ticket" to add one.</Text>
+              : supportTickets.slice(0, 4).map(item => (
+                <ListItem key={item.id} title={`${titleCase(item.category)} — ${titleCase(item.status)}`} subtitle={item.subject} />
+              ))
+            }
+
+            {/* Security & Audit */}
+            <Divider label="Security & Audit Logs" />
+            {auditLogs.length === 0
+              ? <Text style={styles.emptyHint}>No audit logs yet. Perform actions to generate entries.</Text>
+              : auditLogs.slice(0, 4).map(item => (
+                <ListItem key={item.id} title={`${item.method} ${item.path}`} subtitle={`HTTP ${item.status_code}`} />
+              ))
+            }
+            {verificationChecks.length === 0
+              ? <Text style={styles.emptyHint}>No verification checks yet.</Text>
+              : verificationChecks.slice(0, 3).map(item => (
+                <ListItem key={item.id} title={`${item.provider} — ${item.check_type}`} subtitle={titleCase(item.status)} />
+              ))
+            }
           </Card>
         )}
+
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+// ── Helper Components ──────────────────────────────────────────────────────
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle}>{title}</Text>
       {children}
+    </View>
+  );
+}
+
+function Divider({ label }: { label: string }) {
+  return (
+    <View style={styles.divider}>
+      <View style={styles.dividerLine} />
+      <Text style={styles.dividerLabel}>{label}</Text>
+      <View style={styles.dividerLine} />
     </View>
   );
 }
@@ -790,9 +1118,10 @@ function Segmented({ values, value, onChange }: { values: string[]; value: strin
 
 function ListItem({ title, subtitle, onPress }: { title: string; subtitle?: string; onPress?: () => void }) {
   return (
-    <Pressable style={styles.listItem} onPress={onPress}>
+    <Pressable style={[styles.listItem, onPress && styles.listItemTappable]} onPress={onPress}>
       <Text style={styles.listTitle}>{title}</Text>
       {subtitle ? <Text style={styles.listSubtitle}>{subtitle}</Text> : null}
+      {onPress ? <Text style={styles.listTapHint}>Tap to action ›</Text> : null}
     </Pressable>
   );
 }
@@ -801,7 +1130,7 @@ function Summary({ title, lines }: { title: string; lines: string[] }) {
   return (
     <View style={styles.summary}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      {lines.map(line => <Text key={line} style={styles.summaryLine}>{line}</Text>)}
+      {lines.map((line, i) => <Text key={i} style={styles.summaryLine}>{line}</Text>)}
     </View>
   );
 }
@@ -814,157 +1143,122 @@ function titleCase(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, char => char.toUpperCase());
 }
 
+// ── Styles ─────────────────────────────────────────────────────────────────
+
+const TEAL = "#0f766e";
+const TEAL_DARK = "#0d5e57";
+const CREAM = "#f7f4ef";
+
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: "#f7f4ef"
+  safe: { flex: 1, backgroundColor: CREAM },
+  container: { padding: 16, gap: 14, paddingBottom: 40 },
+  title: { fontSize: 28, fontWeight: "800", color: "#12312d" },
+  subtitle: { color: "#64748b", fontSize: 15 },
+  testHint: { color: "#94a3b8", fontSize: 12, marginTop: 4 },
+
+  // Login status
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#f0fdf4",
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginTop: 4,
+    marginBottom: 6
   },
-  container: {
-    padding: 16,
-    gap: 14,
-    paddingBottom: 40
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#12312d"
-  },
-  subtitle: {
-    color: "#64748b",
-    fontSize: 15
-  },
+  statusRowOffline: { backgroundColor: "#fef2f2" },
+  statusRowError: { backgroundColor: "#fef2f2" },
+  statusDot: { fontSize: 14, color: TEAL, fontWeight: "700" },
+  statusText: { color: TEAL, fontWeight: "700", flex: 1, fontSize: 13 },
+
+  notice: { backgroundColor: "#f8fafc", color: "#334155", padding: 10, borderRadius: 6, fontSize: 13 },
+
+  // Cards
   card: {
     backgroundColor: "#ffffff",
     borderColor: "#e5e7eb",
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 10,
     padding: 14,
-    gap: 12,
+    gap: 10,
     shadowColor: "#0f172a",
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
     elevation: 2
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#0f172a"
-  },
-  sectionTitle: {
-    fontWeight: "800",
-    color: "#334155"
-  },
-  notice: {
-    backgroundColor: "#f8fafc",
-    color: "#334155",
-    padding: 10,
-    borderRadius: 6
-  },
-  status: {
-    color: "#0f766e",
-    fontWeight: "700",
-    marginTop: 4,
-    marginBottom: 6
-  },
-  statusOffline: {
-    color: "#b91c1c"
-  },
+  cardTitle: { fontSize: 18, fontWeight: "800", color: "#0f172a" },
+
+  // Divider
+  divider: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, marginBottom: 2 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: "#e5e7eb" },
+  dividerLabel: { fontSize: 12, fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5 },
+
+  sectionTitle: { fontWeight: "800", color: "#334155" },
+  sectionHint: { color: "#475569", fontSize: 13, lineHeight: 18 },
+  helperText: { color: "#475569", fontSize: 13, lineHeight: 18 },
+  emptyHint: { color: "#94a3b8", fontSize: 13, fontStyle: "italic", textAlign: "center", paddingVertical: 6 },
+
+  // Inputs
   input: {
     borderColor: "#cbd5e1",
     borderWidth: 1,
     borderRadius: 6,
     padding: Platform.OS === "ios" ? 12 : 9,
-    backgroundColor: "#ffffff"
+    backgroundColor: "#ffffff",
+    fontSize: 14
   },
-  actions: {
+
+  // Buttons
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  button: { backgroundColor: TEAL, borderRadius: 6, paddingVertical: 10, paddingHorizontal: 12 },
+  buttonDisabled: { backgroundColor: "#cbd5e1" },
+  buttonText: { color: "#ffffff", fontWeight: "700", fontSize: 13 },
+
+  // Upload previews
+  uploadPreviews: { justifyContent: "flex-start" },
+  uploadPreview: { width: 80, height: 80, borderRadius: 8 },
+
+  // Segmented control
+  segmented: { gap: 8, paddingVertical: 2 },
+  segment: { borderColor: "#cbd5e1", borderWidth: 1, borderRadius: 6, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: "#ffffff" },
+  segmentActive: { backgroundColor: TEAL, borderColor: TEAL_DARK },
+  segmentText: { color: "#334155", fontWeight: "700", fontSize: 13 },
+  segmentTextActive: { color: "#ffffff" },
+
+  // List items
+  listItem: { padding: 12, borderColor: "#e5e7eb", borderWidth: 1, borderRadius: 8, backgroundColor: "#ffffff", gap: 2 },
+  listItemTappable: { borderColor: TEAL, borderLeftWidth: 3 },
+  listTitle: { fontWeight: "700", color: "#1f2937", fontSize: 14 },
+  listSubtitle: { color: "#64748b", fontSize: 13 },
+  listTapHint: { color: TEAL, fontSize: 11, fontWeight: "600", marginTop: 2 },
+
+  // Summary box
+  summary: { gap: 4, backgroundColor: "#f8fafc", borderRadius: 8, padding: 12, borderColor: "#e5e7eb", borderWidth: 1 },
+  summaryLine: { color: "#334155", fontSize: 13 },
+
+  // Order management
+  orderIdRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8
-  },
-  button: {
-    backgroundColor: "#0f766e",
+    alignItems: "center",
+    backgroundColor: "#f0fdf4",
     borderRadius: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 12
+    padding: 8,
+    borderColor: "#bbf7d0",
+    borderWidth: 1
   },
-  buttonDisabled: {
-    backgroundColor: "#94a3b8"
-  },
-  buttonText: {
-    color: "#ffffff",
-    fontWeight: "700"
-  },
-  uploadPreviews: {
-    justifyContent: "flex-start"
-  },
-  uploadPreview: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    marginTop: 8
-  },
-  segmented: {
-    gap: 8,
-    paddingVertical: 2
-  },
-  segment: {
-    borderColor: "#cbd5e1",
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    backgroundColor: "#ffffff"
-  },
-  segmentActive: {
-    backgroundColor: "#0f766e",
-    borderColor: "#0f766e"
-  },
-  segmentText: {
-    color: "#334155",
-    fontWeight: "700"
-  },
-  segmentTextActive: {
-    color: "#ffffff"
-  },
-  map: {
-    height: 280,
-    borderRadius: 8,
-    overflow: "hidden"
-  },
-  listItem: {
-    padding: 12,
+  fieldLabel: { color: "#64748b", fontSize: 13 },
+  fieldValue: { color: TEAL, fontWeight: "700", fontSize: 13, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+
+  // Restaurant order card
+  orderCard: {
     borderColor: "#e5e7eb",
     borderWidth: 1,
     borderRadius: 8,
-    backgroundColor: "#ffffff"
-  },
-  listTitle: {
-    fontWeight: "800",
-    color: "#1f2937"
-  },
-  listSubtitle: {
-    color: "#64748b",
-    marginTop: 4
-  },
-  summary: {
+    padding: 12,
     gap: 4,
-    backgroundColor: "#f8fafc",
-    borderRadius: 8,
-    padding: 12
-  },
-  helperText: {
-    color: "#475569",
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 8
-  },
-  sectionHint: {
-    color: "#475569",
-    fontSize: 14,
-    marginBottom: 10
-  },
-  summaryLine: {
-    color: "#334155"
+    backgroundColor: "#ffffff"
   }
 });
