@@ -33,7 +33,7 @@ export async function searchDelhiNcrRestaurants(options: {
   limit?: number;
 }) {
   if (!config.googlePlacesApiKey) {
-    throw new Error("GOOGLE_PLACES_API_KEY is not configured");
+    return [];
   }
 
   const minRating = options.minRating ?? 3;

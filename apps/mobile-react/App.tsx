@@ -282,12 +282,16 @@ export default function App() {
   async function loadMarketplace() {
     if (!token) return;
     await run("Loading marketplace", async () => {
-      const [nearby, hot, places, activeOffers] = await Promise.all([
+      const [nearbyResult, hotResult, placesResult, offersResult] = await Promise.allSettled([
         api.searchRestaurants(token, { q: "", diet: "all", minRating: 3, sort: "distance", lat: location.lat, lng: location.lng }),
         api.trendingRestaurants(token, location.lat, location.lng),
         api.googlePlacesDelhiNcr(token, 3),
         api.marketplaceOffers(token)
       ]);
+      const nearby = nearbyResult.status === "fulfilled" ? nearbyResult.value : [];
+      const hot = hotResult.status === "fulfilled" ? hotResult.value : [];
+      const places = placesResult.status === "fulfilled" ? placesResult.value : { restaurants: [] };
+      const activeOffers = offersResult.status === "fulfilled" ? offersResult.value : [];
       setRestaurants(nearby);
       setTrending(hot);
       setGooglePlaces(places.restaurants);
@@ -933,7 +937,10 @@ export default function App() {
                   key={item.id}
                   title={item.name}
                   subtitle={`${titleCase(item.approval_status)} — tap to approve`}
-                  onPress={() => run("Approving restaurant", () => api.updateRestaurantApproval(token, item.id, "approved"))}
+                  onPress={async () => {
+                    const result = await run("Approving restaurant", () => api.updateRestaurantApproval(token, item.id, "approved"));
+                    if (result) setAdminRestaurants(prev => prev.map(r => r.id === item.id ? { ...r, approval_status: "approved" } : r));
+                  }}
                 />
               ))
             }
@@ -1022,7 +1029,10 @@ export default function App() {
                   key={item.id}
                   title={`${item.full_name} — ${titleCase(item.approval_status)}`}
                   subtitle={`OCR: ${item.ocr_status} · Selfie: ${item.selfie_status}`}
-                  onPress={() => run("Approving application", () => api.updateDriverApplicationApproval(token, item.id, "approved", "Approved from AK Ops mobile"))}
+                  onPress={async () => {
+                    const result = await run("Approving application", () => api.updateDriverApplicationApproval(token, item.id, "approved", "Approved from AK Ops mobile"));
+                    if (result) setDriverApplications(prev => prev.map(a => a.id === item.id ? { ...a, approval_status: "approved" } : a));
+                  }}
                 />
               ))
             }
@@ -1043,7 +1053,10 @@ export default function App() {
                   key={item.id}
                   title={`${titleCase(item.role)} payout — ${titleCase(item.status)}`}
                   subtitle={`${item.phone ?? "–"} · ${formatCurrency(item.amount_paise)} via ${item.method}`}
-                  onPress={() => run("Approving payout", () => api.updatePayoutApproval(token, item.id, "approved", "Approved from AK Ops mobile"))}
+                  onPress={async () => {
+                    const result = await run("Approving payout", () => api.updatePayoutApproval(token, item.id, "approved", "Approved from AK Ops mobile"));
+                    if (result) setAdminPayouts(prev => prev.map(p => p.id === item.id ? { ...p, status: "approved" } : p));
+                  }}
                 />
               ))
             }
