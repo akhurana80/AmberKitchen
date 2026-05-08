@@ -184,7 +184,7 @@ export default function App() {
     else if (role === "restaurant") void loadRestaurantPanel();
     else void loadAdmin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, role]);
 
   useEffect(() => {
     if (!token || !orderId) return undefined;
@@ -238,9 +238,13 @@ export default function App() {
     }
     const response = await run("Verifying OTP", () => api.verifyOtp(phone, otp, role));
     if (response && typeof response === "object" && "token" in response) {
-      await saveToken(String(response.token));
       const userRole = (response as { user?: { role?: string } }).user?.role;
+      // Set role and token in the same synchronous block so React 18 batches
+      // them into one render — useEffect([token,role]) then fires with the
+      // correct role and calls loadAdmin() instead of loadDriverWork().
       if (userRole && roleOptions.includes(userRole as Role)) setRole(userRole as Role);
+      setToken(String(response.token));
+      void SecureStore.setItemAsync("amberkitchen.token", String(response.token));
     }
   }
 
@@ -616,7 +620,7 @@ export default function App() {
             <Divider label="Marketplace & Orders" />
             <Text style={styles.sectionHint}>Load restaurants, create a test order, then pay and track end-to-end.</Text>
             <View style={styles.actions}>
-              <Button label="Load Marketplace" onPress={loadMarketplace} disabled={!authed} />
+              <Button label={loading ? "Loading…" : "Load Marketplace"} onPress={loadMarketplace} disabled={!authed || loading} />
               <Button label="Create Order" onPress={createOrder} disabled={!authed} />
             </View>
 
@@ -881,8 +885,8 @@ export default function App() {
           <Card title="Admin + Operations Dashboard">
             <Text style={styles.sectionHint}>Platform health, approvals, live monitoring, analytics and launch controls.</Text>
             <View style={styles.actions}>
-              <Button label="Load Admin Dashboard" onPress={loadAdmin} disabled={!authed} />
-              <Button label="Load Marketplace" onPress={loadMarketplace} disabled={!authed} />
+              <Button label={loading ? "Loading…" : "Load Admin Dashboard"} onPress={loadAdmin} disabled={!authed || loading} />
+              <Button label={loading ? "Loading…" : "Load Marketplace"} onPress={loadMarketplace} disabled={!authed || loading} />
             </View>
             <View style={styles.actions}>
               <Button
