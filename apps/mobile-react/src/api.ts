@@ -269,19 +269,67 @@ export class ApiClient {
   }
 
   async adminRestaurants(token: string) {
-    return this.get<Array<{ id: string; name: string; address: string; approval_status: string }>>("/api/v1/admin/restaurants", { token });
+    return this.get<Array<{ id: string; name: string; address: string; approval_status: string; rejection_reason: string | null; is_active: boolean }>>("/api/v1/admin/restaurants", { token });
   }
 
-  async updateRestaurantApproval(token: string, id: string, status: "approved" | "rejected" | "pending") {
-    return this.patch(`/api/v1/admin/restaurants/${id}/approval`, { status }, { token });
+  async adminRestaurantsSearch(token: string, search: string) {
+    return this.get<Array<{ id: string; name: string; address: string; approval_status: string; rejection_reason: string | null; is_active: boolean }>>(
+      `/api/v1/admin/restaurants?search=${encodeURIComponent(search)}`,
+      { token }
+    );
+  }
+
+  async updateRestaurantApproval(token: string, id: string, status: "approved" | "rejected" | "pending", rejectionReason?: string) {
+    return this.patch(`/api/v1/admin/restaurants/${id}/approval`, { status, rejectionReason }, { token });
+  }
+
+  async offboardRestaurant(token: string, id: string) {
+    return this.patch(`/api/v1/admin/restaurants/${id}/offboard`, {}, { token });
   }
 
   async adminAllOrders(token: string) {
     return this.get<Array<{ id: string; status: string; total_paise: number; restaurant_name: string }>>("/api/v1/admin/orders", { token });
   }
 
+  async adminOrdersSearch(token: string, search: string) {
+    return this.get<Array<{ id: string; status: string; total_paise: number; restaurant_name: string; created_at: string }>>(
+      `/api/v1/admin/orders?search=${encodeURIComponent(search)}`,
+      { token }
+    );
+  }
+
   async adminUsers(token: string) {
-    return this.get<Array<{ id: string; phone: string | null; email: string | null; name: string | null; role: string }>>("/api/v1/admin/users", { token });
+    return this.get<Array<{ id: string; phone: string | null; email: string | null; name: string | null; role: string; is_banned: boolean }>>("/api/v1/admin/users", { token });
+  }
+
+  async adminUsersSearch(token: string, search: string) {
+    return this.get<Array<{ id: string; phone: string | null; email: string | null; name: string | null; role: string; is_banned: boolean }>>(
+      `/api/v1/admin/users?search=${encodeURIComponent(search)}`,
+      { token }
+    );
+  }
+
+  async changeUserRole(token: string, userId: string, role: string) {
+    return this.patch<{ id: string; phone: string | null; email: string | null; name: string | null; role: string; is_banned: boolean }>(
+      `/api/v1/admin/users/${userId}/role`,
+      { role },
+      { token }
+    );
+  }
+
+  async banUser(token: string, userId: string, banned: boolean) {
+    return this.patch<{ id: string; phone: string | null; email: string | null; name: string | null; role: string; is_banned: boolean }>(
+      `/api/v1/admin/users/${userId}/ban`,
+      { banned },
+      { token }
+    );
+  }
+
+  async adminUserOrders(token: string, userId: string) {
+    return this.get<Array<{ id: string; status: string; total_paise: number; restaurant_name: string; created_at: string }>>(
+      `/api/v1/admin/orders?userId=${encodeURIComponent(userId)}`,
+      { token }
+    );
   }
 
   async paymentReports(token: string) {
