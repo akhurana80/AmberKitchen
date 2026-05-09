@@ -105,6 +105,10 @@ export default function App() {
   const [analyticsJobs, setAnalyticsJobs] = useState<Array<{ id: string; job_type: string; status: string; summary: unknown; created_at: string }>>([]);
   const [demandPredictions, setDemandPredictions] = useState<Array<{ id: string; zone_key: string; cuisine_type: string | null; hour_start: string; predicted_orders: number; confidence: string }>>([]);
 
+  const [collapsedPanels, setCollapsedPanels] = useState<Record<string, boolean>>({});
+  const togglePanel = (label: string) => setCollapsedPanels(prev => ({ ...prev, [label]: !prev[label] }));
+  const isCollapsed = (label: string) => Boolean(collapsedPanels[label]);
+
   const authed = Boolean(token);
   const availableTabs = useMemo(() => {
     if (role === "driver") return ["driver"] as Tab[];
@@ -268,15 +272,6 @@ export default function App() {
     }
   }
 
-  async function useCurrentLocation() {
-    await run("Getting location", async () => {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== "granted") throw new Error("Location permission denied. Enable it in Settings.");
-      const current = await Location.getCurrentPositionAsync({});
-      setLocation({ lat: current.coords.latitude, lng: current.coords.longitude });
-    });
-  }
-
   async function enablePush() {
     if (!token) { Alert.alert("Login required", "Log in before registering for push notifications."); return; }
     await run("Registering push", async () => {
@@ -290,6 +285,15 @@ export default function App() {
   async function sendPushTest() {
     if (!token) return;
     await run("Sending test push", () => api.sendTestNotification(token));
+  }
+
+  async function useCurrentLocation() {
+    await run("Getting location", async () => {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== "granted") throw new Error("Location permission denied. Enable it in Settings.");
+      const current = await Location.getCurrentPositionAsync({});
+      setLocation({ lat: current.coords.latitude, lng: current.coords.longitude });
+    });
   }
 
   async function loadMarketplace() {
@@ -568,49 +572,47 @@ export default function App() {
       <ScrollView contentContainerStyle={styles.container}>
 
         <Text style={styles.title}>AK Ops</Text>
-        <Text style={styles.subtitle}>Operations platform for drivers, restaurants and admins.</Text>
 
         {/* ── Login Card ── */}
         <Card title="Login">
-          <Text style={styles.notice}>{notice}</Text>
-
-          {/* Status pill */}
-          <View style={[styles.statusRow, isOffline && styles.statusRowOffline, !!error && !isOffline && styles.statusRowError]}>
-            <Text style={styles.statusDot}>{isOffline ? "⚠" : error ? "✕" : loading ? "↻" : "●"}</Text>
-            <Text style={styles.statusText}>
-              {isOffline
-                ? "Offline — check your connection"
-                : loading
-                  ? "Loading…"
-                  : error
-                    ? error
-                    : authed
-                      ? `Signed in as ${titleCase(role)}`
-                      : "Not signed in"}
-            </Text>
-          </View>
-
-          <Text style={styles.helperText}>{roleHelp}</Text>
+          {isOffline && (
+            <View style={[styles.statusRow, styles.statusRowOffline]}>
+              <Text style={styles.statusDot}>⚠</Text>
+              <Text style={styles.statusText}>Offline — check your connection</Text>
+            </View>
+          )}
+          {error && !isOffline && (
+            <View style={[styles.statusRow, styles.statusRowError]}>
+              <Text style={styles.statusDot}>✕</Text>
+              <Text style={styles.statusText}>{error}</Text>
+            </View>
+          )}
+          <Text style={styles.sectionHint}>{notice}</Text>
           <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="Phone (e.g. +919999000003)" keyboardType="phone-pad" />
           <TextInput style={styles.input} value={otp} onChangeText={setOtp} placeholder="OTP (auto-filled in dev mode)" keyboardType="number-pad" />
-          <Segmented values={roleOptions} value={role} onChange={next => setRole(next as Role)} />
+          <TextInput style={styles.input} value={googleIdToken} onChangeText={setGoogleIdToken} placeholder="Google ID token (optional)" />
+          <RoleDropdown value={role} onChange={r => setRole(r)} />
           <View style={styles.actions}>
             <Button label="Send OTP" onPress={requestOtp} />
             <Button label="Verify OTP" onPress={verifyOtp} />
+            {authed && <Button label="Logout" onPress={logout} />}
           </View>
-          <TextInput style={styles.input} value={googleIdToken} onChangeText={setGoogleIdToken} placeholder="Google ID token (optional)" />
-          <Button label="Login With Google Token" onPress={loginWithGoogleToken} />
           <View style={styles.actions}>
-            <Button label="Use Location" onPress={useCurrentLocation} />
-            <Button label="Enable Push" onPress={enablePush} disabled={!authed} />
-            <Button label="Test Push" onPress={sendPushTest} disabled={!authed} />
-            {authed ? <Button label="Logout" onPress={logout} /> : null}
+            <Button label="Google Login" onPress={loginWithGoogleToken} />
+            <Button label="Enable Push" onPress={enablePush} />
+            <Button label="Test Push" onPress={sendPushTest} />
           </View>
-          <Text style={styles.testHint}>Test accounts: driver +919999000003 | restaurant +919999000002 | admin +919999000004</Text>
         </Card>
 
-        {authed && (
+        {authed && tab !== "admin" && (
           <Segmented values={availableTabs} value={tab} onChange={next => setTab(next as Tab)} />
+        )}
+
+        {authed && tab === "admin" && (
+          <View style={styles.adminBanner}>
+            <Text style={styles.adminBannerText}>ADMIN</Text>
+            <Text style={styles.adminBannerSub}>OPERATIONS CONSOLE</Text>
+          </View>
         )}
 
         {/* ── Driver Tab ── */}
@@ -623,7 +625,9 @@ export default function App() {
             </View>
 
             {/* Marketplace & Orders */}
-            <Divider label="Marketplace & Orders" />
+            <Divider label="Marketplace & Orders" collapsed={isCollapsed("Marketplace & Orders")} onPress={() => togglePanel("Marketplace & Orders")} />
+            {!isCollapsed("Marketplace & Orders") && (
+              <>
             <Text style={styles.sectionHint}>Load restaurants, create a test order, then pay and track end-to-end.</Text>
             <View style={styles.actions}>
               <Button label={loading ? "Loading…" : "Load Marketplace"} onPress={loadMarketplace} disabled={!authed || loading} />
@@ -712,9 +716,13 @@ export default function App() {
             {etaLoop.slice(0, 2).map(item => (
               <ListItem key={item.id} title={`ETA ${item.predicted_eta_minutes} min (${item.source})`} subtitle={new Date(item.created_at).toLocaleTimeString()} />
             ))}
+              </>
+            )}
 
             {/* Driver Onboarding */}
-            <Divider label="Driver Onboarding" />
+            <Divider label="Driver Onboarding" collapsed={isCollapsed("Driver Onboarding")} onPress={() => togglePanel("Driver Onboarding")} />
+            {!isCollapsed("Driver Onboarding") && (
+              <>
             <TextInput style={styles.input} value={driverFullName} onChangeText={setDriverFullName} placeholder="Full name" />
             <TextInput style={styles.input} value={driverAadhaarLast4} onChangeText={setDriverAadhaarLast4} placeholder="Aadhaar last 4 digits" keyboardType="number-pad" />
             <TextInput style={styles.input} value={driverBankLast4} onChangeText={setDriverBankLast4} placeholder="Bank account last 4 digits (optional)" keyboardType="number-pad" />
@@ -751,9 +759,13 @@ export default function App() {
             ) : (
               <Text style={styles.emptyHint}>No onboarding application found for this account.</Text>
             )}
+              </>
+            )}
 
             {/* Active Deliveries */}
-            <Divider label="Active Deliveries" />
+            <Divider label="Active Deliveries" collapsed={isCollapsed("Active Deliveries")} onPress={() => togglePanel("Active Deliveries")} />
+            {!isCollapsed("Active Deliveries") && (
+              <>
             <View style={styles.actions}>
               <Button label="Share Live Location" onPress={shareDriverLocation} disabled={!orderId} />
             </View>
@@ -798,9 +810,13 @@ export default function App() {
                 ))}
               </>
             )}
+              </>
+            )}
 
             {/* Wallet */}
-            <Divider label="Wallet & Earnings" />
+            <Divider label="Wallet & Earnings" collapsed={isCollapsed("Wallet & Earnings")} onPress={() => togglePanel("Wallet & Earnings")} />
+            {!isCollapsed("Wallet & Earnings") && (
+              <>
             {wallet ? (
               <Summary title="Wallet Summary" lines={[
                 `Balance: ${formatCurrency(wallet.wallet.balance_paise)}`,
@@ -817,6 +833,8 @@ export default function App() {
                 <ListItem key={item.id} title={`${titleCase(item.type)} — ${formatCurrency(item.amount_paise)}`} subtitle={titleCase(item.status)} />
               ))
             }
+              </>
+            )}
           </Card>
         )}
 
@@ -825,7 +843,9 @@ export default function App() {
           <Card title="Restaurant Panel">
             <Text style={styles.sectionHint}>Manage onboarding, menu items, incoming orders and earnings.</Text>
 
-            <Divider label="Restaurant Onboarding" />
+            <Divider label="Restaurant Onboarding" collapsed={isCollapsed("Restaurant Onboarding")} onPress={() => togglePanel("Restaurant Onboarding")} />
+            {!isCollapsed("Restaurant Onboarding") && (
+              <>
             <TextInput style={styles.input} value={restaurantName} onChangeText={setRestaurantName} placeholder="Restaurant name" />
             <TextInput style={styles.input} value={restaurantAddress} onChangeText={setRestaurantAddress} placeholder="Restaurant address" />
             <TextInput style={styles.input} value={restaurantPhone} onChangeText={setRestaurantPhone} placeholder="Contact phone" keyboardType="phone-pad" />
@@ -851,8 +871,12 @@ export default function App() {
                 </View>
               </>
             )}
+              </>
+            )}
 
-            <Divider label="Incoming Orders" />
+            <Divider label="Incoming Orders" collapsed={isCollapsed("Incoming Orders")} onPress={() => togglePanel("Incoming Orders")} />
+            {!isCollapsed("Incoming Orders") && (
+              <>
             <View style={styles.actions}>
               <Button label="Refresh Orders" onPress={loadRestaurantPanel} disabled={!authed} />
             </View>
@@ -882,6 +906,8 @@ export default function App() {
                 `Gross: ${formatCurrency(Number(restaurantEarnings.gross_paise))}`,
                 `Estimated payout: ${formatCurrency(Number(restaurantEarnings.estimated_payout_paise))}`
               ]} />
+            )}
+              </>
             )}
           </Card>
         )}
@@ -943,7 +969,9 @@ export default function App() {
             )}
 
             {/* Order Operations */}
-            <Divider label="Order Operations" />
+            <Divider label="Order Operations" collapsed={isCollapsed("Order Operations")} onPress={() => togglePanel("Order Operations")} />
+            {!isCollapsed("Order Operations") && (
+              <>
             <TextInput
               style={styles.input}
               value={orderId}
@@ -963,9 +991,13 @@ export default function App() {
                 disabled={!orderId || !deliveryDrivers[0]}
               />
             </View>
+              </>
+            )}
 
             {/* User Management */}
-            <Divider label="User Management" />
+            <Divider label="User Management" collapsed={isCollapsed("User Management")} onPress={() => togglePanel("User Management")} />
+            {!isCollapsed("User Management") && (
+              <>
             <View style={styles.orderSearchRow}>
               <TextInput
                 style={[styles.input, { flex: 1 }]}
@@ -1034,11 +1066,13 @@ export default function App() {
                               style={[styles.roleChip, item.role === r && styles.roleChipActive]}
                               disabled={loading || item.role === r}
                               onPress={async () => {
-                                const updated = await run(`Changing role to ${r}`, () => api.changeUserRole(token, item.id, r));
-                                if (updated) {
-                                  const patch = { role: (updated as typeof item).role };
+                                try {
+                                  const updated = await api.changeUserRole(token, item.id, r);
+                                  const patch = { role: updated.role };
                                   setAdminUsers(prev => prev.map(u => u.id === item.id ? { ...u, ...patch } : u));
                                   setUserSearchResults(prev => prev ? prev.map(u => u.id === item.id ? { ...u, ...patch } : u) : null);
+                                } catch (err) {
+                                  Alert.alert("Role change failed", err instanceof Error ? err.message : "Unexpected error");
                                 }
                               }}
                             >
@@ -1084,9 +1118,13 @@ export default function App() {
                 );
               });
             })()}
+              </>
+            )}
 
             {/* Restaurant Approvals */}
-            <Divider label="Restaurant Approvals" />
+            <Divider label="Restaurant Approvals" collapsed={isCollapsed("Restaurant Approvals")} onPress={() => togglePanel("Restaurant Approvals")} />
+            {!isCollapsed("Restaurant Approvals") && (
+              <>
             <View style={styles.orderSearchRow}>
               <TextInput
                 style={[styles.input, { flex: 1 }]}
@@ -1170,9 +1208,13 @@ export default function App() {
                 />
               ));
             })()}
+              </>
+            )}
 
             {/* Order + Payment Monitoring */}
-            <Divider label="Order + Payment Monitoring" />
+            <Divider label="Order + Payment Monitoring" collapsed={isCollapsed("Order + Payment Monitoring")} onPress={() => togglePanel("Order + Payment Monitoring")} />
+            {!isCollapsed("Order + Payment Monitoring") && (
+              <>
             <View style={styles.orderSearchRow}>
               <TextInput
                 style={[styles.input, { flex: 1 }]}
@@ -1220,13 +1262,17 @@ export default function App() {
             })()}
             {paymentReports.length === 0
               ? <Text style={styles.emptyHint}>No payment report data.</Text>
-              : paymentReports.map(item => (
+              : paymentReports.slice(0, 5).map(item => (
                 <ListItem key={`${item.provider}-${item.status}`} title={`${titleCase(item.provider)} — ${titleCase(item.status)}`} subtitle={`${item.transactions} tx · ${formatCurrency(item.amount_paise)}`} />
               ))
             }
+              </>
+            )}
 
             {/* Live Tracking */}
-            <Divider label="Live Tracking + Driver Load" />
+            <Divider label="Live Tracking + Driver Load" collapsed={isCollapsed("Live Tracking + Driver Load")} onPress={() => togglePanel("Live Tracking + Driver Load")} />
+            {!isCollapsed("Live Tracking + Driver Load") && (
+              <>
             <View style={styles.orderSearchRow}>
               <TextInput
                 style={[styles.input, { flex: 1 }]}
@@ -1263,53 +1309,13 @@ export default function App() {
                 <ListItem key={item.key} title={item.title} subtitle={item.subtitle} />
               ));
             })()}
-
-            {/* Zones / Campaigns / Incentives */}
-            <Divider label="Zones, Campaigns & Incentives" />
-            <View style={styles.actions}>
-              <Button label="Create Zone" onPress={() => run("Creating zone", () => api.createZone(token, `Zone ${Date.now().toString(36).slice(-4).toUpperCase()}`, "Delhi NCR", location.lat, location.lng, 3, 20))} disabled={!authed} />
-              <Button label="Create Offer" onPress={() => run("Creating offer", () => api.createOffer(token, `MOB${Date.now().toString(36).slice(-5).toUpperCase()}`, "Mobile Offer", "flat", 5000, 19900))} disabled={!authed} />
-            </View>
-            <View style={styles.actions}>
-              <Button label="Create Campaign" onPress={() => run("Creating campaign", () => api.createCampaign(token, `Campaign ${Date.now().toString(36).slice(-4).toUpperCase()}`, "push", 100000, "AI mobile launch creative"))} disabled={!authed} />
-              <Button label="Create Incentive" onPress={() => run("Creating incentive", () => api.createDriverIncentive(token, `Delivery Bonus ${Date.now().toString(36).slice(-4).toUpperCase()}`, 5, 7500))} disabled={!authed} />
-            </View>
-            {zones.length === 0
-              ? <Text style={styles.emptyHint}>No zones. Tap "Create Zone" to add one.</Text>
-              : zones.slice(0, 5).map(item => (
-                <ListItem key={item.id} title={`${item.name} — ${item.city}`} subtitle={`SLA ${item.sla_minutes} min · Surge ${item.surge_multiplier}x`} />
-              ))
-            }
-            {campaigns.length === 0
-              ? <Text style={styles.emptyHint}>No campaigns. Tap "Create Campaign" to add one.</Text>
-              : campaigns.slice(0, 5).map(item => (
-                <ListItem key={item.id} title={`${item.name} (${item.channel})`} subtitle={`${titleCase(item.status)} · ${formatCurrency(item.budget_paise)}`} />
-              ))
-            }
-            {incentives.length === 0
-              ? <Text style={styles.emptyHint}>No driver incentives. Tap "Create Incentive" to add one.</Text>
-              : incentives.slice(0, 5).map(item => (
-                <ListItem key={item.id} title={item.title} subtitle={`${item.target_deliveries} deliveries → ${formatCurrency(item.reward_paise)} · ${titleCase(item.status)}`} />
-              ))
-            }
-
-            {/* Analytics */}
-            <Divider label="Analytics & Predictions" />
-            {analyticsJobs.length === 0
-              ? <Text style={styles.emptyHint}>No analytics jobs yet. Tap "Run Demand Prediction" to trigger one.</Text>
-              : analyticsJobs.slice(0, 5).map(item => (
-                <ListItem key={item.id} title={`${item.job_type} — ${titleCase(item.status)}`} subtitle={new Date(item.created_at).toLocaleString()} />
-              ))
-            }
-            {demandPredictions.length === 0
-              ? <Text style={styles.emptyHint}>No demand predictions yet.</Text>
-              : demandPredictions.slice(0, 5).map(item => (
-                <ListItem key={item.id} title={`${item.zone_key} — ${item.predicted_orders} predicted orders`} subtitle={`${item.cuisine_type ?? "All cuisines"} · Confidence: ${item.confidence}`} />
-              ))
-            }
+              </>
+            )}
 
             {/* Driver Onboarding Admin */}
-            <Divider label="Driver Onboarding Admin" />
+            <Divider label="Driver Onboarding Admin" collapsed={isCollapsed("Driver Onboarding Admin")} onPress={() => togglePanel("Driver Onboarding Admin")} />
+            {!isCollapsed("Driver Onboarding Admin") && (
+              <>
             {driverApplications.length === 0
               ? <Text style={styles.emptyHint}>No driver applications pending.</Text>
               : driverApplications.slice(0, 5).map(item => (
@@ -1330,9 +1336,65 @@ export default function App() {
                 <ListItem key={item.id} title={`${item.referral_code} — ${titleCase(item.status)}`} subtitle={`${item.referrer_phone ?? "–"} → ${item.referred_phone ?? "–"} · ${formatCurrency(item.reward_paise)}`} />
               ))
             }
+              </>
+            )}
+
+            {/* Zones / Campaigns / Incentives */}
+            <Divider label="Zones, Campaigns & Incentives" collapsed={isCollapsed("Zones, Campaigns & Incentives")} onPress={() => togglePanel("Zones, Campaigns & Incentives")} />
+            {!isCollapsed("Zones, Campaigns & Incentives") && (
+              <>
+            <View style={styles.actions}>
+              <Button label="Create Zone" onPress={() => run("Creating zone", () => api.createZone(token, `Zone ${Date.now().toString(36).slice(-4).toUpperCase()}`, "Delhi NCR", location.lat, location.lng, 3, 20))} disabled={!authed} />
+              <Button label="Create Offer" onPress={() => run("Creating offer", () => api.createOffer(token, `MOB${Date.now().toString(36).slice(-5).toUpperCase()}`, "Mobile Offer", "flat", 5000, 19900))} disabled={!authed} />
+            </View>
+            <View style={styles.actions}>
+              <Button label="Create Campaign" onPress={() => run("Creating campaign", () => api.createCampaign(token, `Campaign ${Date.now().toString(36).slice(-4).toUpperCase()}`, "push", 100000, "AI mobile launch creative"))} disabled={!authed} />
+              <Button label="Create Incentive" onPress={() => run("Creating incentive", () => api.createDriverIncentive(token, `Delivery Bonus ${Date.now().toString(36).slice(-4).toUpperCase()}`, 5, 7500))} disabled={!authed} />
+            </View>
+            {zones.length === 0
+              ? <Text style={styles.emptyHint}>No zones. Tap "Create Zone" to add one.</Text>
+              : zones.slice(0, 2).map(item => (
+                <ListItem key={item.id} title={`${item.name} — ${item.city}`} subtitle={`SLA ${item.sla_minutes} min · Surge ${item.surge_multiplier}x`} />
+              ))
+            }
+            {campaigns.length === 0
+              ? <Text style={styles.emptyHint}>No campaigns. Tap "Create Campaign" to add one.</Text>
+              : campaigns.slice(0, 2).map(item => (
+                <ListItem key={item.id} title={`${item.name} (${item.channel})`} subtitle={`${titleCase(item.status)} · ${formatCurrency(item.budget_paise)}`} />
+              ))
+            }
+            {incentives.length === 0
+              ? <Text style={styles.emptyHint}>No driver incentives. Tap "Create Incentive" to add one.</Text>
+              : incentives.slice(0, 1).map(item => (
+                <ListItem key={item.id} title={item.title} subtitle={`${item.target_deliveries} deliveries → ${formatCurrency(item.reward_paise)} · ${titleCase(item.status)}`} />
+              ))
+            }
+              </>
+            )}
+
+            {/* Analytics */}
+            <Divider label="Analytics & Predictions" collapsed={isCollapsed("Analytics & Predictions")} onPress={() => togglePanel("Analytics & Predictions")} />
+            {!isCollapsed("Analytics & Predictions") && (
+              <>
+            {analyticsJobs.length === 0
+              ? <Text style={styles.emptyHint}>No analytics jobs yet. Tap "Run Demand Prediction" to trigger one.</Text>
+              : analyticsJobs.slice(0, 3).map(item => (
+                <ListItem key={item.id} title={`${item.job_type} — ${titleCase(item.status)}`} subtitle={new Date(item.created_at).toLocaleString()} />
+              ))
+            }
+            {demandPredictions.length === 0
+              ? <Text style={styles.emptyHint}>No demand predictions yet.</Text>
+              : demandPredictions.slice(0, 2).map(item => (
+                <ListItem key={item.id} title={`${item.zone_key} — ${item.predicted_orders} predicted orders`} subtitle={`${item.cuisine_type ?? "All cuisines"} · Confidence: ${item.confidence}`} />
+              ))
+            }
+              </>
+            )}
 
             {/* Payouts */}
-            <Divider label="Payouts" />
+            <Divider label="Payouts" collapsed={isCollapsed("Payouts")} onPress={() => togglePanel("Payouts")} />
+            {!isCollapsed("Payouts") && (
+              <>
             {adminPayouts.length === 0
               ? <Text style={styles.emptyHint}>No pending payouts.</Text>
               : adminPayouts.slice(0, 5).map(item => (
@@ -1347,9 +1409,13 @@ export default function App() {
                 />
               ))
             }
+              </>
+            )}
 
             {/* Support Tickets */}
-            <Divider label="Support Tickets" />
+            <Divider label="Support Tickets" collapsed={isCollapsed("Support Tickets")} onPress={() => togglePanel("Support Tickets")} />
+            {!isCollapsed("Support Tickets") && (
+              <>
             <View style={styles.actions}>
               <Button
                 label="Create Test Ticket"
@@ -1363,21 +1429,27 @@ export default function App() {
                 <ListItem key={item.id} title={`${titleCase(item.category)} — ${titleCase(item.status)}`} subtitle={item.subject} />
               ))
             }
+              </>
+            )}
 
             {/* Security & Audit */}
-            <Divider label="Security & Audit Logs" />
+            <Divider label="Security & Audit Logs" collapsed={isCollapsed("Security & Audit Logs")} onPress={() => togglePanel("Security & Audit Logs")} />
+            {!isCollapsed("Security & Audit Logs") && (
+              <>
             {auditLogs.length === 0
               ? <Text style={styles.emptyHint}>No audit logs yet. Perform actions to generate entries.</Text>
-              : auditLogs.slice(0, 5).map(item => (
+              : auditLogs.slice(0, 3).map(item => (
                 <ListItem key={item.id} title={`${item.method} ${item.path}`} subtitle={`HTTP ${item.status_code}`} />
               ))
             }
             {verificationChecks.length === 0
               ? <Text style={styles.emptyHint}>No verification checks yet.</Text>
-              : verificationChecks.slice(0, 5).map(item => (
+              : verificationChecks.slice(0, 2).map(item => (
                 <ListItem key={item.id} title={`${item.provider} — ${item.check_type}`} subtitle={titleCase(item.status)} />
               ))
             }
+              </>
+            )}
           </Card>
         )}
 
@@ -1406,14 +1478,42 @@ function StatChip({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Divider({ label }: { label: string }) {
+function RoleDropdown({ value, onChange }: { value: Role; onChange: (r: Role) => void }) {
+  const [open, setOpen] = useState(false);
   return (
-    <View style={styles.divider}>
+    <View>
+      <Pressable style={styles.roleDropdown} onPress={() => setOpen(o => !o)}>
+        <Text style={styles.roleDropdownValue}>{titleCase(value)}</Text>
+        <Text style={styles.roleDropdownChevron}>{open ? "▲" : "▼"}</Text>
+      </Pressable>
+      {open && (
+        <View style={styles.roleDropdownMenu}>
+          {roleOptions.map(r => (
+            <Pressable
+              key={r}
+              style={[styles.roleDropdownItem, r === value && styles.roleDropdownItemActive]}
+              onPress={() => { onChange(r); setOpen(false); }}
+            >
+              <Text style={[styles.roleDropdownItemText, r === value && styles.roleDropdownItemTextActive]}>
+                {titleCase(r)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function Divider({ label, collapsed, onPress }: { label: string; collapsed?: boolean; onPress?: () => void }) {
+  return (
+    <Pressable style={styles.divider} onPress={onPress}>
       <View style={styles.dividerBadge}>
         <Text style={styles.dividerLabel}>{label}</Text>
+        {onPress && <Text style={styles.dividerChevron}>{collapsed ? " ▶" : " ▼"}</Text>}
       </View>
       <View style={styles.dividerLine} />
-    </View>
+    </Pressable>
   );
 }
 
@@ -1632,6 +1732,36 @@ const styles = StyleSheet.create({
   uploadPreviews: { justifyContent: "flex-start" },
   uploadPreview: { width: 80, height: 80, borderRadius: 8 },
 
+  // Admin banner
+  adminBanner: {
+    backgroundColor: "#0f766e",
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#0d5e57",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: "#14b8a6",
+    gap: 2,
+  },
+  adminBannerText: {
+    color: "#ffffff",
+    fontSize: 20,
+    fontWeight: "900",
+    letterSpacing: 10,
+  },
+  adminBannerSub: {
+    color: "#99f6e4",
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 2,
+  },
+
   // Segmented control
   segmented: { gap: 8, paddingVertical: 2 },
   segment: { borderColor: "#cbd5e1", borderWidth: 1, borderRadius: 6, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: "#ffffff" },
@@ -1780,5 +1910,56 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontStyle: "italic" as const,
     marginTop: 4
+  },
+
+  dividerChevron: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "700" as const
+  },
+
+  roleDropdown: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 6,
+    padding: Platform.OS === "ios" ? 12 : 9,
+    backgroundColor: "#ffffff"
+  },
+  roleDropdownValue: {
+    fontSize: 14,
+    color: "#1f2937",
+    fontWeight: "600" as const
+  },
+  roleDropdownChevron: {
+    fontSize: 12,
+    color: "#64748b"
+  },
+  roleDropdownMenu: {
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 6,
+    backgroundColor: "#ffffff",
+    overflow: "hidden" as const,
+    marginTop: 2
+  },
+  roleDropdownItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9"
+  },
+  roleDropdownItemActive: {
+    backgroundColor: "#f0fdf4"
+  },
+  roleDropdownItemText: {
+    fontSize: 14,
+    color: "#334155"
+  },
+  roleDropdownItemTextActive: {
+    color: TEAL,
+    fontWeight: "700" as const
   }
 });
