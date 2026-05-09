@@ -105,7 +105,26 @@ export default function App() {
   const [analyticsJobs, setAnalyticsJobs] = useState<Array<{ id: string; job_type: string; status: string; summary: unknown; created_at: string }>>([]);
   const [demandPredictions, setDemandPredictions] = useState<Array<{ id: string; zone_key: string; cuisine_type: string | null; hour_start: string; predicted_orders: number; confidence: string }>>([]);
 
-  const [collapsedPanels, setCollapsedPanels] = useState<Record<string, boolean>>({});
+  const [lastSynced, setLastSynced] = useState<Date | null>(null);
+  const [collapsedPanels, setCollapsedPanels] = useState<Record<string, boolean>>({
+    "Marketplace & Orders": true,
+    "Driver Onboarding": true,
+    "Active Deliveries": true,
+    "Wallet & Earnings": true,
+    "Restaurant Onboarding": true,
+    "Incoming Orders": true,
+    "Order Operations": true,
+    "User Management": true,
+    "Restaurant Approvals": true,
+    "Order + Payment Monitoring": true,
+    "Live Tracking + Driver Load": true,
+    "Driver Onboarding Admin": true,
+    "Zones, Campaigns & Incentives": true,
+    "Analytics & Predictions": true,
+    "Payouts": true,
+    "Support Tickets": true,
+    "Security & Audit Logs": true,
+  });
   const togglePanel = (label: string) => setCollapsedPanels(prev => ({ ...prev, [label]: !prev[label] }));
   const isCollapsed = (label: string) => Boolean(collapsedPanels[label]);
 
@@ -559,6 +578,7 @@ export default function App() {
       setDemandPredictions(ok(results[17], []));
       setDriverApplications(ok(results[18], []));
       setDriverReferrals(ok(results[19], []));
+      setLastSynced(new Date());
       const failed = results.filter(r => r.status === "rejected").length;
       if (failed > 0) {
         setNotice(`Admin dashboard loaded (${failed} section${failed > 1 ? "s" : ""} unavailable — check backend logs).`);
@@ -609,9 +629,32 @@ export default function App() {
         )}
 
         {authed && tab === "admin" && (
-          <View style={styles.adminBanner}>
-            <Text style={styles.adminBannerText}>ADMIN</Text>
-            <Text style={styles.adminBannerSub}>OPERATIONS CONSOLE</Text>
+          <View style={styles.adminHeader}>
+            <View style={styles.adminHeaderTop}>
+              <View>
+                <Text style={styles.adminHeaderTitle}>AmberKitchen</Text>
+                <Text style={styles.adminHeaderConsole}>Operations Console</Text>
+              </View>
+              <View style={styles.adminHeaderRight}>
+                {lastSynced && (
+                  <Text style={styles.adminHeaderSync}>
+                    Synced {lastSynced.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </Text>
+                )}
+                <Pressable style={styles.adminRefreshBtn} onPress={loadAdmin} disabled={loading}>
+                  <Text style={styles.adminRefreshBtnText}>{loading ? "…" : "↻ Refresh"}</Text>
+                </Pressable>
+              </View>
+            </View>
+            <View style={styles.adminHeaderBottom}>
+              <View style={styles.adminRoleBadge}>
+                <Text style={styles.adminRoleBadgeText}>{role.replace("_", " ").toUpperCase()}</Text>
+              </View>
+              <View style={styles.adminStatusDot} />
+              <Text style={styles.adminStatusText}>
+                {dashboard ? "Dashboard loaded" : "Loading…"}
+              </Text>
+            </View>
           </View>
         )}
 
@@ -914,59 +957,61 @@ export default function App() {
 
         {/* ── Admin Tab ── */}
         {tab === "admin" && (
-          <Card title="Admin + Operations Dashboard">
+          <Card>
 
-            {/* ── Stats banner — changes immediately when data loads ── */}
-            {dashboard ? (
-              <View style={styles.statsBanner}>
-                <StatChip label="Users" value={String(dashboard.users)} />
-                <StatChip label="Revenue" value={formatCurrency(dashboard.revenuePaise)} />
-                <StatChip label="Restaurants" value={String(adminRestaurants.length)} />
-                <StatChip label="Orders" value={String(adminOrders.length)} />
-                <StatChip label="Drivers" value={String(driverLoad.length)} />
-              </View>
-            ) : (
-              <View style={styles.statsBannerEmpty}>
-                <Text style={styles.statsBannerEmptyText}>No data loaded — tap "Load Admin Dashboard" below</Text>
-              </View>
-            )}
+            {/* KPI Grid */}
+            <View style={styles.kpiGrid}>
+              <KpiCard label="Users"       value={dashboard ? String(dashboard.users) : "—"}              accent="#0f766e" icon="👥" />
+              <KpiCard label="Revenue"     value={dashboard ? formatCurrency(dashboard.revenuePaise) : "—"} accent="#7c3aed" icon="₹" />
+              <KpiCard label="Restaurants" value={String(adminRestaurants.length) || "—"}                  accent="#d97706" icon="🏪" />
+              <KpiCard label="Orders"      value={String(adminOrders.length) || "—"}                       accent="#2563eb" icon="📦" />
+              <KpiCard label="Drivers"     value={String(driverLoad.length) || "—"}                        accent="#16a34a" icon="🚗" />
+              <KpiCard label="Live"        value={String(deliveryOrders.length) || "—"}                    accent="#dc2626" icon="⚡" />
+            </View>
 
-            {dashboard && (
-              <View style={styles.statsBanner}>
+            {/* Order status strip */}
+            {dashboard && dashboard.ordersByStatus.length > 0 && (
+              <View style={styles.statusStrip}>
                 {dashboard.ordersByStatus.map(s => (
-                  <StatChip key={s.status} label={titleCase(s.status)} value={String(s.count)} />
+                  <View key={s.status} style={styles.statusPill}>
+                    <View style={[styles.statusPillDot, { backgroundColor: orderStatusColor(s.status) }]} />
+                    <Text style={styles.statusPillName}>{titleCase(s.status)}</Text>
+                    <Text style={styles.statusPillCount}>{s.count}</Text>
+                  </View>
                 ))}
               </View>
             )}
 
-            <View style={styles.actions}>
-              <Button label={loading ? "Loading…" : "Load Admin Dashboard"} onPress={loadAdmin} disabled={!authed || loading} />
-              <Button label={loading ? "Loading…" : "Load Marketplace"} onPress={loadMarketplace} disabled={!authed || loading} />
-            </View>
-
-            {(restaurants.length > 0 || trending.length > 0) && (
-              <View style={styles.statsBanner}>
-                <StatChip label="Nearby" value={String(restaurants.length)} />
-                <StatChip label="Trending" value={String(trending.length)} />
-                <StatChip label="Offers" value={String(offers.length)} />
-              </View>
+            {/* Recent orders */}
+            {dashboard && dashboard.recentOrders.length > 0 && (
+              <>
+                <Text style={styles.recentOrdersTitle}>Recent Orders</Text>
+                {dashboard.recentOrders.slice(0, 3).map(o => (
+                  <View key={o.id} style={styles.recentOrderRow}>
+                    <View style={[styles.recentOrderDot, { backgroundColor: orderStatusColor(o.status) }]} />
+                    <View style={styles.recentOrderInfo}>
+                      <Text style={styles.recentOrderName}>{o.restaurant_name}</Text>
+                      <Text style={styles.recentOrderMeta}>{titleCase(o.status)} · {formatCurrency(o.total_paise)}</Text>
+                    </View>
+                    <Text style={styles.recentOrderId}>#{String(o.id).slice(-6).toUpperCase()}</Text>
+                  </View>
+                ))}
+              </>
             )}
 
-            <View style={styles.actions}>
-              <Button
-                label="Run Demand Prediction"
+            {/* Quick actions */}
+            <View style={styles.quickActions}>
+              <Pressable style={styles.quickActionBtn} onPress={loadMarketplace} disabled={!authed || loading}>
+                <Text style={styles.quickActionIcon}>🛒</Text>
+                <Text style={styles.quickActionLabel}>Marketplace</Text>
+              </Pressable>
+              <Pressable style={[styles.quickActionBtn, styles.quickActionBtnSecondary]}
                 onPress={() => run("AI demand prediction", () => api.runDemandPredictionJob(token))}
-                disabled={!authed}
-              />
+                disabled={!authed}>
+                <Text style={styles.quickActionIcon}>🤖</Text>
+                <Text style={styles.quickActionLabel}>AI Prediction</Text>
+              </Pressable>
             </View>
-
-            {dashboard && (
-              <Summary title="Recent Orders" lines={
-                dashboard.recentOrders.slice(0, 3).map(o =>
-                  `${o.restaurant_name} — ${titleCase(o.status)} · ${formatCurrency(o.total_paise)}`
-                )
-              } />
-            )}
 
             {/* Order Operations */}
             <Divider label="Order Operations" collapsed={isCollapsed("Order Operations")} onPress={() => togglePanel("Order Operations")} />
@@ -1460,20 +1505,21 @@ export default function App() {
 
 // ── Helper Components ──────────────────────────────────────────────────────
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>{title}</Text>
+      {title ? <Text style={styles.cardTitle}>{title}</Text> : null}
       {children}
     </View>
   );
 }
 
-function StatChip({ label, value }: { label: string; value: string }) {
+function KpiCard({ label, value, accent, icon }: { label: string; value: string; accent: string; icon: string }) {
   return (
-    <View style={styles.statChip}>
-      <Text style={styles.statChipValue}>{value}</Text>
-      <Text style={styles.statChipLabel}>{label}</Text>
+    <View style={[styles.kpiCard, { borderTopColor: accent }]}>
+      <Text style={styles.kpiIcon}>{icon}</Text>
+      <Text style={[styles.kpiValue, { color: accent }]}>{value}</Text>
+      <Text style={styles.kpiLabel}>{label}</Text>
     </View>
   );
 }
@@ -1732,34 +1778,225 @@ const styles = StyleSheet.create({
   uploadPreviews: { justifyContent: "flex-start" },
   uploadPreview: { width: 80, height: 80, borderRadius: 8 },
 
-  // Admin banner
-  adminBanner: {
-    backgroundColor: "#0f766e",
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#0d5e57",
-    shadowOffset: { width: 0, height: 4 },
+  // Admin header (production)
+  adminHeader: {
+    backgroundColor: "#0a0f1e",
+    borderRadius: 14,
+    padding: 18,
+    gap: 14,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowRadius: 14,
+    elevation: 10,
+  },
+  adminHeaderTop: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "flex-start" as const,
+  },
+  adminHeaderTitle: {
+    color: "#ffffff",
+    fontSize: 22,
+    fontWeight: "800" as const,
+    letterSpacing: 0.3,
+  },
+  adminHeaderConsole: {
+    color: "#14b8a6",
+    fontSize: 11,
+    fontWeight: "700" as const,
+    letterSpacing: 2.5,
+    marginTop: 3,
+    textTransform: "uppercase" as const,
+  },
+  adminHeaderRight: {
+    alignItems: "flex-end" as const,
+    gap: 6,
+  },
+  adminHeaderSync: {
+    color: "#475569",
+    fontSize: 11,
+    fontWeight: "500" as const,
+  },
+  adminRefreshBtn: {
+    backgroundColor: "#0f766e",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  adminRefreshBtnText: {
+    color: "#ffffff",
+    fontWeight: "800" as const,
+    fontSize: 15,
+  },
+  adminHeaderBottom: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+  },
+  adminRoleBadge: {
+    backgroundColor: "#14b8a6",
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignSelf: "flex-start" as const,
+  },
+  adminRoleBadgeText: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "800" as const,
+    letterSpacing: 2,
+  },
+  adminStatusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#22c55e",
+  },
+  adminStatusText: {
+    color: "#475569",
+    fontSize: 11,
+  },
+
+  // KPI grid
+  kpiGrid: {
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
+    gap: 8,
+  },
+  kpiCard: {
+    flex: 1,
+    minWidth: "30%" as const,
+    backgroundColor: "#ffffff",
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderTopWidth: 3,
+    alignItems: "center" as const,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  kpiIcon: {
+    fontSize: 18,
+    marginBottom: 4,
+  },
+  kpiValue: {
+    fontSize: 17,
+    fontWeight: "800" as const,
+  },
+  kpiLabel: {
+    color: "#64748b",
+    fontSize: 10,
+    fontWeight: "600" as const,
+    letterSpacing: 0.5,
+    marginTop: 2,
+    textAlign: "center" as const,
+  },
+
+  // Order status strip
+  statusStrip: {
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
+    gap: 6,
+  },
+  statusPill: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    backgroundColor: "#f8fafc",
+    borderRadius: 20,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    gap: 5,
     borderWidth: 1,
-    borderColor: "#14b8a6",
+    borderColor: "#e2e8f0",
+  },
+  statusPillDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  statusPillName: {
+    color: "#475569",
+    fontSize: 11,
+    fontWeight: "600" as const,
+  },
+  statusPillCount: {
+    color: "#1e293b",
+    fontSize: 11,
+    fontWeight: "800" as const,
+  },
+
+  // Recent orders rows
+  recentOrdersTitle: {
+    color: "#94a3b8",
+    fontSize: 10,
+    fontWeight: "700" as const,
+    letterSpacing: 1.5,
+    textTransform: "uppercase" as const,
+    marginBottom: 2,
+  },
+  recentOrderRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    backgroundColor: "#ffffff",
+    borderRadius: 8,
+    padding: 10,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
+  },
+  recentOrderDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  recentOrderInfo: {
+    flex: 1,
+  },
+  recentOrderName: {
+    color: "#1e293b",
+    fontSize: 13,
+    fontWeight: "600" as const,
+  },
+  recentOrderMeta: {
+    color: "#64748b",
+    fontSize: 11,
+    marginTop: 1,
+  },
+  recentOrderId: {
+    color: "#94a3b8",
+    fontSize: 10,
+    fontWeight: "700" as const,
+  },
+
+  // Quick action row
+  quickActions: {
+    flexDirection: "row" as const,
+    gap: 8,
+  },
+  quickActionBtn: {
+    flex: 1,
+    backgroundColor: "#0f766e",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
     gap: 2,
   },
-  adminBannerText: {
-    color: "#ffffff",
-    fontSize: 20,
-    fontWeight: "900",
-    letterSpacing: 10,
+  quickActionBtnSecondary: {
+    backgroundColor: "#1e293b",
   },
-  adminBannerSub: {
-    color: "#99f6e4",
+  quickActionIcon: {
+    fontSize: 18,
+  },
+  quickActionLabel: {
+    color: "#ffffff",
     fontSize: 11,
-    fontWeight: "600",
-    letterSpacing: 2,
+    fontWeight: "700" as const,
+    letterSpacing: 0.5,
   },
 
   // Segmented control
