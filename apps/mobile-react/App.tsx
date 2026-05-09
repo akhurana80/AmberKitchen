@@ -1156,8 +1156,9 @@ function StatChip({ label, value }: { label: string; value: string }) {
 function Divider({ label }: { label: string }) {
   return (
     <View style={styles.divider}>
-      <View style={styles.dividerLine} />
-      <Text style={styles.dividerLabel}>{label}</Text>
+      <View style={styles.dividerBadge}>
+        <Text style={styles.dividerLabel}>{label}</Text>
+      </View>
       <View style={styles.dividerLine} />
     </View>
   );
@@ -1259,9 +1260,15 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 18, fontWeight: "800", color: "#0f172a" },
 
   // Divider
-  divider: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, marginBottom: 2 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: "#e5e7eb" },
-  dividerLabel: { fontSize: 12, fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5 },
+  divider: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12, marginBottom: 4 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: "#d1fae5" },
+  dividerBadge: {
+    backgroundColor: TEAL,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  dividerLabel: { fontSize: 13, fontWeight: "800", color: "#ffffff", textTransform: "uppercase", letterSpacing: 0.8 },
 
   sectionTitle: { fontWeight: "800", color: "#334155" },
   sectionHint: { color: "#475569", fontSize: 13, lineHeight: 18 },
@@ -1296,11 +1303,20 @@ const styles = StyleSheet.create({
   segmentTextActive: { color: "#ffffff" },
 
   // List items
-  listItem: { padding: 12, borderColor: "#e5e7eb", borderWidth: 1, borderRadius: 8, backgroundColor: "#ffffff", gap: 2 },
-  listItemTappable: { borderColor: TEAL, borderLeftWidth: 3 },
+  listItem: {
+    padding: 12,
+    borderColor: "#d1fae5",
+    borderWidth: 1,
+    borderLeftWidth: 4,
+    borderLeftColor: TEAL,
+    borderRadius: 8,
+    backgroundColor: "#ffffff",
+    gap: 2
+  },
+  listItemTappable: { borderLeftColor: TEAL },
   listTitle: { fontWeight: "700", color: "#1f2937", fontSize: 14 },
   listSubtitle: { color: "#64748b", fontSize: 13 },
-  listTapHint: { color: TEAL, fontSize: 11, fontWeight: "600", marginTop: 2 },
+  listTapHint: { color: TEAL, fontSize: 11, fontWeight: "700", marginTop: 2 },
 
   // Summary box
   summary: { gap: 4, backgroundColor: "#f8fafc", borderRadius: 8, padding: 12, borderColor: "#e5e7eb", borderWidth: 1 },
