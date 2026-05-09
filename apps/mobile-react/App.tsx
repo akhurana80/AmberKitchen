@@ -439,10 +439,7 @@ export default function App() {
       address: restaurantAddress,
       contactName: restaurantName,
       contactPhone: restaurantPhone,
-      cuisineType: restaurantCuisine || "General",
-      fssaiLicense: "",
-      gstNumber: "",
-      bankAccountLast4: ""
+      cuisineType: restaurantCuisine || "General"
     }));
     await loadRestaurantPanel();
   }
