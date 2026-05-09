@@ -1188,7 +1188,7 @@ function ListItem({ title, subtitle, onPress }: { title: string; subtitle?: stri
     <Pressable style={[styles.listItem, onPress && styles.listItemTappable]} onPress={onPress}>
       <Text style={styles.listTitle}>{title}</Text>
       {subtitle ? <Text style={styles.listSubtitle}>{subtitle}</Text> : null}
-      {onPress ? <Text style={styles.listTapHint}>Tap to action ›</Text> : null}
+      {onPress ? <Text style={styles.listTapHint}>Click to Approve ›</Text> : null}
     </Pressable>
   );
 }
