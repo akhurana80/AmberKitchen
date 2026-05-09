@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AmberKitchen – Mobile App Test Results</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 11pt; color: #1a1a1a; background: #fff; }
+
+  .cover {
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    min-height: 100vh; text-align: center; padding: 40px;
+    border-bottom: 3px solid #e65c00;
+    page-break-after: always;
+  }
+  .cover h1 { font-size: 28pt; color: #e65c00; margin-bottom: 10px; }
+  .cover h2 { font-size: 16pt; color: #444; margin-bottom: 30px; font-weight: normal; }
+  .cover .meta { font-size: 11pt; color: #666; line-height: 2; }
+  .cover .badge {
+    display: inline-block; background: #2ecc71; color: #fff;
+    padding: 8px 24px; border-radius: 20px; font-size: 14pt; font-weight: bold;
+    margin-top: 20px;
+  }
+
+  .summary-table {
+    width: 100%; border-collapse: collapse; margin: 20px 0;
+    page-break-after: always;
+  }
+  .summary-table th { background: #e65c00; color: #fff; padding: 10px 12px; text-align: left; }
+  .summary-table td { padding: 8px 12px; border-bottom: 1px solid #e0e0e0; }
+  .summary-table tr:nth-child(even) td { background: #fdf5f0; }
+  .summary-table td.num { text-align: right; font-weight: bold; }
+  .summary-table tfoot td { font-weight: bold; background: #fff3ee; border-top: 2px solid #e65c00; }
+
+  .section { margin-bottom: 0; }
+  .section-header {
+    background: #e65c00; color: #fff;
+    padding: 10px 14px; font-size: 13pt; font-weight: bold;
+    margin-bottom: 0;
+    page-break-before: always;
+    page-break-after: avoid;
+  }
+  .section-header:first-of-type { page-break-before: auto; }
+  .section-sub {
+    background: #fff3ee; border-left: 4px solid #e65c00;
+    padding: 7px 14px; font-size: 10.5pt; font-weight: bold; color: #333;
+    margin-top: 10px;
+    page-break-after: avoid;
+  }
+
+  table.tests {
+    width: 100%; border-collapse: collapse; margin-bottom: 4px;
+  }
+  table.tests th {
+    background: #555; color: #fff; padding: 6px 10px;
+    font-size: 9.5pt; text-align: left;
+  }
+  table.tests td { padding: 5px 10px; border-bottom: 1px solid #eee; font-size: 9.5pt; vertical-align: top; }
+  table.tests tr:nth-child(even) td { background: #fafafa; }
+  table.tests td.tc { width: 42px; text-align: center; color: #888; font-size: 9pt; }
+  table.tests td.status { width: 60px; text-align: center; }
+  table.tests td.duration { width: 55px; text-align: right; color: #888; font-size: 9pt; }
+  .pass { color: #27ae60; font-weight: bold; }
+  .fail { color: #e74c3c; font-weight: bold; }
+  .result-pass { color: #27ae60; }
+
+  .page-break { page-break-before: always; }
+
+  @media print {
+    .cover { min-height: auto; padding: 60px 40px; }
+    .section-header { page-break-before: always; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════  COVER PAGE  ═══════════════════ -->
+<div class="cover">
+  <h1>🍽 AmberKitchen</h1>
+  <h2>Mobile App (React Native) – End-to-End Test Results</h2>
+  <div class="meta">
+    <strong>Date:</strong> 9 May 2026<br/>
+    <strong>Branch:</strong> claude/setup-local-react-native-aqahl<br/>
+    <strong>Framework:</strong> Jest v29 + babel-preset-expo<br/>
+    <strong>Environment:</strong> Node (testEnvironment: node)<br/>
+    <strong>Platform:</strong> apps/mobile-react (Expo SDK 52 · React Native)
+  </div>
+  <div class="badge">✓ 463 / 463 Tests Passed · 11 Suites · 0 Failures</div>
+</div>
+
+<!-- ═══════════════════  SUMMARY TABLE  ═══════════════════ -->
+<h2 style="padding:16px 0 8px; font-size:14pt; color:#e65c00;">Test Suite Summary</h2>
+<table class="summary-table">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Test Suite File</th>
+      <th>Coverage Area</th>
+      <th class="num">Tests</th>
+      <th class="num">Passed</th>
+      <th class="num">Failed</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td>api.test.ts</td><td>All API endpoints – happy path, 4xx/5xx errors, timeouts, headers</td><td class="num">87</td><td class="num">87</td><td class="num">0</td><td class="pass">PASS</td></tr>
+    <tr><td>2</td><td>helpers.test.ts</td><td>formatCurrency, titleCase, JWT role decoding, tab routing, help text</td><td class="num">35</td><td class="num">35</td><td class="num">0</td><td class="pass">PASS</td></tr>
+    <tr><td>3</td><td>driver.test.ts</td><td>Driver onboarding, Azure OCR/face, order lifecycle, wallet, incentives</td><td class="num">39</td><td class="num">39</td><td class="num">0</td><td class="pass">PASS</td></tr>
+    <tr><td>4</td><td>restaurant.test.ts</td><td>Restaurant form validation, menu, orders, earnings, approval status</td><td class="num">23</td><td class="num">23</td><td class="num">0</td><td class="pass">PASS</td></tr>
+    <tr><td>5</td><td>admin.test.ts</td><td>Admin dashboard (20-call parallel load), approvals, payouts, support</td><td class="num">38</td><td class="num">38</td><td class="num">0</td><td class="pass">PASS</td></tr>
+    <tr><td>6</td><td>rbac.test.ts</td><td>All 6 roles: JWT decode, tab routing, Super Admin &amp; Delivery Admin scope</td><td class="num">63</td><td class="num">63</td><td class="num">0</td><td class="pass">PASS</td></tr>
+    <tr><td>7</td><td>menu.test.ts</td><td>Menu items (veg/non-veg, photos, cuisine, ratings), bulk import, search</td><td class="num">31</td><td class="num">31</td><td class="num">0</td><td class="pass">PASS</td></tr>
+    <tr><td>8</td><td>restaurant-panel.test.ts</td><td>Restaurant panel OTP, onboarding (FSSAI/GST), escapeHtml, optionalValue, approval state machine</td><td class="num">48</td><td class="num">48</td><td class="num">0</td><td class="pass">PASS</td></tr>
+    <tr><td>9</td><td>offers-reviews.test.ts</td><td>Flat/percent offers, 1-5 star reviews, support tickets (5 categories)</td><td class="num">35</td><td class="num">35</td><td class="num">0</td><td class="pass">PASS</td></tr>
+    <tr><td>10</td><td>zones-campaigns.test.ts</td><td>Zone SLA/surge, campaigns (4 channels + AI creative), load balancing, demand analytics</td><td class="num">41</td><td class="num">41</td><td class="num">0</td><td class="pass">PASS</td></tr>
+    <tr><td>11</td><td>wallet-system.test.ts</td><td>Driver earnings, transaction history (credit/debit), payout requests (UPI/bank), admin approval workflow</td><td class="num">33</td><td class="num">33</td><td class="num">0</td><td class="pass">PASS</td></tr>
+  </tbody>
+  <tfoot>
+    <tr><td colspan="3">TOTAL</td><td class="num">463</td><td class="num">463</td><td class="num">0</td><td class="pass">ALL PASS</td></tr>
+  </tfoot>
+</table>
+
+<!-- ═══════════════════  SUITE 1: API  ═══════════════════ -->
+<div class="section-header">Suite 1 · api.test.ts — API Client (87 tests)</div>
+
+<div class="section-sub">Authentication</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">1</td><td>requestOtp sends phone and returns sent flag</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">2</td><td>requestOtp throws on 400 error</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">3</td><td>requestOtp throws timeout wrapper on AbortError</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">4</td><td>verifyOtp posts phone, code, role and returns AuthSession</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">5</td><td>verifyOtp throws on 401</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">6</td><td>googleLogin posts idToken and role</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">7</td><td>registerDeviceToken posts pushToken and platform with bearer header</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">8</td><td>sendTestNotification posts to /notifications/test with bearer</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Restaurants &amp; Search</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">9</td><td>trendingRestaurants hits correct URL with lat/lng</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">10</td><td>searchRestaurants builds query params correctly</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">11</td><td>searchRestaurants omits undefined/null/empty params</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">12</td><td>googlePlacesDelhiNcr hits correct URL</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">13</td><td>googlePlacesRegion hits correct URL</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">14</td><td>createRestaurantReview posts to reviews endpoint</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">15</td><td>createSupportTicket posts required fields</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Orders</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">16</td><td>createOrder posts restaurantId, address, location and items</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">17</td><td>getOrder fetches order by ID</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">18</td><td>editOrder patches delivery address and coordinates</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">19</td><td>cancelOrder posts reason</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">20</td><td>reorder posts to reorder endpoint and returns new order</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">21</td><td>availableDeliveryOrders fetches available orders</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">22</td><td>acceptDeliveryOrder patches assign endpoint</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">23</td><td>updateOrderStatus patches status</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Payments &amp; ETA</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">24</td><td>createPayment posts provider, orderId, amount</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">25</td><td>createPayment uses default amount of 24900</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">26</td><td>requestRefund posts orderId, reason, and optional amount</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">27</td><td>orderEta returns ETA and route details</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">28</td><td>orderEtaLoop returns array of historical ETAs</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">29</td><td>sendDriverLocation posts lat and lng</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Driver Onboarding &amp; KYC</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">30</td><td>submitDriverOnboarding posts full KYC payload</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">31</td><td>myDriverOnboarding fetches current application</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">32</td><td>runDriverBackgroundCheck posts consent flag</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">33</td><td>driverOnboardingApplications fetches admin list</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">34</td><td>updateDriverApplicationApproval patches status and note</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">35</td><td>updateDriverApplicationApproval can reject with note</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">36</td><td>driverReferrals fetches referral list</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Restaurant Management</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">37</td><td>onboardRestaurant posts full registration payload</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">38</td><td>myRestaurants fetches owned restaurants</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">39</td><td>createMenuItem posts item with isAvailable=true</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">40</td><td>importMenuItems posts array of items</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">41</td><td>restaurantOrders fetches orders for a restaurant</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">42</td><td>decideRestaurantOrder patches decision=accepted</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">43</td><td>decideRestaurantOrder patches decision=cancelled</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">44</td><td>restaurantEarnings fetches earnings summary</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Admin &amp; Operations</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">45</td><td>adminDashboard fetches KPIs</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">46</td><td>adminRestaurants fetches all restaurants</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">47</td><td>updateRestaurantApproval patches status=approved</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">48</td><td>adminAllOrders fetches all orders</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">49</td><td>adminUsers fetches paginated users</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">50</td><td>paymentReports fetches provider stats</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">51</td><td>platformAnalytics fetches analytics summary</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">52</td><td>supportTickets fetches all tickets</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">53</td><td>deliveryAdminOrders fetches delivery orders with location</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">54</td><td>deliveryDrivers fetches available drivers</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">55</td><td>assignDriver patches specific driver to order</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">56</td><td>driverLoadBalancing fetches load metrics</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">57</td><td>assignBestDriver posts to AI assignment endpoint</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">58</td><td>runDemandPredictionJob posts to analytics jobs</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">59</td><td>analyticsJobs fetches job list</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">60</td><td>demandPredictions fetches prediction list</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Zones, Offers, Campaigns, Incentives</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">61</td><td>marketplaceZones fetches zone list</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">62</td><td>createZone posts full zone payload</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">63</td><td>marketplaceOffers fetches active offers</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">64</td><td>createOffer posts coupon details</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">65</td><td>campaigns fetches campaign list</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">66</td><td>createCampaign posts campaign details</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">67</td><td>driverIncentives fetches incentive list</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">68</td><td>createDriverIncentive posts incentive with optional driverId</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Wallet &amp; Azure Integrations</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">69</td><td>walletSummary fetches balance and earnings</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">70</td><td>walletTransactions fetches transaction list</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">71</td><td>driverEarnings fetches per-delivery earnings</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">72</td><td>requestPayout posts UPI payout details</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">73</td><td>requestPayout posts bank payout details</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">74</td><td>adminPayouts fetches all pending payouts</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">75</td><td>updatePayoutApproval patches status and note</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">76</td><td>updatePayoutApproval can mark as paid</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">77</td><td>createAzureBlobAsset posts file metadata and base64 data</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">78</td><td>verifyAzureOcr posts imageUrl for Aadhaar OCR</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">79</td><td>verifyAzureFace posts selfieUrl and documentUrl for face match</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">80</td><td>auditLogs fetches API audit trail</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">81</td><td>verificationChecks fetches KYC check records</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Error Handling &amp; HTTP Contract</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">82</td><td>forwards error message from JSON body on 4xx</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">83</td><td>uses status code message when no error field present</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">84</td><td>wraps AbortError as timeout message</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">85</td><td>propagates unexpected network errors</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">86</td><td>sends content-type application/json on POST</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">87</td><td>does not send Authorization header when no token</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">88</td><td>sends idempotency-key header when provided</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════  SUITE 2: HELPERS  ═══════════════════ -->
+<div class="section-header">Suite 2 · helpers.test.ts — Utility Functions (35 tests)</div>
+
+<div class="section-sub">formatCurrency (paise → ₹ display)</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">1</td><td>converts paise to rupees with ₹ prefix</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">2</td><td>rounds down fractional rupees</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">3</td><td>formats zero as ₹0</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">4</td><td>formats large amounts correctly</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">5</td><td>formats minimum item price (₹1)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">6</td><td>handles wallet balance correctly</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">7</td><td>handles incentive reward correctly</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">titleCase (underscore → display text)</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">8</td><td>capitalizes single word</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">9</td><td>converts underscores to spaces and capitalizes each word</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">10</td><td>handles picked_up status</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">11</td><td>handles already-uppercase strings</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">12</td><td>handles multi-word status strings</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">13</td><td>handles restaurant role</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">14</td><td>handles delivery_admin role</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">15</td><td>handles non_veg diet type</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">16</td><td>handles single char word</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">JWT Role Decoding</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">17</td><td>extracts driver role from JWT</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">18</td><td>extracts restaurant role from JWT</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">19</td><td>extracts admin role from JWT</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">20</td><td>extracts super_admin role from JWT</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">21</td><td>extracts delivery_admin role from JWT</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">22</td><td>returns null for unknown role in JWT</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">23</td><td>returns null for malformed JWT</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">24</td><td>returns null when no role claim in payload</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Tab Routing by Role</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">25</td><td>driver role gets only driver tab</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">26</td><td>restaurant role gets only restaurant tab</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">27</td><td>admin role gets only admin tab</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">28</td><td>super_admin role gets only admin tab</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">29</td><td>delivery_admin role gets only admin tab</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">30</td><td>customer role falls through to admin tab</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Role Help Text</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">31</td><td>driver role gets driver help message</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">32</td><td>restaurant role gets restaurant help message</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">33</td><td>admin role gets admin help message</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">34</td><td>super_admin gets admin help message</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">35</td><td>delivery_admin gets admin help message</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════  SUITE 3: DRIVER  ═══════════════════ -->
+<div class="section-header">Suite 3 · driver.test.ts — Driver Module (39 tests)</div>
+
+<div class="section-sub">Driver Workspace Loading</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">1</td><td>loadDriverWork parallel calls succeed and return all data</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">2</td><td>loadDriverWork handles partial failures gracefully (simulating Promise.all error)</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Onboarding Form Validation</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">3</td><td>valid form passes validation</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">4</td><td>missing name fails validation</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">5</td><td>missing Aadhaar last 4 fails validation</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">6</td><td>missing Aadhaar front fails validation</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">7</td><td>missing Aadhaar back fails validation</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">8</td><td>missing selfie fails validation</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">9</td><td>all documents missing fails validation</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Azure KYC (OCR + Face)</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">10</td><td>uploads all three documents and submits onboarding</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">11</td><td>Azure OCR verification posts front document URL</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">12</td><td>Azure Face verification posts selfie and document URLs</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Order Lifecycle</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">13</td><td>accept → picked_up → delivered full lifecycle</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">14</td><td>send driver location during active delivery</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">15</td><td>available delivery orders returns list</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Background Check</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">16</td><td>runDriverBackgroundCheck sends consent and returns updated application</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">17</td><td>background check status transitions: pending → in_progress → clear</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Wallet</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">18</td><td>walletSummary returns balance, earnings, and pending payouts</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">19</td><td>walletTransactions returns debit and credit entries</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">20</td><td>requestPayout via UPI posts correct payload</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">21</td><td>requestPayout via bank account posts correct payload</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Incentives &amp; Customer APIs Used by Driver</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">22</td><td>driverIncentives returns active incentive list</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">23</td><td>incentive reward display calculates correctly</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">24</td><td>searchRestaurants with diet filter all returns results</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">25</td><td>createOrder uses restaurant ID and location</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">26</td><td>ETA calculation returns predicted minutes and route details</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">27</td><td>payment flow creates payment and returns redirect URL</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">28</td><td>cancel order sends reason to API</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">29</td><td>reorder creates a new order from previous order ID</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════  SUITE 4: RESTAURANT  ═══════════════════ -->
+<div class="section-header">Suite 4 · restaurant.test.ts — Restaurant Module (23 tests)</div>
+
+<div class="section-sub">Form Validation</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">1</td><td>valid form passes validation</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">2</td><td>missing name fails validation</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">3</td><td>missing address fails validation</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">4</td><td>missing phone fails validation</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">5</td><td>all fields missing fails with descriptive error</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Restaurant Panel Loading</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">6</td><td>loadRestaurantPanel fetches restaurants then their orders and earnings</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">7</td><td>loadRestaurantPanel with no restaurants skips order/earnings fetch</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Onboarding</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">8</td><td>onboardRestaurant posts complete registration payload</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">9</td><td>uses restaurant name as contactName when submitting</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Menu Management</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">10</td><td>addMenuItem creates item with isAvailable=true and formatted name</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">11</td><td>importMenuItems posts array from Google Places data (up to 3 items)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">12</td><td>importMenuItems requires Google Places data to be loaded first</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">13</td><td>menu item price is set to 34900 paise (₹349) for imports</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Order Accept / Reject</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">14</td><td>acceptOrder patches decision=accepted</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">15</td><td>rejectOrder patches decision=cancelled</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">16</td><td>restaurantOrders fetches orders with status and amount</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">17</td><td>pending orders show both accept and reject options</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Earnings &amp; Approval Status</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">18</td><td>restaurantEarnings returns order count, gross, and payout estimate</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">19</td><td>estimated payout is less than gross (deductions applied)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">20</td><td>earnings display formats paise correctly</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">21</td><td>approval status values are valid</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">22</td><td>onboarding status transitions are correct</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">23</td><td>myRestaurants shows approval and onboarding status</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════  SUITE 5: ADMIN  ═══════════════════ -->
+<div class="section-header">Suite 5 · admin.test.ts — Admin &amp; Super Admin Module (38 tests)</div>
+
+<div class="section-sub">Dashboard Loading</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">1</td><td>loadAdmin fetches all 20 data sources in parallel</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">2</td><td>loadAdmin is resilient: partial failures do not prevent other data from loading</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">3</td><td>dashboard stats banner shows correct KPIs</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Restaurant Approvals</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">4</td><td>approve restaurant patches status=approved</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">5</td><td>reject restaurant patches status=rejected</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">6</td><td>optimistic UI update: approval_status changes in local list</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Driver Onboarding (Admin)</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">7</td><td>driverOnboardingApplications fetches pending applications</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">8</td><td>approve driver application patches status=approved with note</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">9</td><td>reject driver application patches status=rejected with note</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">10</td><td>optimistic UI update for driver application approval</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">11</td><td>driverReferrals fetches referral list with rewards</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Driver Assignment &amp; Tracking</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">12</td><td>assignBestDriver calls AI assignment endpoint</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">13</td><td>assignDriver patches specific driver to order</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">14</td><td>Assign First Available picks first driver from deliveryDrivers list</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">15</td><td>deliveryAdminOrders returns live orders with driver coordinates</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">16</td><td>driverLoadBalancing returns capacity scores</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">17</td><td>driver location display shows coordinates or unavailable message</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Analytics &amp; ML Jobs</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">18</td><td>runDemandPredictionJob posts to analytics jobs endpoint</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">19</td><td>analyticsJobs fetches all ML job executions</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">20</td><td>demandPredictions returns zoned predictions with confidence</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Marketplace Operations</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">21</td><td>createZone generates unique name with timestamp suffix</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">22</td><td>createOffer generates unique coupon code</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">23</td><td>createCampaign with AI creative posts channel and budget</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">24</td><td>createDriverIncentive posts delivery target and reward</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">25</td><td>marketplaceZones returns zones with SLA and surge info</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Payout Approvals</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">26</td><td>adminPayouts fetches all pending payouts for drivers and restaurants</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">27</td><td>approve payout patches status=approved with note</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">28</td><td>mark payout as paid patches status=paid</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">29</td><td>reject payout patches status=rejected</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">30</td><td>optimistic UI update removes approved payout from pending list</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Support &amp; Audit</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">31</td><td>createSupportTicket posts test ticket from admin</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">32</td><td>supportTickets lists all tickets with status</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">33</td><td>auditLogs returns HTTP method, path, and status code</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">34</td><td>verificationChecks returns provider, type, and status</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">35</td><td>paymentReports returns provider stats grouped by status</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">36</td><td>adminAllOrders returns all orders with status breakdown</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">37</td><td>dashboard ordersByStatus displays correct counts</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">38</td><td>adminUsers returns user list with roles</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════  SUITE 6: RBAC  ═══════════════════ -->
+<div class="section-header">Suite 6 · rbac.test.ts — Role-Based Access Control (63 tests)</div>
+
+<div class="section-sub">JWT Role Extraction (All 6 Roles)</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">1</td><td>extracts customer role from JWT</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">2</td><td>extracts driver role from JWT</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">3</td><td>extracts restaurant role from JWT</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">4</td><td>extracts admin role from JWT</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">5</td><td>extracts super_admin role from JWT</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">6</td><td>extracts delivery_admin role from JWT</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">7</td><td>returns null for unknown role 'superuser'</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">8</td><td>returns null for JWT with no role claim</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">9</td><td>returns null for malformed JWT (1 segment)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">10</td><td>returns null for empty string</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">11</td><td>returns null for JWT with invalid base64 payload</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">12</td><td>JWT contains iat and exp claims alongside role</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Tab Routing</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">13</td><td>driver → ['driver'] tab only</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">14</td><td>restaurant → ['restaurant'] tab only</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">15</td><td>admin → ['admin'] tab</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">16</td><td>super_admin → ['admin'] tab (same UI, broader data)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">17</td><td>delivery_admin → ['admin'] tab</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">18</td><td>customer → falls through to ['admin'] tab (no dedicated customer tab)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">19</td><td>no role gives access to more than one tab at a time</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">20</td><td>invalid tab is reset to the first available tab</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Role Help Text</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">21</td><td>driver gets driver-specific help</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">22</td><td>restaurant gets restaurant-specific help</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">23</td><td>admin gets admin help text</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">24</td><td>super_admin gets admin help text</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">25</td><td>delivery_admin gets admin help text</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">26</td><td>customer gets admin help text</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Customer Role API Access</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">27</td><td>customer can search restaurants</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">28</td><td>customer can view trending restaurants</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">29</td><td>customer can create an order</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">30</td><td>customer can view marketplace offers</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">31</td><td>customer can submit a restaurant review</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">32</td><td>customer can create a support ticket</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">33</td><td>customer can cancel an order</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">34</td><td>customer can request a refund</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">35</td><td>customer can reorder a previous order</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">36</td><td>customer can initiate payment via PhonePe</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">37</td><td>customer can get order ETA</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Super Admin Scope</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">38</td><td>both admin and super_admin can fetch admin dashboard</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">39</td><td>super_admin can approve restaurants (same endpoint as admin)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">40</td><td>super_admin can access payment reports for all providers</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">41</td><td>super_admin can view all platform users</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">42</td><td>super_admin can run demand prediction ML jobs</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">43</td><td>super_admin can approve driver payout requests</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Delivery Admin Scope</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">44</td><td>delivery_admin can list all active delivery orders</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">45</td><td>delivery_admin can list available delivery drivers</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">46</td><td>delivery_admin can assign a specific driver to an order</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">47</td><td>delivery_admin can use AI best-driver assignment</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">48</td><td>delivery_admin can view driver load balancing scores</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Driver Role API Access</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">49</td><td>driver can view available delivery orders</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">50</td><td>driver can accept a delivery order</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">51</td><td>driver can update order status to picked_up and delivered</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">52</td><td>driver can request UPI payout from wallet</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">53</td><td>driver can submit onboarding application</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Restaurant Role API Access</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">54</td><td>restaurant can submit onboarding with compliance IDs</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">55</td><td>restaurant can add menu items</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">56</td><td>restaurant can accept an incoming order</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">57</td><td>restaurant can view its own earnings</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Unauthenticated State</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">58</td><td>token is empty string by default (not authenticated)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">59</td><td>authed flag is false when token is empty</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">60</td><td>authed flag is true when token is present</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">61</td><td>unauthenticated request has no Authorization header (OTP request)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">62</td><td>OTP verify also sends no Authorization header</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════  SUITE 7: MENU  ═══════════════════ -->
+<div class="section-header">Suite 7 · menu.test.ts — Menu Management (31 tests)</div>
+
+<div class="section-sub">Adding Menu Items</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">1</td><td>creates veg item with photo URL, cuisine, and rating</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">2</td><td>creates non-veg item (isVeg: false)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">3</td><td>creates item without photo URL (photoUrl omitted)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">4</td><td>creates item with empty photoUrl string (fallback for no photo)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">5</td><td>isAvailable is always set to true regardless of input</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">6</td><td>creates item with rating=5 (maximum)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">7</td><td>creates item with rating=1 (minimum)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">8</td><td>creates item with multiple cuisine categories</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">9</td><td>posts to correct restaurant-specific menu endpoint</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Bulk Import from Google Places</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">10</td><td>imports up to 3 items from Google Places data</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">11</td><td>imported items include googlePlaceId for deduplication</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">12</td><td>imported items use photoUrl from Google Places or empty string fallback</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">13</td><td>imported items preserve rating from Google Places</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">14</td><td>import posts to correct endpoint</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">15</td><td>import sends items array wrapped in body object</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Search &amp; Filters</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">16</td><td>search with diet=veg returns veg items (is_veg: true)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">17</td><td>search with diet=non_veg returns non-veg items (is_veg: false)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">18</td><td>search with diet=all returns mixed items</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">19</td><td>search result includes photo_url field (can be null)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">20</td><td>search result includes cuisine_type and rating metadata</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">21</td><td>search by cuisine type sets query param correctly</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">22</td><td>search by minimum rating filters correctly</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">23</td><td>search sorted by distance includes sort param</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">24</td><td>search by max price includes maxPricePaise param</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">25</td><td>search result includes distance_km for nearby sorting</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Pricing &amp; Trending</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">26</td><td>price is stored in paise (integer)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">27</td><td>price in paise converts correctly to rupees display</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">28</td><td>default import price is 34900 paise (₹349)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">29</td><td>default single-add price is 29900 paise (₹299)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">30</td><td>trending results include starting_price_paise and photo_url</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">31</td><td>trending results include predicted ETA in minutes</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════  SUITE 8: RESTAURANT PANEL  ═══════════════════ -->
+<div class="section-header">Suite 8 · restaurant-panel.test.ts — Restaurant Panel Web App (48 tests)</div>
+
+<div class="section-sub">OTP &amp; Login</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">1</td><td>OTP request uses phone number only (no auth header)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">2</td><td>OTP verify sends role=restaurant to get restaurant-scoped JWT</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">3</td><td>dev OTP code is returned in response for test environment</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">4</td><td>workspace is revealed after successful login (token is set)</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Restaurant Onboarding (FSSAI/GST)</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">5</td><td>submits complete onboarding with all required fields</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">6</td><td>FSSAI license is included in onboarding payload</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">7</td><td>GST number is included in onboarding payload</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">8</td><td>bank account last 4 is included as reference (not full number)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">9</td><td>FSSAI and GST are optional — onboarding succeeds without them</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">10</td><td>contact name and contact phone are separate from restaurant name</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">11</td><td>restaurant submission requires Super Admin approval (pending state)</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">optionalValue Helper</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">12</td><td>non-empty string is returned as-is</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">13</td><td>empty string returns undefined (field omitted from payload)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">14</td><td>whitespace-only string returns undefined</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">15</td><td>GST number returns correctly when provided</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">16</td><td>bank last 4 returns undefined when empty (not provided)</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">formatCurrency (INR, Intl.NumberFormat)</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">17</td><td>formats 0 paise as INR 0.00</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">18</td><td>formats 1050000 paise as INR 10,500.00</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">19</td><td>formats 24900 paise as INR 249.00</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">20</td><td>formats 945000 paise (estimated payout) as INR 9,450.00</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">escapeHtml (XSS Prevention)</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">21</td><td>escapes &lt; and &gt; to prevent HTML injection</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">22</td><td>escapes &amp; ampersand</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">23</td><td>escapes double quotes</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">24</td><td>escapes single quotes</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">25</td><td>handles null safely (returns empty string)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">26</td><td>handles undefined safely (returns empty string)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">27</td><td>plain text is unchanged</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">28</td><td>order ID is safe to render in HTML (no special chars)</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Restaurant List &amp; Operations</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">29</td><td>dropdown option shows name + onboarding_status + approval_status</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">30</td><td>only approved restaurants can process orders (approval_status check)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">31</td><td>loadRestaurantData fetches orders and earnings in parallel</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">32</td><td>adds menu item with name, pricePaise, and isAvailable=true</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">33</td><td>pricePaise must be a number (not a string)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">34</td><td>accept order patches decision=accepted</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">35</td><td>reject order patches decision=cancelled</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">36</td><td>after decision, restaurant data is reloaded (orders + earnings)</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Approval State Machine</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">37</td><td>approval_status 'pending' is a valid state</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">38</td><td>approval_status 'approved' is a valid state</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">39</td><td>approval_status 'rejected' is a valid state</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">40</td><td>onboarding_status 'pending' is a valid state</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">41</td><td>onboarding_status 'submitted' is a valid state</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">42</td><td>onboarding_status 'complete' is a valid state</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">43</td><td>onboarding_status 'rejected' is a valid state</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">44</td><td>new restaurant starts with approval_status=pending</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">45</td><td>Super Admin approval transitions pending→approved</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">46</td><td>Super Admin rejection transitions pending→rejected</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">47</td><td>can reset rejected restaurant back to pending for re-review</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">48</td><td>approval status drives operational readiness</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════  SUITE 9: OFFERS & REVIEWS  ═══════════════════ -->
+<div class="section-header">Suite 9 · offers-reviews.test.ts — Offers, Reviews &amp; Support (35 tests)</div>
+
+<div class="section-sub">Marketplace Offers</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">1</td><td>fetches active offers with code and title</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">2</td><td>flat discount shows ₹amount off</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">3</td><td>percent discount shows %value off</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">4</td><td>createOffer posts flat discount payload correctly</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">5</td><td>createOffer posts percent discount payload correctly</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">6</td><td>minimum order amount is enforced via minOrderPaise</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">7</td><td>offer is applicable when order meets minimum</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">8</td><td>flat discount applied to order total</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">9</td><td>percent discount applied to order total</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">10</td><td>offer code is uppercase alphanumeric</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Restaurant Reviews</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">11</td><td>creates review with rating, comment, and orderId</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">12</td><td>creates review with only rating (no comment, no orderId)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">13</td><td>creates review with rating=1 (minimum valid rating)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">14</td><td>creates review with rating=5 (maximum valid rating)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">15</td><td>all integer ratings 1–5 are valid</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">16</td><td>review is tied to specific restaurant via URL path</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">17</td><td>review uses Bearer token from customer session</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">18</td><td>comment is optional — omitted when not provided</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Support Tickets (5 Categories)</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">19</td><td>creates ticket with category='delivery'</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">20</td><td>creates ticket with category='billing'</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">21</td><td>creates ticket with category='quality'</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">22</td><td>creates ticket with category='technical'</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">23</td><td>creates ticket with category='other'</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">24</td><td>creates delivery issue ticket linked to an order</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">25</td><td>creates billing dispute ticket</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">26</td><td>creates technical issue ticket without orderId</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">27</td><td>admin creates test ticket for monitoring</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">28</td><td>posts to correct support tickets endpoint</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">29</td><td>admin fetches all tickets with status</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">30</td><td>ticket status transitions: open → in_progress → resolved</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">31</td><td>tickets can be filtered by status on admin view</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">32</td><td>ticket subject is a short description, message is full detail</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Google Places (Delhi NCR &amp; Region)</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">33</td><td>Delhi NCR places returns restaurants with photo URLs</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">34</td><td>places filtered by minimum rating</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">35</td><td>regional places also returns structured restaurant data</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════  SUITE 10: ZONES & CAMPAIGNS  ═══════════════════ -->
+<div class="section-header">Suite 10 · zones-campaigns.test.ts — Zones, Campaigns &amp; Analytics (41 tests)</div>
+
+<div class="section-sub">Zone Management</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">1</td><td>creates zone with all required fields</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">2</td><td>creates zone with tight SLA (15 min) for dense urban area</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">3</td><td>creates zone with relaxed SLA (30 min) for suburban area</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">4</td><td>creates zones across multiple cities</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">5</td><td>fetches zone list with SLA and surge multiplier</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">6</td><td>surge multiplier above 1.0 signals peak-demand pricing</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">7</td><td>SLA breach threshold: orders above sla_minutes are late</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">8</td><td>zone name uses timestamp suffix for uniqueness</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">9</td><td>posts to /api/v1/marketplace/zones</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Campaign Management (4 Channels)</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">10</td><td>creates campaign with channel='push'</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">11</td><td>creates campaign with channel='email'</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">12</td><td>creates campaign with channel='whatsapp'</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">13</td><td>creates campaign with channel='ads'</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">14</td><td>campaign includes AI creative text when provided</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">15</td><td>campaign without AI creative has undefined aiCreative field</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">16</td><td>campaign budget is stored in paise</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">17</td><td>fetches campaigns with status, channel and ai_creative</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">18</td><td>campaign status values: active, paused, completed</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">19</td><td>active campaigns are the only ones driving spend</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">20</td><td>campaign name uses timestamp suffix for uniqueness</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">21</td><td>push campaigns are suited for real-time delivery alerts</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Driver Incentives</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">22</td><td>creates incentive with delivery target and reward</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">23</td><td>creates platform-wide incentive (no specific driverId)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">24</td><td>creates driver-specific incentive with driverId</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">25</td><td>fetches incentives with target_deliveries, reward_paise, status</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">26</td><td>incentive reward display: '50 deliveries → ₹75'</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">27</td><td>incentive progress: completed_deliveries vs target</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">28</td><td>incentive name uses timestamp suffix for uniqueness</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Driver Load Balancing</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">29</td><td>fetches driver load with active_orders and capacity_score</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">30</td><td>capacity_score=1.0 means fully available (no active orders)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">31</td><td>capacity_score decreases as active_orders increase</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">32</td><td>best driver has highest capacity_score</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">33</td><td>assignBestDriver posts to AI endpoint and returns assigned driverId</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">34</td><td>Assign First Available picks driver with lowest active_orders</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Demand Predictions &amp; Analytics</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">35</td><td>fetches predictions with zone_key, cuisine_type, hour, count, confidence</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">36</td><td>confidence levels are: high, medium, low</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">37</td><td>high confidence prediction drives staffing decisions</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">38</td><td>null cuisine_type means all-cuisine aggregate prediction</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">39</td><td>runDemandPredictionJob triggers ML job and returns predictions array</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">40</td><td>analytics jobs list shows job_type, status, and timestamp</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">41</td><td>job summary contains execution metadata</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════  SUITE 11: WALLET  ═══════════════════ -->
+<div class="section-header">Suite 11 · wallet-system.test.ts — Wallet &amp; Payouts (33 tests)</div>
+
+<div class="section-sub">Wallet Summary</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">1</td><td>returns balance, total earnings, total payouts, and aggregates</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">2</td><td>balance equals total_earnings minus total_payouts</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">3</td><td>shows pending payout amount when request exists</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">4</td><td>propagates 401 when token is invalid</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Driver Earnings Per Delivery</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">5</td><td>returns list of earnings with order_id and amount</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">6</td><td>each earning entry has a timestamp</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">7</td><td>returns empty array when driver has no earnings yet</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">8</td><td>total earnings sum matches expected value</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Transaction History (Credit &amp; Debit)</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">9</td><td>returns credit transactions from deliveries</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">10</td><td>returns debit transactions from payouts</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">11</td><td>returns mixed credit and debit transactions in order</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">12</td><td>all transactions have a status field</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">13</td><td>propagates server error on 500</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Payout Requests (UPI &amp; Bank)</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">14</td><td>submits payout request with UPI method and upiId</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">15</td><td>submits payout request with bank method and bankAccountLast4</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">16</td><td>rejects payout when balance is insufficient (422)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">17</td><td>rejects payout when a pending request already exists (409)</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Admin Payout Queue</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">18</td><td>returns all pending payout requests across drivers</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">19</td><td>includes phone and role for each payout</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">20</td><td>phone may be null for anonymous payouts</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">21</td><td>returns empty list when no payouts are queued</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Payout Approval State Machine</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">22</td><td>transitions pending → approved</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">23</td><td>transitions approved → paid</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">24</td><td>transitions pending → rejected with note</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">25</td><td>sends PATCH to correct payout ID endpoint</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">26</td><td>rejects with 404 when payout ID does not exist</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">27</td><td>rejects with 409 when transition is invalid (e.g. paid → approved)</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<div class="section-sub">Balance Invariants &amp; Network Resilience</div>
+<table class="tests">
+<thead><tr><th class="tc">#</th><th>Test Case</th><th class="status">Result</th></tr></thead>
+<tbody>
+<tr><td class="tc">28</td><td>net balance after multiple deliveries and one payout</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">29</td><td>paise to rupees conversion is correct (100 paise = 1 rupee)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">30</td><td>zero balance when all earnings have been paid out</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">31</td><td>walletSummary rejects on network timeout (AbortError)</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">32</td><td>driverEarnings rejects on network timeout</td><td class="status result-pass">✓ PASS</td></tr>
+<tr><td class="tc">33</td><td>requestPayout rejects on network timeout</td><td class="status result-pass">✓ PASS</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════  FOOTER  ═══════════════════ -->
+<div style="margin-top:40px; padding:20px; background:#f5f5f5; border-top:2px solid #e65c00; text-align:center; font-size:9.5pt; color:#666;">
+  AmberKitchen Mobile App — Automated Test Report · Generated 9 May 2026 ·
+  Branch: claude/setup-local-react-native-aqahl ·
+  <strong style="color:#27ae60;">463 / 463 Tests Passed · 0 Failures</strong>
+</div>
+
+</body>
+</html>
