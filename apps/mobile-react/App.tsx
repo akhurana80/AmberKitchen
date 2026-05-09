@@ -966,14 +966,13 @@ export default function App() {
 
             {/* Restaurant Approvals */}
             <Divider label="Restaurant Approvals" />
-            <Text style={styles.sectionHint}>Tap a restaurant row to approve it instantly.</Text>
             {adminRestaurants.length === 0
               ? <Text style={styles.emptyHint}>No restaurants to review. Load admin dashboard first.</Text>
               : adminRestaurants.slice(0, 6).map(item => (
                 <ListItem
                   key={item.id}
                   title={item.name}
-                  subtitle={`${titleCase(item.approval_status)} — tap to approve`}
+                  subtitle={titleCase(item.approval_status)}
                   onPress={async () => {
                     const result = await run("Approving restaurant", () => api.updateRestaurantApproval(token, item.id, "approved"));
                     if (result) setAdminRestaurants(prev => prev.map(r => r.id === item.id ? { ...r, approval_status: "approved" } : r));
@@ -1058,7 +1057,6 @@ export default function App() {
 
             {/* Driver Onboarding Admin */}
             <Divider label="Driver Onboarding Admin" />
-            <Text style={styles.sectionHint}>Tap an application to approve it.</Text>
             {driverApplications.length === 0
               ? <Text style={styles.emptyHint}>No driver applications pending.</Text>
               : driverApplications.slice(0, 4).map(item => (
@@ -1082,7 +1080,6 @@ export default function App() {
 
             {/* Payouts */}
             <Divider label="Payouts" />
-            <Text style={styles.sectionHint}>Tap a payout row to approve it.</Text>
             {adminPayouts.length === 0
               ? <Text style={styles.emptyHint}>No pending payouts.</Text>
               : adminPayouts.slice(0, 4).map(item => (
