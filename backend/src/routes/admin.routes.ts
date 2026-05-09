@@ -40,16 +40,29 @@ adminRoutes.get("/dashboard", async (_req, res, next) => {
   }
 });
 
-adminRoutes.get("/orders", requireRole("admin", "super_admin"), async (_req, res, next) => {
+adminRoutes.get("/orders", requireRole("admin", "super_admin"), async (req, res, next) => {
   try {
-    const result = await query<{ provider: string; status: string; transactions: string; amount_paise: string }>(
+    const userId = req.query.userId as string | undefined;
+    const search = (req.query.search as string | undefined)?.trim();
+    const params: unknown[] = [];
+    let whereClause = "";
+    if (userId) {
+      params.push(userId);
+      whereClause = `where o.customer_id = $${params.length}`;
+    } else if (search) {
+      params.push(search, `%${search}%`);
+      whereClause = `where o.id::text = $1 or r.name ilike $2`;
+    }
+    const result = await query(
       `select o.*, r.name as restaurant_name, u.phone as customer_phone, d.phone as driver_phone
        from orders o
        left join restaurants r on r.id = o.restaurant_id
        left join users u on u.id = o.customer_id
        left join users d on d.id = o.driver_id
+       ${whereClause}
        order by o.created_at desc
-       limit 200`
+       limit 200`,
+      params
     );
     res.json(result.rows);
   } catch (error) {
@@ -57,13 +70,20 @@ adminRoutes.get("/orders", requireRole("admin", "super_admin"), async (_req, res
   }
 });
 
-adminRoutes.get("/users", requireRole("admin", "super_admin"), async (_req, res, next) => {
+adminRoutes.get("/users", requireRole("admin", "super_admin"), async (req, res, next) => {
   try {
+    const search = (req.query.search as string | undefined)?.trim();
+    const params: unknown[] = [];
+    const whereClause = search
+      ? (params.push(`%${search}%`, search), `where name ilike $1 or phone ilike $1 or email ilike $1 or id::text = $2`)
+      : "";
     const result = await query(
-      `select id, phone, email, name, role, created_at, updated_at
+      `select id, phone, email, name, role, is_banned, created_at, updated_at
        from users
+       ${whereClause}
        order by created_at desc
-       limit 200`
+       limit 200`,
+      params
     );
     res.json(result.rows);
   } catch (error) {
@@ -77,7 +97,7 @@ adminRoutes.patch("/users/:id/role", requireRole("super_admin"), async (req, res
     const result = await query(
       `update users set role = $1::user_role, updated_at = now()
        where id = $2
-       returning id, phone, email, name, role`,
+       returning id, phone, email, name, role, is_banned`,
       [role, req.params.id]
     );
     res.json(result.rows[0]);
@@ -86,13 +106,34 @@ adminRoutes.patch("/users/:id/role", requireRole("super_admin"), async (req, res
   }
 });
 
-adminRoutes.get("/restaurants", requireRole("admin", "super_admin"), async (_req, res, next) => {
+adminRoutes.patch("/users/:id/ban", requireRole("super_admin"), async (req, res, next) => {
   try {
+    const banned = Boolean(req.body.banned);
     const result = await query(
-      `select r.*, u.phone as owner_phone, u.email as owner_email
+      `update users set is_banned = $1, updated_at = now()
+       where id = $2
+       returning id, phone, email, name, role, is_banned`,
+      [banned, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRoutes.get("/restaurants", requireRole("admin", "super_admin"), async (req, res, next) => {
+  try {
+    const search = (req.query.search as string | undefined)?.trim();
+    const params: unknown[] = [];
+    const whereClause = search ? (params.push(`%${search}%`), `where r.name ilike $1`) : "";
+    const result = await query(
+      `select r.id, r.name, r.address, r.approval_status, r.rejection_reason, r.is_active, r.cuisine_type, r.created_at,
+              u.phone as owner_phone, u.email as owner_email
        from restaurants r
        left join users u on u.id = r.owner_id
-       order by r.created_at desc`
+       ${whereClause}
+       order by r.created_at desc`,
+      params
     );
     res.json(result.rows);
   } catch (error) {
@@ -106,19 +147,36 @@ adminRoutes.patch("/restaurants/:id/approval", requireRole("super_admin"), async
     if (!["approved", "rejected", "pending"].includes(status)) {
       return res.status(400).json({ error: "Invalid restaurant approval status" });
     }
+    const rejectionReason = status === "rejected" ? (req.body.rejectionReason ?? null) : null;
 
     const result = await query(
       `update restaurants
        set approval_status = $1::text,
+           rejection_reason = $3,
            onboarding_status = case
              when $1::text = 'approved' then 'approved'
              when $1::text = 'rejected' then 'rejected'
              else onboarding_status
            end
        where id = $2
-       returning *`,
-      [status, req.params.id]
+       returning id, name, address, approval_status, rejection_reason`,
+      [status, req.params.id, rejectionReason]
     );
+    res.json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRoutes.patch("/restaurants/:id/offboard", requireRole("super_admin"), async (req, res, next) => {
+  try {
+    const result = await query(
+      `update restaurants set is_active = false, updated_at = now()
+       where id = $1
+       returning id, name, address, approval_status, rejection_reason, is_active`,
+      [req.params.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: "Restaurant not found" });
     res.json(result.rows[0]);
   } catch (error) {
     next(error);

@@ -78,12 +78,21 @@ export default function App() {
   const [restaurantOrders, setRestaurantOrders] = useState<Array<{ id: string; status: string; total_paise: number }>>([]);
   const [restaurantEarnings, setRestaurantEarnings] = useState<{ orders: string; gross_paise: string; estimated_payout_paise: string } | null>(null);
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
-  const [adminRestaurants, setAdminRestaurants] = useState<Array<{ id: string; name: string; address: string; approval_status: string }>>([]);
-  const [adminUsers, setAdminUsers] = useState<Array<{ id: string; phone: string | null; email: string | null; name: string | null; role: string }>>([]);
+  const [adminRestaurants, setAdminRestaurants] = useState<Array<{ id: string; name: string; address: string; approval_status: string; rejection_reason: string | null; is_active: boolean }>>([]);
+  const [restaurantSearch, setRestaurantSearch] = useState("");
+  const [restaurantSearchResults, setRestaurantSearchResults] = useState<Array<{ id: string; name: string; address: string; approval_status: string; rejection_reason: string | null; is_active: boolean }> | null>(null);
+  const [adminUsers, setAdminUsers] = useState<Array<{ id: string; phone: string | null; email: string | null; name: string | null; role: string; is_banned: boolean }>>([]);
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const [userOrdersMap, setUserOrdersMap] = useState<Record<string, Array<{ id: string; status: string; total_paise: number; restaurant_name: string; created_at: string }>>>({});
+  const [userSearch, setUserSearch] = useState("");
+  const [userSearchResults, setUserSearchResults] = useState<Array<{ id: string; phone: string | null; email: string | null; name: string | null; role: string; is_banned: boolean }> | null>(null);
   const [adminOrders, setAdminOrders] = useState<Array<{ id: string; status: string; total_paise: number; restaurant_name: string }>>([]);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderSearchResults, setOrderSearchResults] = useState<Array<{ id: string; status: string; total_paise: number; restaurant_name: string; created_at: string }> | null>(null);
   const [paymentReports, setPaymentReports] = useState<Array<{ provider: string; status: string; transactions: number; amount_paise: number }>>([]);
   const [driverLoad, setDriverLoad] = useState<Array<{ id: string; phone: string | null; active_orders: number; capacity_score: number }>>([]);
   const [deliveryOrders, setDeliveryOrders] = useState<Array<{ id: string; status: string; restaurant_name: string; last_driver_lat: string | null; last_driver_lng: string | null }>>([]);
+  const [deliverySearch, setDeliverySearch] = useState("");
   const [deliveryDrivers, setDeliveryDrivers] = useState<Array<{ id: string; phone: string | null; name: string | null }>>([]);
   const [zones, setZones] = useState<Array<{ id: string; name: string; city: string; sla_minutes: number; surge_multiplier: string }>>([]);
   const [offers, setOffers] = useState<Array<{ id: string; code: string; title: string; discount_type: string; discount_value: number }>>([]);
@@ -957,38 +966,258 @@ export default function App() {
 
             {/* User Management */}
             <Divider label="User Management" />
-            {adminUsers.length === 0
-              ? <Text style={styles.emptyHint}>Load admin dashboard to see users.</Text>
-              : adminUsers.slice(0, 5).map(item => (
-                <ListItem key={item.id} title={item.name ?? item.phone ?? item.email ?? item.id} subtitle={titleCase(item.role)} />
-              ))
-            }
+            <View style={styles.orderSearchRow}>
+              <TextInput
+                style={[styles.input, { flex: 1 }]}
+                placeholder="Name, phone, email or User ID…"
+                placeholderTextColor="#94a3b8"
+                value={userSearch}
+                onChangeText={text => { setUserSearch(text); if (!text) setUserSearchResults(null); }}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Pressable
+                style={[styles.button, { marginLeft: 8 }, (!userSearch.trim() || loading) && styles.buttonDisabled]}
+                disabled={!userSearch.trim() || loading}
+                onPress={async () => {
+                  const result = await run("Searching users", () => api.adminUsersSearch(token, userSearch.trim()));
+                  if (result) setUserSearchResults(result as typeof userSearchResults);
+                }}
+              >
+                <Text style={styles.buttonText}>Load</Text>
+              </Pressable>
+            </View>
+            {(() => {
+              const q = userSearch.trim().toLowerCase();
+              const displayUsers = userSearchResults
+                ?? (q
+                  ? adminUsers.filter(u =>
+                      (u.name ?? "").toLowerCase().includes(q) ||
+                      (u.phone ?? "").includes(q) ||
+                      (u.email ?? "").toLowerCase().includes(q) ||
+                      u.id.toLowerCase().startsWith(q)
+                    )
+                  : Object.values(
+                      adminUsers.reduce<Record<string, typeof adminUsers[0]>>((acc, u) => {
+                        if (!acc[u.role]) acc[u.role] = u;
+                        return acc;
+                      }, {})
+                    ).slice(0, 5));
+              if (adminUsers.length === 0 && !userSearchResults) {
+                return <Text style={styles.emptyHint}>Load admin dashboard to see users.</Text>;
+              }
+              if (displayUsers.length === 0) {
+                return <Text style={styles.emptyHint}>No users match "{userSearch}".</Text>;
+              }
+              return displayUsers.map(item => {
+                const isExpanded = expandedUserId === item.id;
+                const orders = userOrdersMap[item.id];
+                const displayName = item.name ?? item.phone ?? item.email ?? item.id.slice(0, 8);
+                return (
+                  <View key={item.id} style={[styles.listItem, item.is_banned && styles.listItemBanned]}>
+                    <Pressable onPress={() => setExpandedUserId(isExpanded ? null : item.id)}>
+                      <View style={styles.userRowHeader}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.listTitle}>{displayName}</Text>
+                          <Text style={styles.listSubtitle}><Text style={{ color: "#3b82f6", fontWeight: "700" }}>{titleCase(item.role)}</Text>{item.is_banned ? " · BANNED" : ""}</Text>
+                        </View>
+                        <Text style={styles.listTapHint}>{isExpanded ? "▲" : "▼"}</Text>
+                      </View>
+                    </Pressable>
+                    {isExpanded && (
+                      <View style={styles.userExpandedPanel}>
+                        <Text style={styles.userPanelLabel}>Change Role</Text>
+                        <View style={[styles.actions, { marginBottom: 6 }]}>
+                          {(["customer", "driver", "restaurant", "admin", "super_admin", "delivery_admin"] as const).map(r => (
+                            <Pressable
+                              key={r}
+                              style={[styles.roleChip, item.role === r && styles.roleChipActive]}
+                              disabled={loading || item.role === r}
+                              onPress={async () => {
+                                const updated = await run(`Changing role to ${r}`, () => api.changeUserRole(token, item.id, r));
+                                if (updated) {
+                                  const patch = { role: (updated as typeof item).role };
+                                  setAdminUsers(prev => prev.map(u => u.id === item.id ? { ...u, ...patch } : u));
+                                  setUserSearchResults(prev => prev ? prev.map(u => u.id === item.id ? { ...u, ...patch } : u) : null);
+                                }
+                              }}
+                            >
+                              <Text style={[styles.roleChipText, item.role === r && styles.roleChipTextActive]}>{titleCase(r)}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                        <Pressable
+                          style={[styles.button, item.is_banned ? styles.buttonUnban : styles.buttonBan, { alignSelf: "flex-start", marginBottom: 8 }]}
+                          disabled={loading}
+                          onPress={async () => {
+                            const updated = await run(item.is_banned ? "Unbanning user" : "Banning user", () => api.banUser(token, item.id, !item.is_banned));
+                            if (updated) {
+                              const patch = { is_banned: (updated as typeof item).is_banned };
+                              setAdminUsers(prev => prev.map(u => u.id === item.id ? { ...u, ...patch } : u));
+                              setUserSearchResults(prev => prev ? prev.map(u => u.id === item.id ? { ...u, ...patch } : u) : null);
+                            }
+                          }}
+                        >
+                          <Text style={styles.buttonText}>{item.is_banned ? "Unban User" : "Ban User"}</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[styles.button, { alignSelf: "flex-start", marginBottom: orders ? 8 : 0 }]}
+                          disabled={loading}
+                          onPress={async () => {
+                            if (orders) { setUserOrdersMap(prev => { const next = { ...prev }; delete next[item.id]; return next; }); return; }
+                            const result = await run("Loading order history", () => api.adminUserOrders(token, item.id));
+                            if (result) setUserOrdersMap(prev => ({ ...prev, [item.id]: result as typeof orders }));
+                          }}
+                        >
+                          <Text style={styles.buttonText}>{orders ? "Hide Orders" : "View Order History"}</Text>
+                        </Pressable>
+                        {orders && orders.length === 0 && <Text style={styles.emptyHint}>No orders for this user.</Text>}
+                        {orders && orders.map(o => (
+                          <View key={o.id} style={styles.userOrderRow}>
+                            <Text style={styles.listTitle}>{o.restaurant_name ?? "—"} · {titleCase(o.status)}</Text>
+                            <Text style={styles.listSubtitle}>{formatCurrency(o.total_paise)} · {new Date(o.created_at).toLocaleDateString()}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                );
+              });
+            })()}
 
             {/* Restaurant Approvals */}
             <Divider label="Restaurant Approvals" />
-            {adminRestaurants.length === 0
-              ? <Text style={styles.emptyHint}>No restaurants to review. Load admin dashboard first.</Text>
-              : adminRestaurants.slice(0, 6).map(item => (
-                <ListItem
+            <View style={styles.orderSearchRow}>
+              <TextInput
+                style={[styles.input, { flex: 1 }]}
+                placeholder="Search restaurant name…"
+                placeholderTextColor="#94a3b8"
+                value={restaurantSearch}
+                onChangeText={text => { setRestaurantSearch(text); if (!text) setRestaurantSearchResults(null); }}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Pressable
+                style={[styles.button, { marginLeft: 8 }, (!restaurantSearch.trim() || loading) && styles.buttonDisabled]}
+                disabled={!restaurantSearch.trim() || loading}
+                onPress={async () => {
+                  const result = await run("Searching restaurants", () => api.adminRestaurantsSearch(token, restaurantSearch.trim()));
+                  if (result) setRestaurantSearchResults(result as typeof restaurantSearchResults);
+                }}
+              >
+                <Text style={styles.buttonText}>Load</Text>
+              </Pressable>
+            </View>
+            {(() => {
+              const q = restaurantSearch.trim().toLowerCase();
+              const displayRestaurants = restaurantSearchResults
+                ?? (q
+                  ? adminRestaurants.filter(r => r.name.toLowerCase().includes(q))
+                  : Object.values(
+                      adminRestaurants.reduce<Record<string, typeof adminRestaurants[0]>>((acc, r) => {
+                        if (!acc[r.approval_status]) acc[r.approval_status] = r;
+                        return acc;
+                      }, {})
+                    ).slice(0, 5));
+              if (adminRestaurants.length === 0 && !restaurantSearchResults) {
+                return <Text style={styles.emptyHint}>No restaurants to review. Load admin dashboard first.</Text>;
+              }
+              if (displayRestaurants.length === 0) {
+                return <Text style={styles.emptyHint}>{q ? `No restaurants match "${restaurantSearch}".` : "No pending approvals."}</Text>;
+              }
+              return displayRestaurants.map(item => (
+                <RestaurantRow
                   key={item.id}
-                  title={item.name}
-                  subtitle={titleCase(item.approval_status)}
-                  onPress={async () => {
+                  name={item.name}
+                  approvalStatus={item.approval_status}
+                  isActive={item.is_active}
+                  rejectionReason={item.rejection_reason}
+                  onApprove={item.approval_status === "approved" ? undefined : async () => {
                     const result = await run("Approving restaurant", () => api.updateRestaurantApproval(token, item.id, "approved"));
-                    if (result) setAdminRestaurants(prev => prev.map(r => r.id === item.id ? { ...r, approval_status: "approved" } : r));
+                    if (result) {
+                      setAdminRestaurants(prev => prev.map(r => r.id === item.id ? { ...r, approval_status: "approved", rejection_reason: null } : r));
+                      setRestaurantSearchResults(prev => prev ? prev.map(r => r.id === item.id ? { ...r, approval_status: "approved", rejection_reason: null } : r) : null);
+                    }
                   }}
+                  onReject={item.approval_status === "pending" ? () => {
+                    Alert.prompt("Reject Restaurant", "Enter rejection reason:", [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Reject", style: "destructive", onPress: async (reason) => {
+                          const result = await run("Rejecting restaurant", () => api.updateRestaurantApproval(token, item.id, "rejected", reason ?? ""));
+                          if (result) {
+                            setAdminRestaurants(prev => prev.map(r => r.id === item.id ? { ...r, approval_status: "rejected", rejection_reason: reason ?? null } : r));
+                            setRestaurantSearchResults(prev => prev ? prev.map(r => r.id === item.id ? { ...r, approval_status: "rejected", rejection_reason: reason ?? null } : r) : null);
+                          }
+                        }
+                      }
+                    ], "plain-text");
+                  } : undefined}
+                  onOffboard={item.approval_status === "approved" && item.is_active ? async () => {
+                    Alert.alert("Offboard Restaurant", `Deactivate "${item.name}"? Customers will not be able to order from it.`, [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Offboard", style: "destructive", onPress: async () => {
+                          const result = await run("Offboarding restaurant", () => api.offboardRestaurant(token, item.id));
+                          if (result) {
+                            setAdminRestaurants(prev => prev.map(r => r.id === item.id ? { ...r, is_active: false } : r));
+                            setRestaurantSearchResults(prev => prev ? prev.map(r => r.id === item.id ? { ...r, is_active: false } : r) : null);
+                          }
+                        }
+                      }
+                    ]);
+                  } : undefined}
                 />
-              ))
-            }
+              ));
+            })()}
 
             {/* Order + Payment Monitoring */}
             <Divider label="Order + Payment Monitoring" />
-            {adminOrders.length === 0
-              ? <Text style={styles.emptyHint}>No orders yet.</Text>
-              : adminOrders.slice(0, 4).map(item => (
-                <ListItem key={item.id} title={`${item.restaurant_name} — ${titleCase(item.status)}`} subtitle={formatCurrency(item.total_paise)} />
-              ))
-            }
+            <View style={styles.orderSearchRow}>
+              <TextInput
+                style={[styles.input, { flex: 1 }]}
+                placeholder="Restaurant name or Order ID…"
+                placeholderTextColor="#94a3b8"
+                value={orderSearch}
+                onChangeText={text => { setOrderSearch(text); if (!text) setOrderSearchResults(null); }}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Pressable
+                style={[styles.button, { marginLeft: 8 }, (!orderSearch.trim() || loading) && styles.buttonDisabled]}
+                disabled={!orderSearch.trim() || loading}
+                onPress={async () => {
+                  const result = await run("Searching orders", () => api.adminOrdersSearch(token, orderSearch.trim()));
+                  if (result) setOrderSearchResults(result as typeof orderSearchResults);
+                }}
+              >
+                <Text style={styles.buttonText}>Load</Text>
+              </Pressable>
+            </View>
+            {(() => {
+              const q = orderSearch.trim().toLowerCase();
+              const displayOrders = orderSearchResults
+                ?? (q
+                  ? adminOrders.filter(o =>
+                      (o.restaurant_name ?? "").toLowerCase().includes(q) ||
+                      o.id.toLowerCase().startsWith(q)
+                    )
+                  : Object.values(
+                      adminOrders.reduce<Record<string, typeof adminOrders[0]>>((acc, o) => {
+                        if (!acc[o.status]) acc[o.status] = o;
+                        return acc;
+                      }, {})
+                    ).slice(0, 5));
+              if (adminOrders.length === 0 && !orderSearchResults) {
+                return <Text style={styles.emptyHint}>No orders yet. Load admin dashboard first.</Text>;
+              }
+              if (displayOrders.length === 0) {
+                return <Text style={styles.emptyHint}>No orders match "{orderSearch}".</Text>;
+              }
+              return displayOrders.map(item => (
+                <OrderRow key={item.id} restaurantName={item.restaurant_name ?? "Unknown Restaurant"} orderId={item.id} status={item.status} totalPaise={item.total_paise} />
+              ));
+            })()}
             {paymentReports.length === 0
               ? <Text style={styles.emptyHint}>No payment report data.</Text>
               : paymentReports.map(item => (
@@ -998,18 +1227,42 @@ export default function App() {
 
             {/* Live Tracking */}
             <Divider label="Live Tracking + Driver Load" />
-            {deliveryOrders.length === 0
-              ? <Text style={styles.emptyHint}>No active deliveries in progress.</Text>
-              : deliveryOrders.slice(0, 3).map(item => (
-                <ListItem key={item.id} title={`${item.restaurant_name} — ${titleCase(item.status)}`} subtitle={item.last_driver_lat ? `Driver at ${item.last_driver_lat}, ${item.last_driver_lng}` : "Driver location not available"} />
-              ))
-            }
-            {driverLoad.length === 0
-              ? <Text style={styles.emptyHint}>No driver load data.</Text>
-              : driverLoad.slice(0, 3).map(item => (
-                <ListItem key={item.id} title={item.phone ?? item.id} subtitle={`Active orders: ${item.active_orders} · Capacity score: ${item.capacity_score}`} />
-              ))
-            }
+            <View style={styles.orderSearchRow}>
+              <TextInput
+                style={[styles.input, { flex: 1 }]}
+                placeholder="Restaurant name, Order ID or driver phone…"
+                placeholderTextColor="#94a3b8"
+                value={deliverySearch}
+                onChangeText={setDeliverySearch}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+            {(() => {
+              const q = deliverySearch.trim().toLowerCase();
+              const deliveries = q
+                ? deliveryOrders.filter(o =>
+                    (o.restaurant_name ?? "").toLowerCase().includes(q) ||
+                    o.id.toLowerCase().startsWith(q)
+                  )
+                : deliveryOrders;
+              const drivers = q
+                ? driverLoad.filter(d => (d.phone ?? "").includes(q) || d.id.toLowerCase().startsWith(q))
+                : driverLoad;
+              const combined = [
+                ...deliveries.map(o => ({ key: o.id, title: `${o.restaurant_name} — ${titleCase(o.status)}`, subtitle: o.last_driver_lat ? `Driver at ${o.last_driver_lat}, ${o.last_driver_lng}` : "Driver location not available" })),
+                ...drivers.map(d => ({ key: d.id, title: d.phone ?? d.id, subtitle: `Active orders: ${d.active_orders} · Capacity score: ${d.capacity_score}` }))
+              ].slice(0, 5);
+              if (deliveryOrders.length === 0 && driverLoad.length === 0) {
+                return <Text style={styles.emptyHint}>No active deliveries or drivers.</Text>;
+              }
+              if (q && combined.length === 0) {
+                return <Text style={styles.emptyHint}>No results match "{deliverySearch}".</Text>;
+              }
+              return combined.map(item => (
+                <ListItem key={item.key} title={item.title} subtitle={item.subtitle} />
+              ));
+            })()}
 
             {/* Zones / Campaigns / Incentives */}
             <Divider label="Zones, Campaigns & Incentives" />
@@ -1023,19 +1276,19 @@ export default function App() {
             </View>
             {zones.length === 0
               ? <Text style={styles.emptyHint}>No zones. Tap "Create Zone" to add one.</Text>
-              : zones.slice(0, 3).map(item => (
+              : zones.slice(0, 5).map(item => (
                 <ListItem key={item.id} title={`${item.name} — ${item.city}`} subtitle={`SLA ${item.sla_minutes} min · Surge ${item.surge_multiplier}x`} />
               ))
             }
             {campaigns.length === 0
               ? <Text style={styles.emptyHint}>No campaigns. Tap "Create Campaign" to add one.</Text>
-              : campaigns.slice(0, 3).map(item => (
+              : campaigns.slice(0, 5).map(item => (
                 <ListItem key={item.id} title={`${item.name} (${item.channel})`} subtitle={`${titleCase(item.status)} · ${formatCurrency(item.budget_paise)}`} />
               ))
             }
             {incentives.length === 0
               ? <Text style={styles.emptyHint}>No driver incentives. Tap "Create Incentive" to add one.</Text>
-              : incentives.slice(0, 3).map(item => (
+              : incentives.slice(0, 5).map(item => (
                 <ListItem key={item.id} title={item.title} subtitle={`${item.target_deliveries} deliveries → ${formatCurrency(item.reward_paise)} · ${titleCase(item.status)}`} />
               ))
             }
@@ -1044,13 +1297,13 @@ export default function App() {
             <Divider label="Analytics & Predictions" />
             {analyticsJobs.length === 0
               ? <Text style={styles.emptyHint}>No analytics jobs yet. Tap "Run Demand Prediction" to trigger one.</Text>
-              : analyticsJobs.slice(0, 3).map(item => (
+              : analyticsJobs.slice(0, 5).map(item => (
                 <ListItem key={item.id} title={`${item.job_type} — ${titleCase(item.status)}`} subtitle={new Date(item.created_at).toLocaleString()} />
               ))
             }
             {demandPredictions.length === 0
               ? <Text style={styles.emptyHint}>No demand predictions yet.</Text>
-              : demandPredictions.slice(0, 3).map(item => (
+              : demandPredictions.slice(0, 5).map(item => (
                 <ListItem key={item.id} title={`${item.zone_key} — ${item.predicted_orders} predicted orders`} subtitle={`${item.cuisine_type ?? "All cuisines"} · Confidence: ${item.confidence}`} />
               ))
             }
@@ -1059,7 +1312,7 @@ export default function App() {
             <Divider label="Driver Onboarding Admin" />
             {driverApplications.length === 0
               ? <Text style={styles.emptyHint}>No driver applications pending.</Text>
-              : driverApplications.slice(0, 4).map(item => (
+              : driverApplications.slice(0, 5).map(item => (
                 <ListItem
                   key={item.id}
                   title={`${item.full_name} — ${titleCase(item.approval_status)}`}
@@ -1073,7 +1326,7 @@ export default function App() {
             }
             {driverReferrals.length === 0
               ? <Text style={styles.emptyHint}>No driver referral records.</Text>
-              : driverReferrals.slice(0, 3).map(item => (
+              : driverReferrals.slice(0, 5).map(item => (
                 <ListItem key={item.id} title={`${item.referral_code} — ${titleCase(item.status)}`} subtitle={`${item.referrer_phone ?? "–"} → ${item.referred_phone ?? "–"} · ${formatCurrency(item.reward_paise)}`} />
               ))
             }
@@ -1082,7 +1335,7 @@ export default function App() {
             <Divider label="Payouts" />
             {adminPayouts.length === 0
               ? <Text style={styles.emptyHint}>No pending payouts.</Text>
-              : adminPayouts.slice(0, 4).map(item => (
+              : adminPayouts.slice(0, 5).map(item => (
                 <ListItem
                   key={item.id}
                   title={`${titleCase(item.role)} payout — ${titleCase(item.status)}`}
@@ -1106,7 +1359,7 @@ export default function App() {
             </View>
             {supportTickets.length === 0
               ? <Text style={styles.emptyHint}>No support tickets. Tap "Create Test Ticket" to add one.</Text>
-              : supportTickets.slice(0, 4).map(item => (
+              : supportTickets.slice(0, 5).map(item => (
                 <ListItem key={item.id} title={`${titleCase(item.category)} — ${titleCase(item.status)}`} subtitle={item.subject} />
               ))
             }
@@ -1115,13 +1368,13 @@ export default function App() {
             <Divider label="Security & Audit Logs" />
             {auditLogs.length === 0
               ? <Text style={styles.emptyHint}>No audit logs yet. Perform actions to generate entries.</Text>
-              : auditLogs.slice(0, 4).map(item => (
+              : auditLogs.slice(0, 5).map(item => (
                 <ListItem key={item.id} title={`${item.method} ${item.path}`} subtitle={`HTTP ${item.status_code}`} />
               ))
             }
             {verificationChecks.length === 0
               ? <Text style={styles.emptyHint}>No verification checks yet.</Text>
-              : verificationChecks.slice(0, 3).map(item => (
+              : verificationChecks.slice(0, 5).map(item => (
                 <ListItem key={item.id} title={`${item.provider} — ${item.check_type}`} subtitle={titleCase(item.status)} />
               ))
             }
@@ -1181,6 +1434,90 @@ function Segmented({ values, value, onChange }: { values: string[]; value: strin
         </Pressable>
       ))}
     </ScrollView>
+  );
+}
+
+function orderStatusColor(status: string) {
+  switch (status) {
+    case "created":   return "#92400e";
+    case "accepted":  return "#f97316";
+    case "preparing": return "#3b82f6";
+    case "ready":     return "#eab308";
+    case "picked_up": return "#14b8a6";
+    case "delivered": return "#22c55e";
+    case "cancelled": return "#ef4444";
+    default:          return "#94a3b8";
+  }
+}
+
+function OrderRow({ restaurantName, orderId, status, totalPaise }: { restaurantName: string; orderId: string; status: string; totalPaise: number }) {
+  const color = orderStatusColor(status);
+  return (
+    <View style={styles.listItem}>
+      <View style={styles.orderRowHeader}>
+        <Text style={[styles.listTitle, { flex: 1 }]}>{restaurantName}</Text>
+        <View style={[styles.statusBadge, { backgroundColor: color + "22", borderColor: color }]}>
+          <Text style={[styles.statusBadgeText, { color }]}>{titleCase(status)}</Text>
+        </View>
+      </View>
+      <Text style={styles.listSubtitle}>#{orderId.slice(0, 8)} · {formatCurrency(totalPaise)}</Text>
+    </View>
+  );
+}
+
+function restaurantStatusColor(status: string) {
+  switch (status) {
+    case "approved": return "#22c55e";
+    case "rejected": return "#ef4444";
+    case "pending":  return "#eab308";
+    default:         return "#94a3b8";
+  }
+}
+
+function RestaurantRow({ name, approvalStatus, isActive, rejectionReason, onApprove, onReject, onOffboard }: {
+  name: string;
+  approvalStatus: string;
+  isActive?: boolean;
+  rejectionReason?: string | null;
+  onApprove?: () => void;
+  onReject?: () => void;
+  onOffboard?: () => void;
+}) {
+  const color = restaurantStatusColor(approvalStatus);
+  return (
+    <View style={styles.listItem}>
+      <View style={styles.orderRowHeader}>
+        <Text style={[styles.listTitle, { flex: 1 }]}>{name}</Text>
+        <View style={[styles.statusBadge, { backgroundColor: color + "22", borderColor: color }]}>
+          <Text style={[styles.statusBadgeText, { color }]}>{titleCase(approvalStatus)}</Text>
+        </View>
+      </View>
+      {approvalStatus === "rejected" && rejectionReason ? (
+        <Text style={styles.rejectionReason}>Reason: {rejectionReason}</Text>
+      ) : null}
+      {isActive === false && (
+        <Text style={[styles.rejectionReason, { color: "#94a3b8" }]}>Deactivated — not visible to customers</Text>
+      )}
+      {(onApprove || onReject || onOffboard) && (
+        <View style={[styles.actions, { marginTop: 8 }]}>
+          {onApprove && (
+            <Pressable style={styles.button} onPress={onApprove}>
+              <Text style={styles.buttonText}>Approve ›</Text>
+            </Pressable>
+          )}
+          {onReject && (
+            <Pressable style={[styles.button, styles.buttonBan]} onPress={onReject}>
+              <Text style={styles.buttonText}>Reject ›</Text>
+            </Pressable>
+          )}
+          {onOffboard && (
+            <Pressable style={[styles.button, { backgroundColor: "#6b7280" }]} onPress={onOffboard}>
+              <Text style={styles.buttonText}>Offboard ›</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -1388,5 +1725,60 @@ const styles = StyleSheet.create({
     color: "#64748b",
     fontSize: 11,
     marginTop: 1
+  },
+
+  // User Management
+  listItemBanned: { borderLeftColor: "#ef4444", backgroundColor: "#fff5f5" },
+  userRowHeader: { flexDirection: "row" as const, alignItems: "center" as const },
+  userExpandedPanel: { marginTop: 10, gap: 4, borderTopWidth: 1, borderTopColor: "#e5e7eb", paddingTop: 10 },
+  userPanelLabel: { color: "#64748b", fontSize: 12, fontWeight: "700" as const, marginBottom: 4 },
+  roleChip: {
+    borderRadius: 6,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    backgroundColor: "#f8fafc"
+  },
+  roleChipActive: { backgroundColor: TEAL, borderColor: TEAL_DARK },
+  roleChipText: { color: "#334155", fontSize: 12, fontWeight: "600" as const },
+  roleChipTextActive: { color: "#ffffff" },
+  buttonBan: { backgroundColor: "#ef4444" },
+  buttonUnban: { backgroundColor: "#f59e0b" },
+  userOrderRow: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    gap: 2
+  },
+
+  orderSearchRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const
+  },
+
+  orderRowHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8
+  },
+  statusBadge: {
+    borderRadius: 4,
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 2
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: "700" as const
+  },
+
+  rejectionReason: {
+    color: "#ef4444",
+    fontSize: 12,
+    fontStyle: "italic" as const,
+    marginTop: 4
   }
 });
