@@ -41,6 +41,7 @@ export default function App() {
   const [token, setToken] = useState("");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
   const [googleIdToken, setGoogleIdToken] = useState("");
   const [role, setRole] = useState<Role>("driver");
   const [tab, setTab] = useState<Tab>("driver");
@@ -244,6 +245,8 @@ export default function App() {
     setNotice("Logged out successfully.");
     setError(null);
     setTab("driver");
+    setOtpSent(false);
+    setOtp("");
     setOrder(null);
     setOrderId("");
     setWallet(null);
@@ -257,9 +260,11 @@ export default function App() {
       return;
     }
     const response = await run("Sending OTP", () => api.requestOtp(phone));
-    if (__DEV__ && response && typeof response === "object" && "devCode" in response && response.devCode) {
-      setOtp(String(response.devCode));
-      setNotice(`OTP sent. Dev code auto-filled: ${String(response.devCode)}`);
+    if (response != null) {
+      setOtpSent(true);
+      if (__DEV__ && typeof response === "object" && "devCode" in response && response.devCode) {
+        setOtp(String(response.devCode));
+      }
     }
   }
 
@@ -591,38 +596,127 @@ export default function App() {
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.container}>
 
-        <Text style={styles.title}>AK Ops</Text>
+        {/* ── Login Panel ── */}
+        {!authed ? (
+          <View style={styles.loginPanel}>
+            {/* Brand header */}
+            <View style={styles.loginBrand}>
+              <View style={styles.loginLogo}>
+                <Text style={styles.loginLogoText}>🍳</Text>
+              </View>
+              <View>
+                <Text style={styles.loginBrandName}>AmberKitchen</Text>
+                <Text style={styles.loginBrandTagline}>Operations Platform</Text>
+              </View>
+            </View>
 
-        {/* ── Login Card ── */}
-        <Card title="Login">
-          {isOffline && (
-            <View style={[styles.statusRow, styles.statusRowOffline]}>
-              <Text style={styles.statusDot}>⚠</Text>
-              <Text style={styles.statusText}>Offline — check your connection</Text>
-            </View>
-          )}
-          {error && !isOffline && (
-            <View style={[styles.statusRow, styles.statusRowError]}>
-              <Text style={styles.statusDot}>✕</Text>
-              <Text style={styles.statusText}>{error}</Text>
-            </View>
-          )}
-          <Text style={styles.sectionHint}>{notice}</Text>
-          <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="Phone (e.g. +919999000003)" keyboardType="phone-pad" />
-          <TextInput style={styles.input} value={otp} onChangeText={setOtp} placeholder="OTP (auto-filled in dev mode)" keyboardType="number-pad" />
-          <TextInput style={styles.input} value={googleIdToken} onChangeText={setGoogleIdToken} placeholder="Google ID token (optional)" />
-          <RoleDropdown value={role} onChange={r => setRole(r)} />
-          <View style={styles.actions}>
-            <Button label="Send OTP" onPress={requestOtp} />
-            <Button label="Verify OTP" onPress={verifyOtp} />
-            {authed && <Button label="Logout" onPress={logout} />}
+            {/* Alerts */}
+            {isOffline && (
+              <View style={styles.loginAlert}>
+                <Text style={styles.loginAlertIcon}>⚠</Text>
+                <Text style={styles.loginAlertText}>No internet connection</Text>
+              </View>
+            )}
+            {error && !isOffline && (
+              <View style={[styles.loginAlert, styles.loginAlertError]}>
+                <Text style={styles.loginAlertIcon}>✕</Text>
+                <Text style={styles.loginAlertText}>{error}</Text>
+              </View>
+            )}
+
+            {!otpSent ? (
+              <>
+                <View style={styles.loginField}>
+                  <Text style={styles.loginFieldLabel}>Role</Text>
+                  <RoleDropdown value={role} onChange={r => setRole(r)} />
+                </View>
+                <View style={styles.loginField}>
+                  <Text style={styles.loginFieldLabel}>Phone Number</Text>
+                  <TextInput
+                    style={styles.loginInput}
+                    value={phone}
+                    onChangeText={setPhone}
+                    placeholder="+91 9999 000 003"
+                    keyboardType="phone-pad"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+                <Pressable
+                  style={[styles.loginPrimaryBtn, (!phone.trim() || loading) && styles.loginPrimaryBtnDisabled]}
+                  onPress={requestOtp}
+                  disabled={!phone.trim() || loading}
+                >
+                  <Text style={styles.loginPrimaryBtnText}>{loading ? "Sending…" : "Send OTP"}</Text>
+                </Pressable>
+                <View style={styles.loginDividerRow}>
+                  <View style={styles.loginDividerLine} />
+                  <Text style={styles.loginDividerText}>or</Text>
+                  <View style={styles.loginDividerLine} />
+                </View>
+                <View style={styles.loginSecondaryRow}>
+                  <Pressable style={styles.loginSecondaryBtn} onPress={loginWithGoogleToken}>
+                    <Text style={styles.loginSecondaryBtnText}>G  Google</Text>
+                  </Pressable>
+                  <Pressable style={styles.loginSecondaryBtn} onPress={enablePush}>
+                    <Text style={styles.loginSecondaryBtnText}>🔔  Push</Text>
+                  </Pressable>
+                </View>
+                <TextInput
+                  style={[styles.loginInput, styles.loginInputSubtle]}
+                  value={googleIdToken}
+                  onChangeText={setGoogleIdToken}
+                  placeholder="Google ID token (optional)"
+                  placeholderTextColor="#cbd5e1"
+                />
+              </>
+            ) : (
+              <>
+                <View style={styles.loginOtpInfo}>
+                  <Text style={styles.loginOtpInfoText}>OTP sent to</Text>
+                  <Text style={styles.loginOtpPhone}>{phone}</Text>
+                </View>
+                <View style={styles.loginField}>
+                  <Text style={styles.loginFieldLabel}>One-Time Password</Text>
+                  <TextInput
+                    style={styles.loginInput}
+                    value={otp}
+                    onChangeText={setOtp}
+                    placeholder="Enter OTP"
+                    keyboardType="number-pad"
+                    placeholderTextColor="#94a3b8"
+                    autoFocus
+                  />
+                </View>
+                <Pressable
+                  style={[styles.loginPrimaryBtn, (!otp.trim() || loading) && styles.loginPrimaryBtnDisabled]}
+                  onPress={verifyOtp}
+                  disabled={!otp.trim() || loading}
+                >
+                  <Text style={styles.loginPrimaryBtnText}>{loading ? "Verifying…" : "Verify OTP"}</Text>
+                </Pressable>
+                <Pressable style={styles.loginBackBtn} onPress={() => { setOtpSent(false); setOtp(""); setError(null); }}>
+                  <Text style={styles.loginBackBtnText}>← Change number or role</Text>
+                </Pressable>
+                <Pressable style={styles.loginSecondaryBtnSm} onPress={sendPushTest}>
+                  <Text style={styles.loginSecondaryBtnSmText}>Send test push notification</Text>
+                </Pressable>
+              </>
+            )}
           </View>
-          <View style={styles.actions}>
-            <Button label="Google Login" onPress={loginWithGoogleToken} />
-            <Button label="Enable Push" onPress={enablePush} />
-            <Button label="Test Push" onPress={sendPushTest} />
+        ) : (
+          <View style={styles.loginSignedIn}>
+            <View style={styles.loginSignedInInfo}>
+              <View style={styles.loginSignedInDot} />
+              <View>
+                <Text style={styles.loginSignedInPhone}>{phone || "Signed in"}</Text>
+                <Text style={styles.loginSignedInRole}>{role.replace(/_/g, " ").toUpperCase()}</Text>
+              </View>
+            </View>
+            <Pressable style={styles.loginLogoutBtn} onPress={logout}>
+              <Text style={styles.loginLogoutBtnText}>Logout</Text>
+            </Pressable>
           </View>
-        </Card>
+        )}
 
         {authed && tab !== "admin" && (
           <Segmented values={availableTabs} value={tab} onChange={next => setTab(next as Tab)} />
@@ -1777,6 +1871,133 @@ const styles = StyleSheet.create({
   // Upload previews
   uploadPreviews: { justifyContent: "flex-start" },
   uploadPreview: { width: 80, height: 80, borderRadius: 8 },
+
+  // Login panel
+  loginPanel: {
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: 22,
+    gap: 14,
+    shadowColor: "#0f172a",
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
+  },
+  loginBrand: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 12,
+    marginBottom: 4,
+  },
+  loginLogo: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: "#0f766e",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    shadowColor: "#0f766e",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  loginLogoText: { fontSize: 26 },
+  loginBrandName: { fontSize: 22, fontWeight: "800" as const, color: "#0f172a" },
+  loginBrandTagline: { color: "#64748b", fontSize: 12, fontWeight: "500" as const, marginTop: 2 },
+  loginAlert: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    backgroundColor: "#f0fdf4",
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+  },
+  loginAlertError: { backgroundColor: "#fef2f2", borderColor: "#fecaca" },
+  loginAlertIcon: { fontSize: 14, fontWeight: "700" as const, color: "#374151" },
+  loginAlertText: { color: "#1e293b", fontSize: 13, flex: 1, fontWeight: "500" as const },
+  loginField: { gap: 6 },
+  loginFieldLabel: { color: "#374151", fontSize: 13, fontWeight: "600" as const },
+  loginInput: {
+    borderWidth: 1.5,
+    borderColor: "#e2e8f0",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === "ios" ? 13 : 10,
+    fontSize: 15,
+    color: "#1e293b",
+    backgroundColor: "#f8fafc",
+  },
+  loginInputSubtle: {
+    borderColor: "#f1f5f9",
+    backgroundColor: "#fafafa",
+    fontSize: 12,
+    color: "#94a3b8",
+    paddingVertical: Platform.OS === "ios" ? 9 : 6,
+  },
+  loginPrimaryBtn: {
+    backgroundColor: "#0f766e",
+    borderRadius: 12,
+    paddingVertical: 15,
+    alignItems: "center" as const,
+    marginTop: 2,
+    shadowColor: "#0f766e",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  loginPrimaryBtnDisabled: { backgroundColor: "#cbd5e1", shadowOpacity: 0, elevation: 0 },
+  loginPrimaryBtnText: { color: "#ffffff", fontWeight: "700" as const, fontSize: 16 },
+  loginDividerRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 10,
+  },
+  loginDividerLine: { flex: 1, height: 1, backgroundColor: "#e5e7eb" },
+  loginDividerText: { color: "#94a3b8", fontSize: 12, fontWeight: "500" as const },
+  loginSecondaryRow: { flexDirection: "row" as const, gap: 8 },
+  loginSecondaryBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: "#e2e8f0",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center" as const,
+    backgroundColor: "#f8fafc",
+  },
+  loginSecondaryBtnText: { color: "#334155", fontWeight: "600" as const, fontSize: 13 },
+  loginOtpInfo: { alignItems: "center" as const, gap: 3, paddingVertical: 4 },
+  loginOtpInfoText: { color: "#64748b", fontSize: 13 },
+  loginOtpPhone: { color: "#0f172a", fontSize: 17, fontWeight: "700" as const },
+  loginBackBtn: { alignItems: "center" as const, paddingVertical: 6 },
+  loginBackBtnText: { color: "#64748b", fontSize: 13, fontWeight: "500" as const },
+  loginSecondaryBtnSm: { alignItems: "center" as const, paddingVertical: 4 },
+  loginSecondaryBtnSmText: { color: "#94a3b8", fontSize: 12 },
+  loginSignedIn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#d1fae5",
+    shadowColor: "#0f172a",
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  loginSignedInInfo: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10 },
+  loginSignedInDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#22c55e" },
+  loginSignedInPhone: { color: "#0f172a", fontSize: 14, fontWeight: "600" as const },
+  loginSignedInRole: { color: "#0f766e", fontSize: 11, fontWeight: "700" as const, letterSpacing: 1, marginTop: 1 },
+  loginLogoutBtn: { backgroundColor: "#fef2f2", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+  loginLogoutBtnText: { color: "#ef4444", fontWeight: "700" as const, fontSize: 13 },
 
   // Admin header (production)
   adminHeader: {
