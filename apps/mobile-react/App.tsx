@@ -694,17 +694,17 @@ export default function App() {
             {zciFormType === "zone" && (
               <>
                 <Text style={styles.zciFieldLabel}>Zone Name</Text>
-                <TextInput style={styles.zciFieldInput} placeholder="e.g. Connaught Place" placeholderTextColor="#475569" value={zciFormData.name} onChangeText={v => zciF("name", v)} />
+                <TextInput style={styles.zciFieldInput} placeholder="e.g. Connaught Place" placeholderTextColor="#555555" value={zciFormData.name} onChangeText={v => zciF("name", v)} />
                 <Text style={styles.zciFieldLabel}>City</Text>
-                <TextInput style={styles.zciFieldInput} placeholder="Delhi NCR" placeholderTextColor="#475569" value={zciFormData.city} onChangeText={v => zciF("city", v)} />
+                <TextInput style={styles.zciFieldInput} placeholder="Delhi NCR" placeholderTextColor="#555555" value={zciFormData.city} onChangeText={v => zciF("city", v)} />
                 <View style={styles.zciFieldRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.zciFieldLabel}>Radius (km)</Text>
-                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="3" placeholderTextColor="#475569" value={zciFormData.radiusKm} onChangeText={v => zciF("radiusKm", v)} />
+                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="3" placeholderTextColor="#555555" value={zciFormData.radiusKm} onChangeText={v => zciF("radiusKm", v)} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.zciFieldLabel}>SLA (min)</Text>
-                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="20" placeholderTextColor="#475569" value={zciFormData.slaMinutes} onChangeText={v => zciF("slaMinutes", v)} />
+                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="20" placeholderTextColor="#555555" value={zciFormData.slaMinutes} onChangeText={v => zciF("slaMinutes", v)} />
                   </View>
                 </View>
                 <Text style={styles.zciFieldHint}>📍 Centre lat/lng taken from your device location automatically.</Text>
@@ -714,9 +714,9 @@ export default function App() {
             {zciFormType === "offer" && (
               <>
                 <Text style={styles.zciFieldLabel}>Offer Code (auto-generated if blank)</Text>
-                <TextInput style={styles.zciFieldInput} placeholder="MOB2025A" placeholderTextColor="#475569" autoCapitalize="characters" value={zciFormData.code} onChangeText={v => zciF("code", v)} />
+                <TextInput style={styles.zciFieldInput} placeholder="MOB2025A" placeholderTextColor="#555555" autoCapitalize="characters" value={zciFormData.code} onChangeText={v => zciF("code", v)} />
                 <Text style={styles.zciFieldLabel}>Title</Text>
-                <TextInput style={styles.zciFieldInput} placeholder="Weekend Flat ₹50 Off" placeholderTextColor="#475569" value={zciFormData.title} onChangeText={v => zciF("title", v)} />
+                <TextInput style={styles.zciFieldInput} placeholder="Weekend Flat ₹50 Off" placeholderTextColor="#555555" value={zciFormData.title} onChangeText={v => zciF("title", v)} />
                 <Text style={styles.zciFieldLabel}>Discount Type</Text>
                 <View style={styles.zciSegment}>
                   {(["flat", "percent"] as const).map(t => (
@@ -728,11 +728,11 @@ export default function App() {
                 <View style={styles.zciFieldRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.zciFieldLabel}>{zciFormData.discountType === "flat" ? "Discount (₹)" : "Discount (%)"}</Text>
-                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder={zciFormData.discountType === "flat" ? "50" : "10"} placeholderTextColor="#475569" value={zciFormData.discountValue} onChangeText={v => zciF("discountValue", v)} />
+                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder={zciFormData.discountType === "flat" ? "50" : "10"} placeholderTextColor="#555555" value={zciFormData.discountValue} onChangeText={v => zciF("discountValue", v)} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.zciFieldLabel}>Min Order (₹)</Text>
-                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="199" placeholderTextColor="#475569" value={zciFormData.minOrderRupees} onChangeText={v => zciF("minOrderRupees", v)} />
+                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="199" placeholderTextColor="#555555" value={zciFormData.minOrderRupees} onChangeText={v => zciF("minOrderRupees", v)} />
                   </View>
                 </View>
               </>
@@ -741,7 +741,7 @@ export default function App() {
             {zciFormType === "campaign" && (
               <>
                 <Text style={styles.zciFieldLabel}>Campaign Name</Text>
-                <TextInput style={styles.zciFieldInput} placeholder="Summer Launch 2025" placeholderTextColor="#475569" value={zciFormData.name} onChangeText={v => zciF("name", v)} />
+                <TextInput style={styles.zciFieldInput} placeholder="Summer Launch 2025" placeholderTextColor="#555555" value={zciFormData.name} onChangeText={v => zciF("name", v)} />
                 <Text style={styles.zciFieldLabel}>Channel</Text>
                 <View style={styles.zciSegment}>
                   {(["push", "email", "whatsapp", "ads"] as const).map(ch => (
@@ -751,24 +751,24 @@ export default function App() {
                   ))}
                 </View>
                 <Text style={styles.zciFieldLabel}>Budget (₹)</Text>
-                <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="1000" placeholderTextColor="#475569" value={zciFormData.budgetRupees} onChangeText={v => zciF("budgetRupees", v)} />
+                <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="1000" placeholderTextColor="#555555" value={zciFormData.budgetRupees} onChangeText={v => zciF("budgetRupees", v)} />
                 <Text style={styles.zciFieldLabel}>AI Creative (optional)</Text>
-                <TextInput style={[styles.zciFieldInput, styles.zciFieldMultiline]} placeholder="Describe the ad creative…" placeholderTextColor="#475569" multiline numberOfLines={3} value={zciFormData.aiCreative} onChangeText={v => zciF("aiCreative", v)} />
+                <TextInput style={[styles.zciFieldInput, styles.zciFieldMultiline]} placeholder="Describe the ad creative…" placeholderTextColor="#555555" multiline numberOfLines={3} value={zciFormData.aiCreative} onChangeText={v => zciF("aiCreative", v)} />
               </>
             )}
 
             {zciFormType === "incentive" && (
               <>
                 <Text style={styles.zciFieldLabel}>Incentive Title</Text>
-                <TextInput style={styles.zciFieldInput} placeholder="Weekend Delivery Bonus" placeholderTextColor="#475569" value={zciFormData.title} onChangeText={v => zciF("title", v)} />
+                <TextInput style={styles.zciFieldInput} placeholder="Weekend Delivery Bonus" placeholderTextColor="#555555" value={zciFormData.title} onChangeText={v => zciF("title", v)} />
                 <View style={styles.zciFieldRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.zciFieldLabel}>Target Deliveries</Text>
-                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="5" placeholderTextColor="#475569" value={zciFormData.targetDeliveries} onChangeText={v => zciF("targetDeliveries", v)} />
+                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="5" placeholderTextColor="#555555" value={zciFormData.targetDeliveries} onChangeText={v => zciF("targetDeliveries", v)} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.zciFieldLabel}>Reward (₹)</Text>
-                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="75" placeholderTextColor="#475569" value={zciFormData.rewardRupees} onChangeText={v => zciF("rewardRupees", v)} />
+                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="75" placeholderTextColor="#555555" value={zciFormData.rewardRupees} onChangeText={v => zciF("rewardRupees", v)} />
                   </View>
                 </View>
                 <Text style={styles.zciFieldHint}>🎁 Reward is paid when the driver completes the target number of deliveries.</Text>
@@ -831,7 +831,7 @@ export default function App() {
                     onChangeText={setPhone}
                     placeholder="+91 9999 000 003"
                     keyboardType="phone-pad"
-                    placeholderTextColor="#94a3b8"
+                    placeholderTextColor="#aaaaaa"
                   />
                 </View>
                 <Pressable
@@ -876,7 +876,7 @@ export default function App() {
                     onChangeText={setOtp}
                     placeholder="Enter OTP"
                     keyboardType="number-pad"
-                    placeholderTextColor="#94a3b8"
+                    placeholderTextColor="#aaaaaa"
                     autoFocus
                   />
                 </View>
@@ -1470,7 +1470,7 @@ export default function App() {
                       value={orderId}
                       onChangeText={setOrderId}
                       placeholder="Paste Order ID…"
-                      placeholderTextColor="#475569"
+                      placeholderTextColor="#555555"
                       autoCapitalize="none"
                       autoCorrect={false}
                     />
@@ -1648,7 +1648,7 @@ export default function App() {
                   <TextInput
                     style={styles.raSearchInput}
                     placeholder="Name, phone, email or User ID…"
-                    placeholderTextColor="#475569"
+                    placeholderTextColor="#555555"
                     value={userSearch}
                     onChangeText={text => { setUserSearch(text); setUserDisplayLimit(10); if (!text) setUserSearchResults(null); }}
                     autoCapitalize="none"
@@ -1854,7 +1854,7 @@ export default function App() {
                       { label: "Pending",  color: "#eab308", count: adminRestaurants.filter(r => r.approval_status === "pending").length },
                       { label: "Approved", color: "#22c55e", count: adminRestaurants.filter(r => r.approval_status === "approved").length },
                       { label: "Rejected", color: "#ef4444", count: adminRestaurants.filter(r => r.approval_status === "rejected").length },
-                      { label: "Inactive", color: "#64748b", count: adminRestaurants.filter(r => !r.is_active).length },
+                      { label: "Inactive", color: "#888888", count: adminRestaurants.filter(r => !r.is_active).length },
                     ].map(s => (
                       <View key={s.label} style={styles.raStatPill}>
                         <View style={[styles.raStatDot, { backgroundColor: s.color }]} />
@@ -1871,7 +1871,7 @@ export default function App() {
                   <TextInput
                     style={styles.raSearchInput}
                     placeholder="Search by restaurant name…"
-                    placeholderTextColor="#475569"
+                    placeholderTextColor="#555555"
                     value={restaurantSearch}
                     onChangeText={text => { setRestaurantSearch(text); if (!text) setRestaurantSearchResults(null); }}
                     autoCapitalize="none"
@@ -2074,7 +2074,7 @@ export default function App() {
                   <TextInput
                     style={styles.raSearchInput}
                     placeholder="Restaurant name or Order ID…"
-                    placeholderTextColor="#475569"
+                    placeholderTextColor="#555555"
                     value={orderSearch}
                     onChangeText={text => { setOrderSearch(text); setOrderDisplayLimit(10); if (!text) setOrderSearchResults(null); }}
                     autoCapitalize="none"
@@ -2213,7 +2213,7 @@ export default function App() {
                   <TextInput
                     style={styles.raSearchInput}
                     placeholder="Restaurant name, Order ID or driver phone…"
-                    placeholderTextColor="#475569"
+                    placeholderTextColor="#555555"
                     value={deliverySearch}
                     onChangeText={setDeliverySearch}
                     autoCapitalize="none"
@@ -2474,7 +2474,7 @@ export default function App() {
                   <>
                     <Text style={[styles.doaSectionTitle, { marginTop: 8 }]}>🔗 Referrals</Text>
                     {driverReferrals.map(item => {
-                      const refColor = item.status === "rewarded" ? "#22c55e" : item.status === "pending" ? "#eab308" : "#94a3b8";
+                      const refColor = item.status === "rewarded" ? "#22c55e" : item.status === "pending" ? "#eab308" : "#aaaaaa";
                       return (
                         <View key={item.id} style={[styles.doaRefCard, { borderLeftColor: refColor }]}>
                           <View style={styles.doaRefHeader}>
@@ -2560,7 +2560,7 @@ export default function App() {
                     <Text style={styles.zciEmptyText}>No campaigns — tap Create Campaign above.</Text>
                   </View>
                 ) : campaigns.map(item => {
-                  const campColor = item.status === "active" ? "#22c55e" : item.status === "paused" ? "#eab308" : "#64748b";
+                  const campColor = item.status === "active" ? "#22c55e" : item.status === "paused" ? "#eab308" : "#888888";
                   return (
                     <View key={item.id} style={[styles.zciCard, { borderLeftColor: "#d97706" }]}>
                       <View style={styles.zciCardHeader}>
@@ -2594,7 +2594,7 @@ export default function App() {
                     <Text style={styles.zciEmptyText}>No incentives — tap Create Incentive above.</Text>
                   </View>
                 ) : incentives.map(item => {
-                  const incColor = item.status === "active" ? "#22c55e" : item.status === "completed" ? "#3b82f6" : "#64748b";
+                  const incColor = item.status === "active" ? "#22c55e" : item.status === "completed" ? "#3b82f6" : "#888888";
                   return (
                     <View key={item.id} style={[styles.zciCard, { borderLeftColor: "#0f766e" }]}>
                       <View style={styles.zciCardHeader}>
@@ -2629,7 +2629,7 @@ export default function App() {
               onPress={() => togglePanel("Analytics & Predictions")}
             />
             {!isCollapsed("Analytics & Predictions") && (() => {
-              const jobStatusColor = (s: string) => s === "completed" ? "#22c55e" : s === "running" ? "#3b82f6" : s === "failed" ? "#ef4444" : "#94a3b8";
+              const jobStatusColor = (s: string) => s === "completed" ? "#22c55e" : s === "running" ? "#3b82f6" : s === "failed" ? "#ef4444" : "#aaaaaa";
               const completedJobs = analyticsJobs.filter(j => j.status === "completed").length;
               const runningJobs  = analyticsJobs.filter(j => j.status === "running").length;
               const failedJobs   = analyticsJobs.filter(j => j.status === "failed").length;
@@ -2659,7 +2659,7 @@ export default function App() {
                   {analyticsJobs.length > 0 && (
                     <View style={styles.raStatsRow}>
                       {[
-                        { label: "Total",     color: "#94a3b8", count: analyticsJobs.length },
+                        { label: "Total",     color: "#aaaaaa", count: analyticsJobs.length },
                         { label: "Completed", color: "#22c55e", count: completedJobs },
                         { label: "Running",   color: "#3b82f6", count: runningJobs },
                         { label: "Failed",    color: "#ef4444", count: failedJobs },
@@ -2877,8 +2877,8 @@ export default function App() {
               onPress={() => togglePanel("Support Tickets")}
             />
             {!isCollapsed("Support Tickets") && (() => {
-              const ticketStatusColor = (s: string) => s === "open" ? "#eab308" : s === "in_progress" ? "#3b82f6" : s === "resolved" ? "#22c55e" : "#475569";
-              const ticketCategoryColor = (c: string) => c === "technical" ? "#7c3aed" : c === "billing" ? "#d97706" : c === "delivery" ? "#0f766e" : "#475569";
+              const ticketStatusColor = (s: string) => s === "open" ? "#eab308" : s === "in_progress" ? "#3b82f6" : s === "resolved" ? "#22c55e" : "#555555";
+              const ticketCategoryColor = (c: string) => c === "technical" ? "#7c3aed" : c === "billing" ? "#d97706" : c === "delivery" ? "#0f766e" : "#555555";
               const filtered = ticketFilter === "all" ? supportTickets : supportTickets.filter(t => t.status === ticketFilter);
               const visible = filtered.slice(0, ticketDisplayLimit);
               const remaining = filtered.length - visible.length;
@@ -2891,7 +2891,7 @@ export default function App() {
                         { label: "Open",        color: "#eab308", count: supportTickets.filter(t => t.status === "open").length },
                         { label: "In Progress", color: "#3b82f6", count: supportTickets.filter(t => t.status === "in_progress").length },
                         { label: "Resolved",    color: "#22c55e", count: supportTickets.filter(t => t.status === "resolved").length },
-                        { label: "Closed",      color: "#475569", count: supportTickets.filter(t => t.status === "closed").length },
+                        { label: "Closed",      color: "#555555", count: supportTickets.filter(t => t.status === "closed").length },
                       ].map(s => (
                         <View key={s.label} style={styles.raStatPill}>
                           <View style={[styles.raStatDot, { backgroundColor: s.color }]} />
@@ -2984,9 +2984,9 @@ export default function App() {
               onPress={() => togglePanel("Security & Audit Logs")}
             />
             {!isCollapsed("Security & Audit Logs") && (() => {
-              const methodColor = (m: string) => m === "GET" ? "#3b82f6" : m === "POST" ? "#22c55e" : m === "PATCH" || m === "PUT" ? "#eab308" : m === "DELETE" ? "#ef4444" : "#94a3b8";
-              const statusCodeColor = (c: number) => c >= 500 ? "#ef4444" : c >= 400 ? "#eab308" : c >= 200 ? "#22c55e" : "#94a3b8";
-              const checkStatusColor = (s: string) => s === "passed" ? "#22c55e" : s === "failed" ? "#ef4444" : s === "pending" ? "#eab308" : "#94a3b8";
+              const methodColor = (m: string) => m === "GET" ? "#3b82f6" : m === "POST" ? "#22c55e" : m === "PATCH" || m === "PUT" ? "#eab308" : m === "DELETE" ? "#ef4444" : "#aaaaaa";
+              const statusCodeColor = (c: number) => c >= 500 ? "#ef4444" : c >= 400 ? "#eab308" : c >= 200 ? "#22c55e" : "#aaaaaa";
+              const checkStatusColor = (s: string) => s === "passed" ? "#22c55e" : s === "failed" ? "#ef4444" : s === "pending" ? "#eab308" : "#aaaaaa";
               const visibleLogs = auditLogs.slice(0, auditDisplayLimit);
               const remainingLogs = auditLogs.length - visibleLogs.length;
               return (
@@ -2995,7 +2995,7 @@ export default function App() {
                   {auditLogs.length > 0 && (
                     <View style={styles.raStatsRow}>
                       {[
-                        { label: "Total",    color: "#94a3b8", count: auditLogs.length },
+                        { label: "Total",    color: "#aaaaaa", count: auditLogs.length },
                         { label: "Errors",   color: "#ef4444", count: auditLogs.filter(l => l.status_code >= 500).length },
                         { label: "Warnings", color: "#eab308", count: auditLogs.filter(l => l.status_code >= 400 && l.status_code < 500).length },
                         { label: "OK",       color: "#22c55e", count: auditLogs.filter(l => l.status_code >= 200 && l.status_code < 400).length },
@@ -3190,7 +3190,7 @@ function roleAccent(role: string): string {
     case "delivery_admin": return "#4f46e5";
     case "restaurant":     return "#d97706";
     case "driver":         return "#2563eb";
-    default:               return "#64748b";
+    default:               return "#888888";
   }
 }
 
@@ -3203,7 +3203,7 @@ function orderStatusColor(status: string) {
     case "picked_up": return "#14b8a6";
     case "delivered": return "#22c55e";
     case "cancelled": return "#ef4444";
-    default:          return "#94a3b8";
+    default:          return "#aaaaaa";
   }
 }
 
@@ -3227,7 +3227,7 @@ function restaurantStatusColor(status: string) {
     case "approved": return "#22c55e";
     case "rejected": return "#ef4444";
     case "pending":  return "#eab308";
-    default:         return "#94a3b8";
+    default:         return "#aaaaaa";
   }
 }
 
@@ -3253,7 +3253,7 @@ function RestaurantRow({ name, approvalStatus, isActive, rejectionReason, onAppr
         <Text style={styles.rejectionReason}>Reason: {rejectionReason}</Text>
       ) : null}
       {isActive === false && (
-        <Text style={[styles.rejectionReason, { color: "#94a3b8" }]}>Deactivated — not visible to customers</Text>
+        <Text style={[styles.rejectionReason, { color: "#aaaaaa" }]}>Deactivated — not visible to customers</Text>
       )}
       {(onApprove || onReject || onOffboard) && (
         <View style={[styles.actions, { marginTop: 8 }]}>
@@ -3307,82 +3307,82 @@ function titleCase(value: string) {
 
 // ── Styles ─────────────────────────────────────────────────────────────────
 
-const TEAL = "#0f766e";
-const TEAL_DARK = "#0d5e57";
-const CREAM = "#f7f4ef";
+const TEAL = "#E23744";
+const TEAL_DARK = "#c42e3b";
+const CREAM = "#0f0f0f";
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: CREAM },
   container: { padding: 16, gap: 14, paddingBottom: 40 },
-  title: { fontSize: 28, fontWeight: "800", color: "#12312d" },
-  subtitle: { color: "#64748b", fontSize: 15 },
-  testHint: { color: "#94a3b8", fontSize: 12, marginTop: 4 },
+  title: { fontSize: 28, fontWeight: "800", color: "#ffffff" },
+  subtitle: { color: "#888888", fontSize: 15 },
+  testHint: { color: "#aaaaaa", fontSize: 12, marginTop: 4 },
 
   // Login status
   statusRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#f0fdf4",
+    backgroundColor: "#222222",
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginTop: 4,
     marginBottom: 6
   },
-  statusRowOffline: { backgroundColor: "#fef2f2" },
-  statusRowError: { backgroundColor: "#fef2f2" },
+  statusRowOffline: { backgroundColor: "#1f0e10" },
+  statusRowError: { backgroundColor: "#1f0e10" },
   statusDot: { fontSize: 14, color: TEAL, fontWeight: "700" },
   statusText: { color: TEAL, fontWeight: "700", flex: 1, fontSize: 13 },
 
-  notice: { backgroundColor: "#f8fafc", color: "#334155", padding: 10, borderRadius: 6, fontSize: 13 },
+  notice: { backgroundColor: "#1e1e1e", color: "#aaaaaa", padding: 10, borderRadius: 6, fontSize: 13 },
 
   // Cards
   card: {
-    backgroundColor: "#ffffff",
-    borderColor: "#e5e7eb",
+    backgroundColor: "#1a1a1a",
+    borderColor: "#2e2e2e",
     borderWidth: 1,
     borderRadius: 10,
     padding: 14,
     gap: 10,
-    shadowColor: "#0f172a",
+    shadowColor: "#1a1a1a",
     shadowOpacity: 0.05,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
     elevation: 2
   },
-  cardTitle: { fontSize: 18, fontWeight: "800", color: "#0f172a" },
+  cardTitle: { fontSize: 18, fontWeight: "800", color: "#ffffff" },
 
   // Divider (production panel button)
   divider: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: "#2e2e2e",
     borderLeftWidth: 3,
     borderLeftColor: TEAL,
     marginTop: 6,
     marginBottom: 2,
-    shadowColor: "#0f172a",
+    shadowColor: "#1a1a1a",
     shadowOpacity: 0.04,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
   dividerInner: { flexDirection: "row" as const, alignItems: "center" as const, paddingHorizontal: 12, paddingVertical: 11, gap: 10 },
-  dividerIconWrap: { width: 32, height: 32, borderRadius: 8, backgroundColor: "#f0fdf4", alignItems: "center" as const, justifyContent: "center" as const },
+  dividerIconWrap: { width: 32, height: 32, borderRadius: 8, backgroundColor: "#2e2e2e", alignItems: "center" as const, justifyContent: "center" as const },
   dividerIconText: { fontSize: 16 },
   dividerTextBlock: { flex: 1, gap: 1 },
-  dividerLabel: { fontSize: 13, fontWeight: "700" as const, color: "#1e293b" },
-  dividerSubtitle: { fontSize: 11, color: "#94a3b8" },
-  dividerLine: { flex: 1, height: 1, backgroundColor: "#d1fae5" },
-  dividerChevronPill: { backgroundColor: "#f1f5f9", borderRadius: 6, width: 26, height: 26, alignItems: "center" as const, justifyContent: "center" as const },
-  dividerChevronPillOpen: { backgroundColor: "#f0fdf4" },
+  dividerLabel: { fontSize: 13, fontWeight: "700" as const, color: "#ffffff" },
+  dividerSubtitle: { fontSize: 11, color: "#aaaaaa" },
+  dividerLine: { flex: 1, height: 1, backgroundColor: "#2e2e2e" },
+  dividerChevronPill: { backgroundColor: "#2e2e2e", borderRadius: 6, width: 26, height: 26, alignItems: "center" as const, justifyContent: "center" as const },
+  dividerChevronPillOpen: { backgroundColor: "#E23744" },
 
-  sectionTitle: { fontWeight: "800", color: "#334155" },
-  sectionHint: { color: "#475569", fontSize: 13, lineHeight: 18 },
-  helperText: { color: "#475569", fontSize: 13, lineHeight: 18 },
-  emptyHint: { color: "#94a3b8", fontSize: 13, fontStyle: "italic", textAlign: "center", paddingVertical: 6 },
+  sectionTitle: { fontWeight: "800", color: "#ffffff" },
+  sectionHint: { color: "#555555", fontSize: 13, lineHeight: 18 },
+  helperText: { color: "#555555", fontSize: 13, lineHeight: 18 },
+  emptyHint: { color: "#aaaaaa", fontSize: 13, fontStyle: "italic", textAlign: "center", paddingVertical: 6 },
 
   // Inputs
   input: {
@@ -3390,7 +3390,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 6,
     padding: Platform.OS === "ios" ? 12 : 9,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#1a1a1a",
     fontSize: 14
   },
 
@@ -3406,11 +3406,11 @@ const styles = StyleSheet.create({
 
   // Login panel
   loginPanel: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "#1a1a1a",
     borderRadius: 16,
     padding: 22,
     gap: 14,
-    shadowColor: "#0f172a",
+    shadowColor: "#1a1a1a",
     shadowOpacity: 0.08,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 8 },
@@ -3436,38 +3436,38 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   loginLogoText: { fontSize: 26 },
-  loginBrandName: { fontSize: 22, fontWeight: "800" as const, color: "#0f172a" },
-  loginBrandTagline: { color: "#64748b", fontSize: 12, fontWeight: "500" as const, marginTop: 2 },
+  loginBrandName: { fontSize: 22, fontWeight: "800" as const, color: "#ffffff" },
+  loginBrandTagline: { color: "#888888", fontSize: 12, fontWeight: "500" as const, marginTop: 2 },
   loginAlert: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
     gap: 8,
-    backgroundColor: "#f0fdf4",
+    backgroundColor: "#222222",
     borderRadius: 8,
     padding: 10,
     borderWidth: 1,
-    borderColor: "#bbf7d0",
+    borderColor: "#1e4d30",
   },
-  loginAlertError: { backgroundColor: "#fef2f2", borderColor: "#fecaca" },
-  loginAlertIcon: { fontSize: 14, fontWeight: "700" as const, color: "#374151" },
-  loginAlertText: { color: "#1e293b", fontSize: 13, flex: 1, fontWeight: "500" as const },
+  loginAlertError: { backgroundColor: "#1f0e10", borderColor: "#5e1a25" },
+  loginAlertIcon: { fontSize: 14, fontWeight: "700" as const, color: "#aaaaaa" },
+  loginAlertText: { color: "#ffffff", fontSize: 13, flex: 1, fontWeight: "500" as const },
   loginField: { gap: 6 },
-  loginFieldLabel: { color: "#374151", fontSize: 13, fontWeight: "600" as const },
+  loginFieldLabel: { color: "#aaaaaa", fontSize: 13, fontWeight: "600" as const },
   loginInput: {
     borderWidth: 1.5,
-    borderColor: "#e2e8f0",
+    borderColor: "#2e2e2e",
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === "ios" ? 13 : 10,
     fontSize: 15,
-    color: "#1e293b",
-    backgroundColor: "#f8fafc",
+    color: "#ffffff",
+    backgroundColor: "#1e1e1e",
   },
   loginInputSubtle: {
-    borderColor: "#f1f5f9",
-    backgroundColor: "#fafafa",
+    borderColor: "#ffffff",
+    backgroundColor: "#1e1e1e",
     fontSize: 12,
-    color: "#94a3b8",
+    color: "#aaaaaa",
     paddingVertical: Platform.OS === "ios" ? 9 : 6,
   },
   loginPrimaryBtn: {
@@ -3489,36 +3489,36 @@ const styles = StyleSheet.create({
     alignItems: "center" as const,
     gap: 10,
   },
-  loginDividerLine: { flex: 1, height: 1, backgroundColor: "#e5e7eb" },
-  loginDividerText: { color: "#94a3b8", fontSize: 12, fontWeight: "500" as const },
+  loginDividerLine: { flex: 1, height: 1, backgroundColor: "#2e2e2e" },
+  loginDividerText: { color: "#aaaaaa", fontSize: 12, fontWeight: "500" as const },
   loginSecondaryRow: { flexDirection: "row" as const, gap: 8 },
   loginSecondaryBtn: {
     flex: 1,
     borderWidth: 1.5,
-    borderColor: "#e2e8f0",
+    borderColor: "#2e2e2e",
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center" as const,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#1e1e1e",
   },
-  loginSecondaryBtnText: { color: "#334155", fontWeight: "600" as const, fontSize: 13 },
+  loginSecondaryBtnText: { color: "#ffffff", fontWeight: "600" as const, fontSize: 13 },
   loginOtpInfo: { alignItems: "center" as const, gap: 3, paddingVertical: 4 },
-  loginOtpInfoText: { color: "#64748b", fontSize: 13 },
-  loginOtpPhone: { color: "#0f172a", fontSize: 17, fontWeight: "700" as const },
+  loginOtpInfoText: { color: "#888888", fontSize: 13 },
+  loginOtpPhone: { color: "#ffffff", fontSize: 17, fontWeight: "700" as const },
   loginBackBtn: { alignItems: "center" as const, paddingVertical: 6 },
-  loginBackBtnText: { color: "#64748b", fontSize: 13, fontWeight: "500" as const },
+  loginBackBtnText: { color: "#888888", fontSize: 13, fontWeight: "500" as const },
   loginSecondaryBtnSm: { alignItems: "center" as const, paddingVertical: 4 },
-  loginSecondaryBtnSmText: { color: "#94a3b8", fontSize: 12 },
+  loginSecondaryBtnSmText: { color: "#aaaaaa", fontSize: 12 },
   loginSignedIn: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
     justifyContent: "space-between" as const,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#1a1a1a",
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#d1fae5",
-    shadowColor: "#0f172a",
+    borderColor: "#2e2e2e",
+    shadowColor: "#1a1a1a",
     shadowOpacity: 0.04,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
@@ -3526,9 +3526,9 @@ const styles = StyleSheet.create({
   },
   loginSignedInInfo: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10 },
   loginSignedInDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#22c55e" },
-  loginSignedInPhone: { color: "#0f172a", fontSize: 14, fontWeight: "600" as const },
+  loginSignedInPhone: { color: "#ffffff", fontSize: 14, fontWeight: "600" as const },
   loginSignedInRole: { color: "#0f766e", fontSize: 11, fontWeight: "700" as const, letterSpacing: 1, marginTop: 1 },
-  loginLogoutBtn: { backgroundColor: "#fef2f2", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+  loginLogoutBtn: { backgroundColor: "#1f0e10", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
   loginLogoutBtnText: { color: "#ef4444", fontWeight: "700" as const, fontSize: 13 },
 
   // Admin header (production)
@@ -3567,7 +3567,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   adminHeaderSync: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 11,
     fontWeight: "500" as const,
   },
@@ -3607,7 +3607,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#22c55e",
   },
   adminStatusText: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 11,
   },
 
@@ -3620,7 +3620,7 @@ const styles = StyleSheet.create({
   kpiCard: {
     flex: 1,
     minWidth: "30%" as const,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 8,
@@ -3641,7 +3641,7 @@ const styles = StyleSheet.create({
     fontWeight: "800" as const,
   },
   kpiLabel: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 10,
     fontWeight: "600" as const,
     letterSpacing: 0.5,
@@ -3658,13 +3658,13 @@ const styles = StyleSheet.create({
   statusPill: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#1e1e1e",
     borderRadius: 20,
     paddingHorizontal: 9,
     paddingVertical: 5,
     gap: 5,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#2e2e2e",
   },
   statusPillDot: {
     width: 7,
@@ -3672,12 +3672,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   statusPillName: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 11,
     fontWeight: "600" as const,
   },
   statusPillCount: {
-    color: "#1e293b",
+    color: "#ffffff",
     fontSize: 11,
     fontWeight: "800" as const,
   },
@@ -3690,29 +3690,29 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   recentOrdersTitle: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 10,
     fontWeight: "700" as const,
     letterSpacing: 1.5,
     textTransform: "uppercase" as const,
   },
   recentOrdersCount: {
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 10,
     paddingHorizontal: 7,
     paddingVertical: 2,
   },
   recentOrdersCountText: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 10,
     fontWeight: "700" as const,
   },
   recentOrderCard: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 8,
     borderLeftWidth: 3,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 6,
@@ -3725,7 +3725,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   recentOrderRestaurant: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 13,
     fontWeight: "700" as const,
     flex: 1,
@@ -3754,12 +3754,12 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   recentOrderCardId: {
-    color: "#334155",
+    color: "#ffffff",
     fontSize: 10,
     fontWeight: "600" as const,
   },
   recentOrderCardDot: {
-    color: "#1e293b",
+    color: "#ffffff",
     fontSize: 10,
   },
   recentOrderCardAmount: {
@@ -3767,16 +3767,16 @@ const styles = StyleSheet.create({
     fontWeight: "700" as const,
   },
   recentOrderCardDate: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 10,
   },
   /* legacy dot/row kept for safety */
-  recentOrderRow: { flexDirection: "row" as const, alignItems: "center" as const, backgroundColor: "#0f172a", borderRadius: 8, padding: 10, gap: 10, borderWidth: 1, borderColor: "#1e293b" },
+  recentOrderRow: { flexDirection: "row" as const, alignItems: "center" as const, backgroundColor: "#1a1a1a", borderRadius: 8, padding: 10, gap: 10, borderWidth: 1, borderColor: "#222222" },
   recentOrderDot: { width: 10, height: 10, borderRadius: 5 },
   recentOrderInfo: { flex: 1 },
-  recentOrderName: { color: "#f1f5f9", fontSize: 13, fontWeight: "600" as const },
-  recentOrderMeta: { color: "#64748b", fontSize: 11, marginTop: 1 },
-  recentOrderId: { color: "#94a3b8", fontSize: 10, fontWeight: "700" as const },
+  recentOrderName: { color: "#ffffff", fontSize: 13, fontWeight: "600" as const },
+  recentOrderMeta: { color: "#888888", fontSize: 11, marginTop: 1 },
+  recentOrderId: { color: "#aaaaaa", fontSize: 10, fontWeight: "700" as const },
 
   // Quick action row
   quickActions: {
@@ -3793,7 +3793,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   quickActionBtnSecondary: {
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
   },
   quickActionIcon: {
     fontSize: 18,
@@ -3807,52 +3807,52 @@ const styles = StyleSheet.create({
 
   // Segmented control
   segmented: { gap: 8, paddingVertical: 2 },
-  segment: { borderColor: "#cbd5e1", borderWidth: 1, borderRadius: 6, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: "#ffffff" },
+  segment: { borderColor: "#cbd5e1", borderWidth: 1, borderRadius: 6, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: "#1a1a1a" },
   segmentActive: { backgroundColor: TEAL, borderColor: TEAL_DARK },
-  segmentText: { color: "#334155", fontWeight: "700", fontSize: 13 },
+  segmentText: { color: "#ffffff", fontWeight: "700", fontSize: 13 },
   segmentTextActive: { color: "#ffffff" },
 
   // List items
   listItem: {
     padding: 12,
-    borderColor: "#d1fae5",
+    borderColor: "#2e2e2e",
     borderWidth: 1,
     borderLeftWidth: 4,
     borderLeftColor: TEAL,
     borderRadius: 8,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#1a1a1a",
     gap: 2
   },
   listItemTappable: { borderLeftColor: TEAL },
   listTitle: { fontWeight: "700", color: "#1f2937", fontSize: 14 },
-  listSubtitle: { color: "#64748b", fontSize: 13 },
+  listSubtitle: { color: "#888888", fontSize: 13 },
   listTapHint: { color: TEAL, fontSize: 11, fontWeight: "700", marginTop: 2 },
 
   // Summary box
-  summary: { gap: 4, backgroundColor: "#f8fafc", borderRadius: 8, padding: 12, borderColor: "#e5e7eb", borderWidth: 1 },
-  summaryLine: { color: "#334155", fontSize: 13 },
+  summary: { gap: 4, backgroundColor: "#1e1e1e", borderRadius: 8, padding: 12, borderColor: "#2e2e2e", borderWidth: 1 },
+  summaryLine: { color: "#ffffff", fontSize: 13 },
 
   // Order management
   orderIdRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f0fdf4",
+    backgroundColor: "#222222",
     borderRadius: 6,
     padding: 8,
-    borderColor: "#bbf7d0",
+    borderColor: "#1e4d30",
     borderWidth: 1
   },
-  fieldLabel: { color: "#64748b", fontSize: 13 },
+  fieldLabel: { color: "#888888", fontSize: 13 },
   fieldValue: { color: TEAL, fontWeight: "700", fontSize: 13, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
 
   // Restaurant order card
   orderCard: {
-    borderColor: "#e5e7eb",
+    borderColor: "#2e2e2e",
     borderWidth: 1,
     borderRadius: 8,
     padding: 12,
     gap: 4,
-    backgroundColor: "#ffffff"
+    backgroundColor: "#1a1a1a"
   },
 
   // Stats banner (admin dashboard)
@@ -3860,33 +3860,33 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    backgroundColor: "#f0fdf4",
+    backgroundColor: "#222222",
     borderRadius: 8,
     padding: 10,
     borderWidth: 1,
-    borderColor: "#bbf7d0"
+    borderColor: "#1e4d30"
   },
   statsBannerEmpty: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#1e1e1e",
     borderRadius: 8,
     padding: 10,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: "#2e2e2e",
     alignItems: "center" as const
   },
   statsBannerEmptyText: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 13,
     fontStyle: "italic" as const
   },
   statChip: {
     alignItems: "center" as const,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#1a1a1a",
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: "#d1fae5",
+    borderColor: "#2e2e2e",
     minWidth: 60
   },
   statChipValue: {
@@ -3895,7 +3895,7 @@ const styles = StyleSheet.create({
     fontSize: 15
   },
   statChipLabel: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 11,
     marginTop: 1
   },
@@ -3903,15 +3903,15 @@ const styles = StyleSheet.create({
   // User Management
   listItemBanned: { borderLeftColor: "#ef4444", backgroundColor: "#fff5f5" },
   userRowHeader: { flexDirection: "row" as const, alignItems: "center" as const },
-  userExpandedPanel: { marginTop: 10, gap: 4, borderTopWidth: 1, borderTopColor: "#e5e7eb", paddingTop: 10 },
-  userPanelLabel: { color: "#64748b", fontSize: 12, fontWeight: "700" as const, marginBottom: 4 },
-  roleChip: { borderRadius: 6, paddingVertical: 5, paddingHorizontal: 8, borderWidth: 1, borderColor: "#cbd5e1", backgroundColor: "#f8fafc" },
+  userExpandedPanel: { marginTop: 10, gap: 4, borderTopWidth: 1, borderTopColor: "#2e2e2e", paddingTop: 10 },
+  userPanelLabel: { color: "#888888", fontSize: 12, fontWeight: "700" as const, marginBottom: 4 },
+  roleChip: { borderRadius: 6, paddingVertical: 5, paddingHorizontal: 8, borderWidth: 1, borderColor: "#cbd5e1", backgroundColor: "#1e1e1e" },
   roleChipActive: { backgroundColor: TEAL, borderColor: TEAL_DARK },
-  roleChipText: { color: "#334155", fontSize: 12, fontWeight: "600" as const },
+  roleChipText: { color: "#ffffff", fontSize: 12, fontWeight: "600" as const },
   roleChipTextActive: { color: "#ffffff" },
   buttonBan: { backgroundColor: "#ef4444" },
   buttonUnban: { backgroundColor: "#f59e0b" },
-  userOrderRow: { padding: 8, borderRadius: 6, backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#e5e7eb", gap: 2 },
+  userOrderRow: { padding: 8, borderRadius: 6, backgroundColor: "#1e1e1e", borderWidth: 1, borderColor: "#2e2e2e", gap: 2 },
 
   // Marketplace
   mkTopRow: { flexDirection: "row" as const, gap: 8 },
@@ -3932,69 +3932,69 @@ const styles = StyleSheet.create({
   mkStatsStrip: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6 },
   mkStatPill: {
     flexDirection: "row" as const, alignItems: "center" as const,
-    backgroundColor: "#f0fdf4", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
-    gap: 4, borderWidth: 1, borderColor: "#bbf7d0",
+    backgroundColor: "#222222", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
+    gap: 4, borderWidth: 1, borderColor: "#1e4d30",
   },
   mkStatPillIcon: { fontSize: 12 },
   mkStatPillText: { color: "#166534", fontSize: 12, fontWeight: "600" as const },
   mkSectionHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, marginTop: 2 },
   mkSectionHeaderIcon: { fontSize: 13 },
-  mkSectionHeaderText: { color: "#64748b", fontSize: 11, fontWeight: "700" as const, letterSpacing: 1 },
+  mkSectionHeaderText: { color: "#888888", fontSize: 11, fontWeight: "700" as const, letterSpacing: 1 },
   mkCard: {
-    backgroundColor: "#ffffff", borderRadius: 12, padding: 12,
-    borderWidth: 1, borderColor: "#f1f5f9", gap: 8,
-    shadowColor: "#0f172a", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1,
+    backgroundColor: "#1a1a1a", borderRadius: 12, padding: 12,
+    borderWidth: 1, borderColor: "#ffffff", gap: 8,
+    shadowColor: "#1a1a1a", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1,
   },
   mkCardTop: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10 },
-  mkRestaurantIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: "#f0fdf4", alignItems: "center" as const, justifyContent: "center" as const },
+  mkRestaurantIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: "#222222", alignItems: "center" as const, justifyContent: "center" as const },
   mkRestaurantEmoji: { fontSize: 20 },
   mkRestaurantInfo: { flex: 1, gap: 2 },
-  mkRestaurantName: { fontSize: 14, fontWeight: "700" as const, color: "#1e293b" },
-  mkDishName: { fontSize: 12, color: "#64748b" },
+  mkRestaurantName: { fontSize: 14, fontWeight: "700" as const, color: "#ffffff" },
+  mkDishName: { fontSize: 12, color: "#888888" },
   mkSelectBtn: { backgroundColor: TEAL, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
   mkSelectBtnText: { color: "#ffffff", fontWeight: "700" as const, fontSize: 12 },
   mkCardMeta: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
-  mkPrice: { color: "#0f172a", fontWeight: "700" as const, fontSize: 14 },
+  mkPrice: { color: "#ffffff", fontWeight: "700" as const, fontSize: 14 },
   mkVegBadge: { width: 16, height: 16, borderRadius: 3, borderWidth: 1.5, borderColor: "#16a34a", alignItems: "center" as const, justifyContent: "center" as const },
   mkVegDot: { color: "#16a34a", fontSize: 8 },
-  mkDistBadge: { backgroundColor: "#f1f5f9", borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  mkDistText: { color: "#64748b", fontSize: 11, fontWeight: "600" as const },
+  mkDistBadge: { backgroundColor: "#ffffff", borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  mkDistText: { color: "#888888", fontSize: 11, fontWeight: "600" as const },
   mkOfferChips: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6 },
   mkOfferChip: { backgroundColor: "#fff7ed", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderColor: "#fed7aa", gap: 2 },
   mkOfferCode: { color: "#c2410c", fontSize: 12, fontWeight: "800" as const },
   mkOfferDesc: { color: "#92400e", fontSize: 11 },
   mkOrderCard: { backgroundColor: "#0a0f1e", borderRadius: 14, padding: 14, gap: 10 },
   mkOrderCardHeader: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const },
-  mkOrderIdBadge: { backgroundColor: "#1e293b", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
-  mkOrderIdText: { color: "#94a3b8", fontSize: 11, fontWeight: "700" as const, letterSpacing: 1.5 },
+  mkOrderIdBadge: { backgroundColor: "#222222", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
+  mkOrderIdText: { color: "#aaaaaa", fontSize: 11, fontWeight: "700" as const, letterSpacing: 1.5 },
   mkOrderStatusDot: { width: 10, height: 10, borderRadius: 5 },
   mkOrderDetail: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const },
   mkOrderStatus: { color: "#ffffff", fontSize: 16, fontWeight: "700" as const },
   mkOrderTotal: { color: "#14b8a6", fontSize: 16, fontWeight: "800" as const },
-  mkOrderAddress: { color: "#64748b", fontSize: 12 },
-  mkOrderDriver: { color: "#94a3b8", fontSize: 12, fontWeight: "600" as const },
+  mkOrderAddress: { color: "#888888", fontSize: 12 },
+  mkOrderDriver: { color: "#aaaaaa", fontSize: 12, fontWeight: "600" as const },
   mkActionRow: { flexDirection: "row" as const, gap: 8 },
-  mkActionBtn: { flex: 1, backgroundColor: "#1e293b", borderRadius: 10, paddingVertical: 10, alignItems: "center" as const, gap: 3 },
+  mkActionBtn: { flex: 1, backgroundColor: "#222222", borderRadius: 10, paddingVertical: 10, alignItems: "center" as const, gap: 3 },
   mkActionIcon: { fontSize: 16 },
-  mkActionLabel: { color: "#94a3b8", fontSize: 10, fontWeight: "600" as const },
+  mkActionLabel: { color: "#aaaaaa", fontSize: 10, fontWeight: "600" as const },
   mkPayRow: { flexDirection: "row" as const, gap: 6 },
   mkPayBtn: { flex: 1, borderRadius: 8, paddingVertical: 9, alignItems: "center" as const },
   mkPayBtnText: { color: "#ffffff", fontWeight: "700" as const, fontSize: 12 },
   mkDangerRow: { flexDirection: "row" as const, gap: 6 },
-  mkDangerBtn: { flex: 1, backgroundColor: "#1e293b", borderRadius: 8, paddingVertical: 8, alignItems: "center" as const, borderWidth: 1, borderColor: "#334155" },
-  mkDangerBtnText: { color: "#94a3b8", fontSize: 12, fontWeight: "600" as const },
-  mkEtaCard: { backgroundColor: "#f0fdf4", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#bbf7d0", gap: 8 },
+  mkDangerBtn: { flex: 1, backgroundColor: "#222222", borderRadius: 8, paddingVertical: 8, alignItems: "center" as const, borderWidth: 1, borderColor: "#2e2e2e" },
+  mkDangerBtnText: { color: "#aaaaaa", fontSize: 12, fontWeight: "600" as const },
+  mkEtaCard: { backgroundColor: "#222222", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#1e4d30", gap: 8 },
   mkEtaHeader: { flexDirection: "row" as const, alignItems: "baseline" as const, gap: 6 },
   mkEtaMinutes: { fontSize: 32, fontWeight: "800" as const, color: TEAL },
   mkEtaUnit: { color: "#16a34a", fontSize: 14, fontWeight: "600" as const },
   mkEtaRoute: { flexDirection: "row" as const, gap: 16 },
   mkEtaRouteItem: { gap: 2 },
-  mkEtaRouteLabel: { color: "#64748b", fontSize: 10, fontWeight: "600" as const, letterSpacing: 0.8 },
-  mkEtaRouteValue: { color: "#1e293b", fontSize: 13, fontWeight: "700" as const },
-  mkEtaLoopRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, paddingVertical: 6, borderTopWidth: 1, borderTopColor: "#f1f5f9" },
+  mkEtaRouteLabel: { color: "#888888", fontSize: 10, fontWeight: "600" as const, letterSpacing: 0.8 },
+  mkEtaRouteValue: { color: "#ffffff", fontSize: 13, fontWeight: "700" as const },
+  mkEtaLoopRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, paddingVertical: 6, borderTopWidth: 1, borderTopColor: "#ffffff" },
   mkEtaLoopMin: { color: TEAL, fontWeight: "700" as const, fontSize: 13, width: 50 },
-  mkEtaLoopSrc: { color: "#64748b", fontSize: 12, flex: 1 },
-  mkEtaLoopTime: { color: "#94a3b8", fontSize: 11 },
+  mkEtaLoopSrc: { color: "#888888", fontSize: 12, flex: 1 },
+  mkEtaLoopTime: { color: "#aaaaaa", fontSize: 11 },
 
   // User Management (production)
   umSearchRow: { flexDirection: "row" as const, gap: 8, alignItems: "center" as const },
@@ -4002,31 +4002,31 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row" as const,
     alignItems: "center" as const,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#1e1e1e",
     borderWidth: 1.5,
-    borderColor: "#e2e8f0",
+    borderColor: "#2e2e2e",
     borderRadius: 10,
     paddingHorizontal: 10,
     gap: 6,
   },
   /* role stats */
   umRoleStats: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6, marginBottom: 12 },
-  umRoleStatPill: { flexDirection: "row" as const, alignItems: "center" as const, gap: 5, backgroundColor: "#1e293b", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1 },
+  umRoleStatPill: { flexDirection: "row" as const, alignItems: "center" as const, gap: 5, backgroundColor: "#222222", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1 },
   umRoleStatDot: { width: 6, height: 6, borderRadius: 3 },
   umRoleStatCount: { fontSize: 13, fontWeight: "700" as const },
-  umRoleStatLabel: { color: "#64748b", fontSize: 11 },
+  umRoleStatLabel: { color: "#888888", fontSize: 11 },
   /* results meta */
   umResultsMeta: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, marginBottom: 8 },
-  umResultsCount: { color: "#64748b", fontSize: 12, fontWeight: "600" as const },
+  umResultsCount: { color: "#888888", fontSize: 12, fontWeight: "600" as const },
   umResultsTag: { backgroundColor: "#0f2d1e", borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: "#166534" },
   umResultsTagText: { color: "#4ade80", fontSize: 11, fontWeight: "700" as const },
   /* card */
   umCard: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 12,
     borderLeftWidth: 4,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     overflow: "hidden" as const,
     marginBottom: 8,
   },
@@ -4036,76 +4036,76 @@ const styles = StyleSheet.create({
   umAvatarText: { fontSize: 18, fontWeight: "800" as const },
   umInfo: { flex: 1, gap: 2 },
   umNameRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 },
-  umName: { fontSize: 14, fontWeight: "700" as const, color: "#f1f5f9", flex: 1 },
+  umName: { fontSize: 14, fontWeight: "700" as const, color: "#ffffff", flex: 1 },
   umBannedBadge: { backgroundColor: "#450a0a", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 1, borderColor: "#dc2626" },
   umBannedBadgeText: { color: "#fca5a5", fontSize: 9, fontWeight: "800" as const, letterSpacing: 0.5 },
-  umContact: { fontSize: 12, color: "#64748b" },
-  umJoined: { fontSize: 10, color: "#334155", marginTop: 1 },
+  umContact: { fontSize: 12, color: "#888888" },
+  umJoined: { fontSize: 10, color: "#ffffff", marginTop: 1 },
   umCardRight: { alignItems: "flex-end" as const, gap: 4 },
   umRoleBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1 },
   umRoleBadgeText: { fontSize: 11, fontWeight: "700" as const },
-  umChevron: { color: "#475569", fontSize: 11 },
+  umChevron: { color: "#555555", fontSize: 11 },
   /* expanded section */
   umExpanded: {
     borderTopWidth: 1,
-    borderTopColor: "#1e293b",
+    borderTopColor: "#222222",
     padding: 12,
     gap: 10,
     backgroundColor: "#080f1a",
   },
-  umSectionLabel: { color: "#475569", fontSize: 10, fontWeight: "700" as const, letterSpacing: 1.5 },
+  umSectionLabel: { color: "#555555", fontSize: 10, fontWeight: "700" as const, letterSpacing: 1.5 },
   umRoleChips: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6 },
   umRoleChip: {
     borderRadius: 6,
     paddingVertical: 5,
     paddingHorizontal: 10,
     borderWidth: 1.5,
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
   },
-  umRoleChipText: { color: "#94a3b8", fontSize: 12, fontWeight: "600" as const },
+  umRoleChipText: { color: "#aaaaaa", fontSize: 12, fontWeight: "600" as const },
   umActions: { flexDirection: "row" as const, gap: 8 },
   umActionBtn: {
     flex: 1,
     borderRadius: 8,
     paddingVertical: 9,
     alignItems: "center" as const,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#2e2e2e",
   },
   umActionBtnBan: { backgroundColor: "#1c0a0a", borderColor: "#dc2626" },
   umActionBtnUnban: { backgroundColor: "#1c1200", borderColor: "#d97706" },
-  umActionBtnText: { fontSize: 12, fontWeight: "700" as const, color: "#94a3b8" },
-  umOrderEmpty: { color: "#475569", fontSize: 12, textAlign: "center" as const, paddingVertical: 8 },
-  umOrderRow: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: 8, paddingVertical: 6, borderTopWidth: 1, borderTopColor: "#1e293b" },
+  umActionBtnText: { fontSize: 12, fontWeight: "700" as const, color: "#aaaaaa" },
+  umOrderEmpty: { color: "#555555", fontSize: 12, textAlign: "center" as const, paddingVertical: 8 },
+  umOrderRow: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: 8, paddingVertical: 6, borderTopWidth: 1, borderTopColor: "#222222" },
   umOrderDot: { width: 8, height: 8, borderRadius: 4, marginTop: 4 },
   umOrderName: { fontSize: 13, fontWeight: "600" as const, color: "#cbd5e1" },
-  umOrderMeta: { fontSize: 11, color: "#475569", marginTop: 1 },
+  umOrderMeta: { fontSize: 11, color: "#555555", marginTop: 1 },
   umLoadMoreBtn: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
     justifyContent: "space-between" as const,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#2e2e2e",
     paddingHorizontal: 14,
     paddingVertical: 11,
     marginTop: 4,
   },
   umLoadMoreText: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 13,
     fontWeight: "700" as const,
   },
   umLoadMoreCount: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 11,
   },
 
   /* ── Driver Onboarding Admin panel ── */
   doaSectionTitle: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 10,
     fontWeight: "700" as const,
     textTransform: "uppercase" as const,
@@ -4113,11 +4113,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   doaCard: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 12,
     borderLeftWidth: 4,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     padding: 14,
     marginBottom: 10,
     gap: 10,
@@ -4133,12 +4133,12 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   doaCardName: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 15,
     fontWeight: "700" as const,
   },
   doaCardPhone: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 12,
   },
   doaChecks: {
@@ -4150,7 +4150,7 @@ const styles = StyleSheet.create({
     flexDirection: "row" as const,
     alignItems: "center" as const,
     gap: 5,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -4161,7 +4161,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   doaCheckLabel: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 10,
     fontWeight: "700" as const,
   },
@@ -4178,7 +4178,7 @@ const styles = StyleSheet.create({
     flexDirection: "row" as const,
     alignItems: "center" as const,
     gap: 5,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -4187,25 +4187,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   doaMetaChipText: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 11,
   },
   doaAdminNote: {
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 8,
     padding: 8,
   },
   doaAdminNoteText: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 12,
     lineHeight: 17,
   },
   doaRefCard: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     borderLeftWidth: 3,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     padding: 12,
     marginBottom: 8,
     gap: 8,
@@ -4219,14 +4219,14 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   doaRefCodeLabel: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 9,
     fontWeight: "700" as const,
     textTransform: "uppercase" as const,
     letterSpacing: 0.5,
   },
   doaRefCode: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 14,
     fontWeight: "700" as const,
     letterSpacing: 1,
@@ -4237,11 +4237,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   doaRefPhone: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 12,
   },
   doaRefArrow: {
-    color: "#334155",
+    color: "#ffffff",
     fontSize: 12,
   },
   doaRefReward: {
@@ -4255,7 +4255,7 @@ const styles = StyleSheet.create({
     flexDirection: "row" as const,
     justifyContent: "space-between" as const,
     alignItems: "center" as const,
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "#eab30844",
@@ -4264,7 +4264,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   payoutTotalLabel: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 11,
     fontWeight: "700" as const,
     textTransform: "uppercase" as const,
@@ -4276,11 +4276,11 @@ const styles = StyleSheet.create({
     fontWeight: "800" as const,
   },
   payoutCard: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 12,
     borderLeftWidth: 4,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     padding: 14,
     marginBottom: 10,
     gap: 10,
@@ -4306,7 +4306,7 @@ const styles = StyleSheet.create({
     fontWeight: "700" as const,
   },
   payoutPhone: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 12,
   },
   payoutAmountRow: {
@@ -4319,13 +4319,13 @@ const styles = StyleSheet.create({
     fontWeight: "800" as const,
   },
   payoutMethodChip: {
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   payoutMethodText: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 11,
     fontWeight: "600" as const,
   },
@@ -4338,10 +4338,10 @@ const styles = StyleSheet.create({
   },
   ltStatCard: {
     flex: 1,
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     paddingVertical: 10,
     alignItems: "center" as const,
     gap: 4,
@@ -4352,7 +4352,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   ltStatLabel: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 9,
     fontWeight: "600" as const,
     textTransform: "uppercase" as const,
@@ -4360,7 +4360,7 @@ const styles = StyleSheet.create({
     textAlign: "center" as const,
   },
   ltSectionTitle: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 10,
     fontWeight: "700" as const,
     textTransform: "uppercase" as const,
@@ -4368,11 +4368,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   ltOrderCard: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     borderLeftWidth: 3,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     padding: 12,
     marginBottom: 8,
     gap: 6,
@@ -4384,7 +4384,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   ltOrderRestaurant: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 13,
     fontWeight: "700" as const,
     flex: 1,
@@ -4395,12 +4395,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   ltOrderId: {
-    color: "#334155",
+    color: "#ffffff",
     fontSize: 10,
     fontWeight: "600" as const,
   },
   ltOrderDot: {
-    color: "#1e293b",
+    color: "#ffffff",
     fontSize: 10,
   },
   ltLocationText: {
@@ -4408,15 +4408,15 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   ltNoLocation: {
-    color: "#334155",
+    color: "#ffffff",
     fontSize: 11,
   },
   ltDriverCard: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     borderLeftWidth: 3,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     padding: 12,
     marginBottom: 8,
     gap: 8,
@@ -4430,12 +4430,12 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   ltDriverPhone: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 13,
     fontWeight: "700" as const,
   },
   ltDriverOrders: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 11,
   },
   ltCapacityBadge: {
@@ -4449,7 +4449,7 @@ const styles = StyleSheet.create({
   },
   ltCapacityBarBg: {
     height: 4,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 2,
     overflow: "hidden" as const,
   },
@@ -4458,19 +4458,19 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   ltCapacityScore: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 10,
   },
   /* legacy - kept for other uses */
   umSearchIcon: { fontSize: 14 },
-  umSearchInput: { flex: 1, paddingVertical: Platform.OS === "ios" ? 11 : 8, fontSize: 14, color: "#1e293b" },
-  umSearchClear: { color: "#94a3b8", fontSize: 14, fontWeight: "700" as const, padding: 4 },
+  umSearchInput: { flex: 1, paddingVertical: Platform.OS === "ios" ? 11 : 8, fontSize: 14, color: "#ffffff" },
+  umSearchClear: { color: "#aaaaaa", fontSize: 14, fontWeight: "700" as const, padding: 4 },
   umSearchBtn: { backgroundColor: TEAL, borderRadius: 10, paddingHorizontal: 16, paddingVertical: Platform.OS === "ios" ? 12 : 9 },
   umSearchBtnDisabled: { backgroundColor: "#cbd5e1" },
   umSearchBtnText: { color: "#ffffff", fontWeight: "700" as const, fontSize: 14 },
   umMeta: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
-  umMetaCount: { color: "#64748b", fontSize: 12, fontWeight: "600" as const },
-  umMetaTag: { backgroundColor: "#f0fdf4", borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: "#bbf7d0" },
+  umMetaCount: { color: "#888888", fontSize: 12, fontWeight: "600" as const },
+  umMetaTag: { backgroundColor: "#222222", borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: "#1e4d30" },
   umMetaTagText: { color: "#15803d", fontSize: 11, fontWeight: "700" as const },
 
   orderSearchRow: {
@@ -4502,7 +4502,7 @@ const styles = StyleSheet.create({
   },
 
   dividerChevron: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 10,
     fontWeight: "700" as const
   },
@@ -4515,7 +4515,7 @@ const styles = StyleSheet.create({
     borderColor: "#cbd5e1",
     borderRadius: 6,
     padding: Platform.OS === "ios" ? 12 : 9,
-    backgroundColor: "#ffffff"
+    backgroundColor: "#1a1a1a"
   },
   roleDropdownValue: {
     fontSize: 14,
@@ -4524,13 +4524,13 @@ const styles = StyleSheet.create({
   },
   roleDropdownChevron: {
     fontSize: 12,
-    color: "#64748b"
+    color: "#888888"
   },
   roleDropdownMenu: {
     borderWidth: 1,
     borderColor: "#cbd5e1",
     borderRadius: 6,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#1a1a1a",
     overflow: "hidden" as const,
     marginTop: 2
   },
@@ -4538,26 +4538,26 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9"
+    borderBottomColor: "#ffffff"
   },
   roleDropdownItemActive: {
-    backgroundColor: "#f0fdf4"
+    backgroundColor: "#222222"
   },
   roleDropdownItemText: {
     fontSize: 14,
-    color: "#334155"
+    color: "#ffffff"
   },
   roleDropdownItemTextActive: {
     color: TEAL,
     fontWeight: "700" as const
   },
   adminMktStrip: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 12,
     padding: 14,
     marginTop: 8,
     borderWidth: 1,
-    borderColor: "#1e293b"
+    borderColor: "#222222"
   },
   adminMktStripHeader: {
     flexDirection: "row",
@@ -4566,12 +4566,12 @@ const styles = StyleSheet.create({
     marginBottom: 10
   },
   adminMktStripTitle: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 13,
     fontWeight: "700" as const
   },
   adminMktStripSub: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 11
   },
   adminMktPills: {
@@ -4583,7 +4583,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 8,
     padding: 10,
     borderLeftWidth: 3
@@ -4597,7 +4597,7 @@ const styles = StyleSheet.create({
     lineHeight: 22
   },
   adminMktPillLabel: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 10,
     fontWeight: "600" as const,
     textTransform: "uppercase" as const,
@@ -4613,7 +4613,7 @@ const styles = StyleSheet.create({
   raStatPill: {
     flex: 1,
     alignItems: "center",
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 4,
@@ -4630,7 +4630,7 @@ const styles = StyleSheet.create({
     lineHeight: 18
   },
   raStatLabel: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 9,
     fontWeight: "600" as const,
     textTransform: "uppercase" as const,
@@ -4639,10 +4639,10 @@ const styles = StyleSheet.create({
   raSearchRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#2e2e2e",
     paddingHorizontal: 12,
     marginBottom: 12,
     height: 44
@@ -4653,30 +4653,30 @@ const styles = StyleSheet.create({
   },
   raSearchInput: {
     flex: 1,
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 14,
     height: 44
   },
   raSearchBtn: {
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#2e2e2e",
     paddingHorizontal: 12,
     paddingVertical: 5,
     marginLeft: 8
   },
   raSearchBtnText: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 12,
     fontWeight: "700" as const
   },
   raCard: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 12,
     borderLeftWidth: 4,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     padding: 14,
     marginBottom: 10
   },
@@ -4695,19 +4695,19 @@ const styles = StyleSheet.create({
     flexWrap: "wrap"
   },
   raCardName: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 15,
     fontWeight: "700" as const,
     flexShrink: 1
   },
   raCuisinePill: {
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 2
   },
   raCuisineText: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 10,
     fontWeight: "600" as const
   },
@@ -4742,7 +4742,7 @@ const styles = StyleSheet.create({
     fontSize: 11
   },
   raMetaText: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 12,
     flex: 1
   },
@@ -4765,13 +4765,13 @@ const styles = StyleSheet.create({
     lineHeight: 17
   },
   raInactiveCallout: {
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 8,
     padding: 8,
     marginBottom: 8
   },
   raInactiveText: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 12
   },
   raActions: {
@@ -4809,15 +4809,15 @@ const styles = StyleSheet.create({
   },
   raOffboardBtn: {
     flex: 1,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 8,
     paddingVertical: 9,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#475569"
+    borderColor: "#555555"
   },
   raOffboardBtnText: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 13,
     fontWeight: "700" as const
   },
@@ -4830,12 +4830,12 @@ const styles = StyleSheet.create({
     fontSize: 32
   },
   raEmptyText: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 14,
     fontWeight: "600" as const
   },
   raEmptyHint: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 12,
     textAlign: "center"
   },
@@ -4851,7 +4851,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 5
@@ -4866,14 +4866,14 @@ const styles = StyleSheet.create({
     fontWeight: "700" as const
   },
   opmStatusLabel: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 11
   },
   opmPaySection: {
     marginBottom: 12
   },
   opmPayTitle: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 11,
     fontWeight: "700" as const,
     textTransform: "uppercase" as const,
@@ -4888,11 +4888,11 @@ const styles = StyleSheet.create({
   opmPayCard: {
     flex: 1,
     minWidth: "45%",
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     borderTopWidth: 3,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     padding: 10
   },
   opmPayCardHeader: {
@@ -4902,7 +4902,7 @@ const styles = StyleSheet.create({
     marginBottom: 6
   },
   opmPayProvider: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 12,
     fontWeight: "700" as const
   },
@@ -4929,15 +4929,15 @@ const styles = StyleSheet.create({
     marginBottom: 2
   },
   opmPayTx: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 10
   },
   opmOrderCard: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     borderLeftWidth: 4,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     padding: 12,
     marginBottom: 8
   },
@@ -4949,7 +4949,7 @@ const styles = StyleSheet.create({
     marginBottom: 6
   },
   opmOrderRestaurant: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 14,
     fontWeight: "700" as const,
     flex: 1
@@ -4961,12 +4961,12 @@ const styles = StyleSheet.create({
     marginBottom: 6
   },
   opmOrderId: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 11,
     fontFamily: "monospace"
   },
   opmOrderDot: {
-    color: "#334155",
+    color: "#ffffff",
     fontSize: 11
   },
   opmOrderAmount: {
@@ -4974,7 +4974,7 @@ const styles = StyleSheet.create({
     fontWeight: "700" as const
   },
   opmOrderDate: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 11
   },
   opmOrderPhones: {
@@ -4986,7 +4986,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3
@@ -4995,7 +4995,7 @@ const styles = StyleSheet.create({
     fontSize: 10
   },
   opmPhoneChipText: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 11
   },
 
@@ -5010,10 +5010,10 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#2e2e2e",
     paddingHorizontal: 12,
     height: 44
   },
@@ -5023,12 +5023,12 @@ const styles = StyleSheet.create({
   },
   ooInput: {
     flex: 1,
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 13,
     height: 44
   },
   ooInputClear: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 14,
     paddingLeft: 6
   },
@@ -5036,10 +5036,10 @@ const styles = StyleSheet.create({
     flexDirection: "row" as const,
     alignItems: "center" as const,
     gap: 6,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#2e2e2e",
     paddingHorizontal: 14,
     paddingVertical: 10
   },
@@ -5050,16 +5050,16 @@ const styles = StyleSheet.create({
     fontSize: 14
   },
   ooLoadBtnText: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 13,
     fontWeight: "700" as const
   },
   ooOrderPreview: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     borderLeftWidth: 4,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     padding: 12,
     marginBottom: 12,
     gap: 4
@@ -5071,13 +5071,13 @@ const styles = StyleSheet.create({
     marginBottom: 4
   },
   ooOrderPreviewId: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 11,
     fontWeight: "600" as const,
     letterSpacing: 0.5
   },
   ooOrderPreviewAmount: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 20,
     fontWeight: "800" as const,
     marginBottom: 4
@@ -5086,7 +5086,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 8,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 8,
     padding: 10,
     marginBottom: 12
@@ -5095,7 +5095,7 @@ const styles = StyleSheet.create({
     fontSize: 14
   },
   ooHintText: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 12,
     flex: 1,
     lineHeight: 17
@@ -5104,7 +5104,7 @@ const styles = StyleSheet.create({
     marginBottom: 14
   },
   ooSectionTitle: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 10,
     fontWeight: "700" as const,
     textTransform: "uppercase" as const,
@@ -5120,7 +5120,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 5
@@ -5129,7 +5129,7 @@ const styles = StyleSheet.create({
     fontSize: 11
   },
   ooDriverChipText: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 11
   },
   ooAssignRow: {
@@ -5141,14 +5141,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     borderWidth: 1,
     borderColor: TEAL,
     padding: 12
   },
   ooAssignBtnSecondary: {
-    borderColor: "#334155"
+    borderColor: "#2e2e2e"
   },
   ooAssignBtnDisabled: {
     opacity: 0.35
@@ -5157,12 +5157,12 @@ const styles = StyleSheet.create({
     fontSize: 20
   },
   ooAssignBtnLabel: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 12,
     fontWeight: "700" as const
   },
   ooAssignBtnSub: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 10,
     marginTop: 1
   },
@@ -5175,7 +5175,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 8,
     borderWidth: 1,
     paddingHorizontal: 12,
@@ -5218,8 +5218,8 @@ const styles = StyleSheet.create({
     borderColor: "#dc2626"
   },
   ooDangerBtnAlt: {
-    backgroundColor: "#1e293b",
-    borderColor: "#475569"
+    backgroundColor: "#222222",
+    borderColor: "#555555"
   },
   ooDangerBtnText: {
     color: "#fca5a5",
@@ -5236,7 +5236,7 @@ const styles = StyleSheet.create({
   },
   zciActionBtn: {
     width: "47%",
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 12,
     borderWidth: 1,
     padding: 14,
@@ -5255,10 +5255,10 @@ const styles = StyleSheet.create({
   },
   zciActionSub: {
     fontSize: 11,
-    color: "#64748b"
+    color: "#888888"
   },
   zciSectionTitle: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 12,
     fontWeight: "700" as const,
     letterSpacing: 0.8,
@@ -5266,10 +5266,10 @@ const styles = StyleSheet.create({
     marginBottom: 8
   },
   zciCard: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     borderLeftWidth: 3,
     padding: 12,
     marginBottom: 8
@@ -5281,20 +5281,20 @@ const styles = StyleSheet.create({
     marginBottom: 8
   },
   zciCardName: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 14,
     fontWeight: "700" as const,
     flex: 1
   },
   zciCityChip: {
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
     marginLeft: 8
   },
   zciCityChipText: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 11,
     fontWeight: "600" as const
   },
@@ -5307,7 +5307,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 4
@@ -5316,12 +5316,12 @@ const styles = StyleSheet.create({
     fontSize: 12
   },
   zciMetaChipText: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 11,
     fontWeight: "600" as const
   },
   zciAiCreative: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 11,
     fontStyle: "italic" as const,
     marginTop: 6,
@@ -5332,7 +5332,7 @@ const styles = StyleSheet.create({
     alignItems: "center"
   },
   zciEmptyText: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 13
   },
 
@@ -5343,7 +5343,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.6)"
   },
   zciModalSheet: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderTopWidth: 3,
@@ -5365,28 +5365,28 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     alignItems: "center",
     justifyContent: "center"
   },
   zciModalCloseText: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 14,
     fontWeight: "700" as const
   },
   zciFieldLabel: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 12,
     fontWeight: "600" as const,
     marginBottom: 6,
     marginTop: 12
   },
   zciFieldInput: {
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#334155",
-    color: "#f1f5f9",
+    borderColor: "#2e2e2e",
+    color: "#ffffff",
     fontSize: 15,
     paddingHorizontal: 14,
     paddingVertical: 11
@@ -5401,14 +5401,14 @@ const styles = StyleSheet.create({
     gap: 10
   },
   zciFieldHint: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 12,
     marginTop: 10,
     lineHeight: 18
   },
   zciSegment: {
     flexDirection: "row",
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 10,
     padding: 3,
     gap: 2
@@ -5420,7 +5420,7 @@ const styles = StyleSheet.create({
     alignItems: "center"
   },
   zciSegmentText: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 12,
     fontWeight: "600" as const
   },
@@ -5431,15 +5431,15 @@ const styles = StyleSheet.create({
   },
   zciModalCancel: {
     flex: 1,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#334155"
+    borderColor: "#2e2e2e"
   },
   zciModalCancelText: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 15,
     fontWeight: "600" as const
   },
@@ -5460,7 +5460,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#0f766e",
@@ -5470,18 +5470,18 @@ const styles = StyleSheet.create({
   anlRunBtnDisabled: { opacity: 0.4 },
   anlRunIcon: { fontSize: 28 },
   anlRunLabel: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 14,
     fontWeight: "700" as const
   },
   anlRunSub: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 12,
     marginTop: 2
   },
   anlTabRow: {
     flexDirection: "row",
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 10,
     padding: 3,
     marginBottom: 12,
@@ -5493,18 +5493,18 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center"
   },
-  anlTabActive: { backgroundColor: "#0f172a" },
+  anlTabActive: { backgroundColor: "#1a1a1a" },
   anlTabText: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 13,
     fontWeight: "600" as const
   },
-  anlTabTextActive: { color: "#f1f5f9" },
+  anlTabTextActive: { color: "#ffffff" },
   anlJobCard: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     borderLeftWidth: 3,
     padding: 12,
     marginBottom: 8
@@ -5516,7 +5516,7 @@ const styles = StyleSheet.create({
     marginBottom: 6
   },
   anlJobType: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 14,
     fontWeight: "700" as const,
     flex: 1
@@ -5527,18 +5527,18 @@ const styles = StyleSheet.create({
     gap: 6
   },
   anlJobDate: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 12
   },
   anlJobSummary: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 12
   },
   anlPredCard: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     borderLeftWidth: 3,
     padding: 12,
     marginBottom: 8
@@ -5550,7 +5550,7 @@ const styles = StyleSheet.create({
     marginBottom: 8
   },
   anlPredZone: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 13,
     fontWeight: "700" as const,
     flex: 1
@@ -5565,13 +5565,13 @@ const styles = StyleSheet.create({
     marginBottom: 10
   },
   anlPredChip: {
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3
   },
   anlPredChipText: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 11,
     fontWeight: "600" as const
   },
@@ -5581,14 +5581,14 @@ const styles = StyleSheet.create({
     gap: 8
   },
   anlConfLabel: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 11,
     width: 68
   },
   anlConfBarBg: {
     flex: 1,
     height: 5,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 3,
     overflow: "hidden"
   },
@@ -5611,42 +5611,42 @@ const styles = StyleSheet.create({
     marginBottom: 12
   },
   stFilterChip: {
-    backgroundColor: "#1e293b",
+    backgroundColor: "#222222",
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: "#334155"
+    borderColor: "#2e2e2e"
   },
   stFilterChipActive: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderColor: "#0f766e"
   },
   stFilterChipText: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 12,
     fontWeight: "600" as const
   },
   stFilterChipTextActive: { color: "#0f766e" },
   stCreateBtn: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#2e2e2e",
     paddingVertical: 12,
     alignItems: "center",
     marginBottom: 12
   },
   stCreateBtnText: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 13,
     fontWeight: "600" as const
   },
   stCard: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     borderLeftWidth: 3,
     padding: 12,
     marginBottom: 8
@@ -5668,7 +5668,7 @@ const styles = StyleSheet.create({
     fontWeight: "700" as const
   },
   stSubject: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 14,
     fontWeight: "600" as const,
     marginBottom: 8,
@@ -5680,22 +5680,22 @@ const styles = StyleSheet.create({
     gap: 6
   },
   stCardId: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 11,
     fontFamily: "monospace"
   },
   stCardDot: {
-    color: "#334155",
+    color: "#ffffff",
     fontSize: 11
   },
   stCardDate: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 11
   },
 
   // ── Security & Audit Logs ─────────────────────────────────────────────────
   audSectionLabel: {
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 12,
     fontWeight: "700" as const,
     letterSpacing: 0.6,
@@ -5703,10 +5703,10 @@ const styles = StyleSheet.create({
     marginBottom: 8
   },
   audVcCard: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     borderLeftWidth: 3,
     padding: 12,
     marginBottom: 6
@@ -5718,26 +5718,26 @@ const styles = StyleSheet.create({
   },
   audVcLeft: { flex: 1 },
   audVcProvider: {
-    color: "#f1f5f9",
+    color: "#ffffff",
     fontSize: 13,
     fontWeight: "700" as const
   },
   audVcType: {
-    color: "#64748b",
+    color: "#888888",
     fontSize: 12,
     marginTop: 2,
     textTransform: "capitalize" as const
   },
   audVcDate: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 11,
     marginTop: 6
   },
   audLogCard: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#1a1a1a",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#222222",
     borderLeftWidth: 3,
     paddingHorizontal: 10,
     paddingVertical: 9,
@@ -5761,7 +5761,7 @@ const styles = StyleSheet.create({
   },
   audLogPath: {
     flex: 1,
-    color: "#94a3b8",
+    color: "#aaaaaa",
     fontSize: 12,
     fontFamily: "monospace"
   },
@@ -5775,7 +5775,7 @@ const styles = StyleSheet.create({
     fontWeight: "700" as const
   },
   audLogDate: {
-    color: "#475569",
+    color: "#555555",
     fontSize: 11,
     marginTop: 5
   }
