@@ -91,6 +91,7 @@ export default function App() {
   const [adminOrders, setAdminOrders] = useState<Array<{ id: string; status: string; total_paise: number; restaurant_name: string; customer_phone?: string | null; driver_phone?: string | null; created_at?: string }>>([]);
   const [orderSearch, setOrderSearch] = useState("");
   const [orderSearchResults, setOrderSearchResults] = useState<Array<{ id: string; status: string; total_paise: number; restaurant_name: string; customer_phone?: string | null; driver_phone?: string | null; created_at: string }> | null>(null);
+  const [orderDisplayLimit, setOrderDisplayLimit] = useState(10);
   const [paymentReports, setPaymentReports] = useState<Array<{ provider: string; status: string; transactions: number; amount_paise: number }>>([]);
   const [driverLoad, setDriverLoad] = useState<Array<{ id: string; phone: string | null; active_orders: number; capacity_score: number }>>([]);
   const [deliveryOrders, setDeliveryOrders] = useState<Array<{ id: string; status: string; restaurant_name: string; last_driver_lat: string | null; last_driver_lng: string | null }>>([]);
@@ -1886,7 +1887,7 @@ export default function App() {
                     placeholder="Restaurant name or Order ID…"
                     placeholderTextColor="#475569"
                     value={orderSearch}
-                    onChangeText={text => { setOrderSearch(text); if (!text) setOrderSearchResults(null); }}
+                    onChangeText={text => { setOrderSearch(text); setOrderDisplayLimit(10); if (!text) setOrderSearchResults(null); }}
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
@@ -1913,7 +1914,11 @@ export default function App() {
                           (o.restaurant_name ?? "").toLowerCase().includes(q) ||
                           o.id.toLowerCase().startsWith(q)
                         )
-                      : adminOrders.slice(0, 10));
+                      : adminOrders);
+
+                  const visibleOrders = displayOrders.slice(0, orderDisplayLimit);
+                  const remainingOrders = displayOrders.length - visibleOrders.length;
+
                   if (adminOrders.length === 0 && !orderSearchResults) {
                     return (
                       <View style={styles.raEmpty}>
@@ -1931,47 +1936,58 @@ export default function App() {
                       </View>
                     );
                   }
-                  return displayOrders.map(item => {
-                    const statusColor = orderStatusColor(item.status);
-                    return (
-                      <View key={item.id} style={[styles.opmOrderCard, { borderLeftColor: statusColor }]}>
-                        <View style={styles.opmOrderHeader}>
-                          <Text style={styles.opmOrderRestaurant} numberOfLines={1}>{item.restaurant_name ?? "Unknown Restaurant"}</Text>
-                          <View style={[styles.raStatusBadge, { backgroundColor: statusColor + "22", borderColor: statusColor }]}>
-                            <View style={[styles.raStatusDot, { backgroundColor: statusColor }]} />
-                            <Text style={[styles.raStatusText, { color: statusColor }]}>{titleCase(item.status)}</Text>
-                          </View>
-                        </View>
-                        <View style={styles.opmOrderMeta}>
-                          <Text style={styles.opmOrderId}>#{item.id.slice(0, 8).toUpperCase()}</Text>
-                          <Text style={styles.opmOrderDot}>·</Text>
-                          <Text style={[styles.opmOrderAmount, { color: statusColor }]}>{formatCurrency(item.total_paise)}</Text>
-                          {item.created_at && (
-                            <>
+                  return (
+                    <>
+                      <Text style={styles.umResultsCount}>{visibleOrders.length} of {displayOrders.length} order{displayOrders.length !== 1 ? "s" : ""}</Text>
+                      {visibleOrders.map(item => {
+                        const statusColor = orderStatusColor(item.status);
+                        return (
+                          <View key={item.id} style={[styles.opmOrderCard, { borderLeftColor: statusColor }]}>
+                            <View style={styles.opmOrderHeader}>
+                              <Text style={styles.opmOrderRestaurant} numberOfLines={1}>{item.restaurant_name ?? "Unknown Restaurant"}</Text>
+                              <View style={[styles.raStatusBadge, { backgroundColor: statusColor + "22", borderColor: statusColor }]}>
+                                <View style={[styles.raStatusDot, { backgroundColor: statusColor }]} />
+                                <Text style={[styles.raStatusText, { color: statusColor }]}>{titleCase(item.status)}</Text>
+                              </View>
+                            </View>
+                            <View style={styles.opmOrderMeta}>
+                              <Text style={styles.opmOrderId}>#{item.id.slice(0, 8).toUpperCase()}</Text>
                               <Text style={styles.opmOrderDot}>·</Text>
-                              <Text style={styles.opmOrderDate}>{new Date(item.created_at).toLocaleDateString()}</Text>
-                            </>
-                          )}
-                        </View>
-                        {(item.customer_phone || item.driver_phone) && (
-                          <View style={styles.opmOrderPhones}>
-                            {item.customer_phone && (
-                              <View style={styles.opmPhoneChip}>
-                                <Text style={styles.opmPhoneChipIcon}>👤</Text>
-                                <Text style={styles.opmPhoneChipText}>{item.customer_phone}</Text>
-                              </View>
-                            )}
-                            {item.driver_phone && (
-                              <View style={styles.opmPhoneChip}>
-                                <Text style={styles.opmPhoneChipIcon}>🚗</Text>
-                                <Text style={styles.opmPhoneChipText}>{item.driver_phone}</Text>
+                              <Text style={[styles.opmOrderAmount, { color: statusColor }]}>{formatCurrency(item.total_paise)}</Text>
+                              {item.created_at && (
+                                <>
+                                  <Text style={styles.opmOrderDot}>·</Text>
+                                  <Text style={styles.opmOrderDate}>{new Date(item.created_at).toLocaleDateString()}</Text>
+                                </>
+                              )}
+                            </View>
+                            {(item.customer_phone || item.driver_phone) && (
+                              <View style={styles.opmOrderPhones}>
+                                {item.customer_phone && (
+                                  <View style={styles.opmPhoneChip}>
+                                    <Text style={styles.opmPhoneChipIcon}>👤</Text>
+                                    <Text style={styles.opmPhoneChipText}>{item.customer_phone}</Text>
+                                  </View>
+                                )}
+                                {item.driver_phone && (
+                                  <View style={styles.opmPhoneChip}>
+                                    <Text style={styles.opmPhoneChipIcon}>🚗</Text>
+                                    <Text style={styles.opmPhoneChipText}>{item.driver_phone}</Text>
+                                  </View>
+                                )}
                               </View>
                             )}
                           </View>
-                        )}
-                      </View>
-                    );
-                  });
+                        );
+                      })}
+                      {remainingOrders > 0 && (
+                        <Pressable style={styles.umLoadMoreBtn} onPress={() => setOrderDisplayLimit(l => l + 10)}>
+                          <Text style={styles.umLoadMoreText}>Show {Math.min(remainingOrders, 10)} more</Text>
+                          <Text style={styles.umLoadMoreCount}>{remainingOrders} remaining</Text>
+                        </Pressable>
+                      )}
+                    </>
+                  );
                 })()}
               </>
             )}
