@@ -154,7 +154,7 @@ export default function App() {
   const isCollapsed = (label: string) => Boolean(collapsedPanels[label]);
 
   const authed = Boolean(token);
-  const isAdmin = authed && (role === "admin" || role === "super_admin");
+  const isAdmin = authed && (role === "admin" || role === "super_admin" || role === "delivery_admin");
   const availableTabs = useMemo(() => {
     if (role === "driver") return ["driver"] as Tab[];
     if (role === "restaurant") return ["restaurant"] as Tab[];
@@ -912,23 +912,8 @@ export default function App() {
           </View>
         )}
 
-        {isAdmin && tab !== "admin" && (
+        {authed && tab !== "admin" && (
           <Segmented values={availableTabs} value={tab} onChange={next => setTab(next as Tab)} />
-        )}
-
-        {/* Access denied — logged in but not admin/super_admin */}
-        {authed && !isAdmin && (
-          <View style={styles.accessDeniedCard}>
-            <Text style={styles.accessDeniedIcon}>🔒</Text>
-            <Text style={styles.accessDeniedTitle}>Admin Access Only</Text>
-            <Text style={styles.accessDeniedText}>
-              This app is for AmberKitchen admins only.{"\n"}
-              You are signed in as <Text style={styles.accessDeniedRole}>{role.replace(/_/g, " ").toUpperCase()}</Text>, which does not have access.
-            </Text>
-            <Pressable style={styles.accessDeniedLogoutBtn} onPress={logout}>
-              <Text style={styles.accessDeniedLogoutText}>Sign Out</Text>
-            </Pressable>
-          </View>
         )}
 
         {isAdmin && tab === "admin" && (
@@ -962,7 +947,7 @@ export default function App() {
         )}
 
         {/* ── Driver Tab ── */}
-        {isAdmin && tab === "driver" && (
+        {authed && tab === "driver" && (
           <Card title="Delivery Partner App">
             <Text style={styles.sectionHint}>Onboard, browse orders, manage deliveries, and track earnings.</Text>
             <View style={styles.actions}>
@@ -1287,7 +1272,7 @@ export default function App() {
         )}
 
         {/* ── Restaurant Tab ── */}
-        {isAdmin && tab === "restaurant" && (
+        {authed && tab === "restaurant" && (
           <Card title="Restaurant Panel">
             <Text style={styles.sectionHint}>Manage onboarding, menu items, incoming orders and earnings.</Text>
 
