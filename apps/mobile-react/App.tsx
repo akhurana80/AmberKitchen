@@ -2314,35 +2314,121 @@ export default function App() {
             )}
 
             {/* Zones / Campaigns / Incentives */}
-            <Divider label="Zones, Campaigns & Incentives" icon="🎯" subtitle="Delivery zones, discount offers and driver rewards" collapsed={isCollapsed("Zones, Campaigns & Incentives")} onPress={() => togglePanel("Zones, Campaigns & Incentives")} />
+            <Divider label="Zones, Campaigns & Incentives" icon="🎯" subtitle={zones.length > 0 || campaigns.length > 0 || incentives.length > 0 ? `${zones.length} zones · ${campaigns.length} campaigns · ${incentives.length} incentives` : "Delivery zones, discount offers and driver rewards"} collapsed={isCollapsed("Zones, Campaigns & Incentives")} onPress={() => togglePanel("Zones, Campaigns & Incentives")} />
             {!isCollapsed("Zones, Campaigns & Incentives") && (
               <>
-            <View style={styles.actions}>
-              <Button label="Create Zone" onPress={() => run("Creating zone", () => api.createZone(token, `Zone ${Date.now().toString(36).slice(-4).toUpperCase()}`, "Delhi NCR", location.lat, location.lng, 3, 20))} disabled={!authed} />
-              <Button label="Create Offer" onPress={() => run("Creating offer", () => api.createOffer(token, `MOB${Date.now().toString(36).slice(-5).toUpperCase()}`, "Mobile Offer", "flat", 5000, 19900))} disabled={!authed} />
-            </View>
-            <View style={styles.actions}>
-              <Button label="Create Campaign" onPress={() => run("Creating campaign", () => api.createCampaign(token, `Campaign ${Date.now().toString(36).slice(-4).toUpperCase()}`, "push", 100000, "AI mobile launch creative"))} disabled={!authed} />
-              <Button label="Create Incentive" onPress={() => run("Creating incentive", () => api.createDriverIncentive(token, `Delivery Bonus ${Date.now().toString(36).slice(-4).toUpperCase()}`, 5, 7500))} disabled={!authed} />
-            </View>
-            {zones.length === 0
-              ? <Text style={styles.emptyHint}>No zones. Tap "Create Zone" to add one.</Text>
-              : zones.slice(0, 2).map(item => (
-                <ListItem key={item.id} title={`${item.name} — ${item.city}`} subtitle={`SLA ${item.sla_minutes} min · Surge ${item.surge_multiplier}x`} />
-              ))
-            }
-            {campaigns.length === 0
-              ? <Text style={styles.emptyHint}>No campaigns. Tap "Create Campaign" to add one.</Text>
-              : campaigns.slice(0, 2).map(item => (
-                <ListItem key={item.id} title={`${item.name} (${item.channel})`} subtitle={`${titleCase(item.status)} · ${formatCurrency(item.budget_paise)}`} />
-              ))
-            }
-            {incentives.length === 0
-              ? <Text style={styles.emptyHint}>No driver incentives. Tap "Create Incentive" to add one.</Text>
-              : incentives.slice(0, 1).map(item => (
-                <ListItem key={item.id} title={item.title} subtitle={`${item.target_deliveries} deliveries → ${formatCurrency(item.reward_paise)} · ${titleCase(item.status)}`} />
-              ))
-            }
+                {/* Create action buttons */}
+                <View style={styles.zciActionGrid}>
+                  {[
+                    { icon: "🗺️", label: "Create Zone",      sub: "Delhi NCR · SLA 3min",     accent: "#2563eb", onPress: () => run("Creating zone",      () => api.createZone(token, `Zone ${Date.now().toString(36).slice(-4).toUpperCase()}`, "Delhi NCR", location.lat, location.lng, 3, 20)) },
+                    { icon: "🏷️", label: "Create Offer",     sub: "₹50 flat · min ₹199",      accent: "#7c3aed", onPress: () => run("Creating offer",     () => api.createOffer(token, `MOB${Date.now().toString(36).slice(-5).toUpperCase()}`, "Mobile Offer", "flat", 5000, 19900)) },
+                    { icon: "📣", label: "Create Campaign",  sub: "Push · ₹1,000 budget",     accent: "#d97706", onPress: () => run("Creating campaign",  () => api.createCampaign(token, `Campaign ${Date.now().toString(36).slice(-4).toUpperCase()}`, "push", 100000, "AI mobile launch creative")) },
+                    { icon: "🎁", label: "Create Incentive", sub: "5 deliveries → ₹75 bonus", accent: "#0f766e", onPress: () => run("Creating incentive", () => api.createDriverIncentive(token, `Delivery Bonus ${Date.now().toString(36).slice(-4).toUpperCase()}`, 5, 7500)) },
+                  ].map(btn => (
+                    <Pressable
+                      key={btn.label}
+                      style={[styles.zciActionBtn, { borderColor: btn.accent + "55" }, !authed && styles.zciActionBtnDisabled]}
+                      disabled={!authed || loading}
+                      onPress={btn.onPress}
+                    >
+                      <Text style={styles.zciActionIcon}>{btn.icon}</Text>
+                      <Text style={[styles.zciActionLabel, { color: btn.accent }]}>{btn.label}</Text>
+                      <Text style={styles.zciActionSub}>{btn.sub}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {/* Zones */}
+                <Text style={styles.zciSectionTitle}>🗺️ Zones</Text>
+                {zones.length === 0 ? (
+                  <View style={styles.zciEmptyRow}>
+                    <Text style={styles.zciEmptyText}>No zones — tap Create Zone above.</Text>
+                  </View>
+                ) : zones.map(item => (
+                  <View key={item.id} style={[styles.zciCard, { borderLeftColor: "#2563eb" }]}>
+                    <View style={styles.zciCardHeader}>
+                      <Text style={styles.zciCardName}>{item.name}</Text>
+                      <View style={styles.zciCityChip}>
+                        <Text style={styles.zciCityChipText}>{item.city}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.zciCardMeta}>
+                      <View style={styles.zciMetaChip}>
+                        <Text style={styles.zciMetaChipIcon}>⏱</Text>
+                        <Text style={styles.zciMetaChipText}>SLA {item.sla_minutes} min</Text>
+                      </View>
+                      <View style={styles.zciMetaChip}>
+                        <Text style={styles.zciMetaChipIcon}>⚡</Text>
+                        <Text style={styles.zciMetaChipText}>Surge {item.surge_multiplier}×</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+
+                {/* Campaigns */}
+                <Text style={[styles.zciSectionTitle, { marginTop: 8 }]}>📣 Campaigns</Text>
+                {campaigns.length === 0 ? (
+                  <View style={styles.zciEmptyRow}>
+                    <Text style={styles.zciEmptyText}>No campaigns — tap Create Campaign above.</Text>
+                  </View>
+                ) : campaigns.map(item => {
+                  const campColor = item.status === "active" ? "#22c55e" : item.status === "paused" ? "#eab308" : "#64748b";
+                  return (
+                    <View key={item.id} style={[styles.zciCard, { borderLeftColor: "#d97706" }]}>
+                      <View style={styles.zciCardHeader}>
+                        <Text style={styles.zciCardName} numberOfLines={1}>{item.name}</Text>
+                        <View style={[styles.raStatusBadge, { backgroundColor: campColor + "22", borderColor: campColor }]}>
+                          <View style={[styles.raStatusDot, { backgroundColor: campColor }]} />
+                          <Text style={[styles.raStatusText, { color: campColor }]}>{titleCase(item.status)}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.zciCardMeta}>
+                        <View style={styles.zciMetaChip}>
+                          <Text style={styles.zciMetaChipIcon}>📡</Text>
+                          <Text style={styles.zciMetaChipText}>{titleCase(item.channel)}</Text>
+                        </View>
+                        <View style={styles.zciMetaChip}>
+                          <Text style={styles.zciMetaChipIcon}>💰</Text>
+                          <Text style={styles.zciMetaChipText}>{formatCurrency(item.budget_paise)}</Text>
+                        </View>
+                      </View>
+                      {item.ai_creative && (
+                        <Text style={styles.zciAiCreative} numberOfLines={2}>🤖 {item.ai_creative}</Text>
+                      )}
+                    </View>
+                  );
+                })}
+
+                {/* Incentives */}
+                <Text style={[styles.zciSectionTitle, { marginTop: 8 }]}>🎁 Driver Incentives</Text>
+                {incentives.length === 0 ? (
+                  <View style={styles.zciEmptyRow}>
+                    <Text style={styles.zciEmptyText}>No incentives — tap Create Incentive above.</Text>
+                  </View>
+                ) : incentives.map(item => {
+                  const incColor = item.status === "active" ? "#22c55e" : item.status === "completed" ? "#3b82f6" : "#64748b";
+                  return (
+                    <View key={item.id} style={[styles.zciCard, { borderLeftColor: "#0f766e" }]}>
+                      <View style={styles.zciCardHeader}>
+                        <Text style={styles.zciCardName} numberOfLines={1}>{item.title}</Text>
+                        <View style={[styles.raStatusBadge, { backgroundColor: incColor + "22", borderColor: incColor }]}>
+                          <View style={[styles.raStatusDot, { backgroundColor: incColor }]} />
+                          <Text style={[styles.raStatusText, { color: incColor }]}>{titleCase(item.status)}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.zciCardMeta}>
+                        <View style={styles.zciMetaChip}>
+                          <Text style={styles.zciMetaChipIcon}>🚗</Text>
+                          <Text style={styles.zciMetaChipText}>{item.target_deliveries} deliveries</Text>
+                        </View>
+                        <View style={styles.zciMetaChip}>
+                          <Text style={[styles.zciMetaChipIcon, { color: "#0f766e" }]}>🎁</Text>
+                          <Text style={[styles.zciMetaChipText, { color: "#0f766e", fontWeight: "700" as const }]}>{formatCurrency(item.reward_paise)}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
               </>
             )}
 
@@ -4669,5 +4755,114 @@ const styles = StyleSheet.create({
     color: "#fca5a5",
     fontSize: 13,
     fontWeight: "700" as const
+  },
+
+  // ── Zones, Campaigns & Incentives ────────────────────────────────────────
+  zciActionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 20
+  },
+  zciActionBtn: {
+    width: "47%",
+    backgroundColor: "#0f172a",
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    gap: 4
+  },
+  zciActionBtnDisabled: {
+    opacity: 0.4
+  },
+  zciActionIcon: {
+    fontSize: 24,
+    marginBottom: 2
+  },
+  zciActionLabel: {
+    fontSize: 13,
+    fontWeight: "700" as const
+  },
+  zciActionSub: {
+    fontSize: 11,
+    color: "#64748b"
+  },
+  zciSectionTitle: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "700" as const,
+    letterSpacing: 0.8,
+    textTransform: "uppercase" as const,
+    marginBottom: 8
+  },
+  zciCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderLeftWidth: 3,
+    padding: 12,
+    marginBottom: 8
+  },
+  zciCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8
+  },
+  zciCardName: {
+    color: "#f1f5f9",
+    fontSize: 14,
+    fontWeight: "700" as const,
+    flex: 1
+  },
+  zciCityChip: {
+    backgroundColor: "#1e293b",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginLeft: 8
+  },
+  zciCityChipText: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: "600" as const
+  },
+  zciCardMeta: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6
+  },
+  zciMetaChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#1e293b",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4
+  },
+  zciMetaChipIcon: {
+    fontSize: 12
+  },
+  zciMetaChipText: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: "600" as const
+  },
+  zciAiCreative: {
+    color: "#64748b",
+    fontSize: 11,
+    fontStyle: "italic" as const,
+    marginTop: 6,
+    lineHeight: 16
+  },
+  zciEmptyRow: {
+    paddingVertical: 12,
+    alignItems: "center"
+  },
+  zciEmptyText: {
+    color: "#475569",
+    fontSize: 13
   }
 });
