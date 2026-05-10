@@ -1183,17 +1183,33 @@ export default function App() {
             {/* Recent orders */}
             {dashboard && dashboard.recentOrders.length > 0 && (
               <>
-                <Text style={styles.recentOrdersTitle}>Recent Orders</Text>
-                {dashboard.recentOrders.slice(0, 3).map(o => (
-                  <View key={o.id} style={styles.recentOrderRow}>
-                    <View style={[styles.recentOrderDot, { backgroundColor: orderStatusColor(o.status) }]} />
-                    <View style={styles.recentOrderInfo}>
-                      <Text style={styles.recentOrderName}>{o.restaurant_name}</Text>
-                      <Text style={styles.recentOrderMeta}>{titleCase(o.status)} · {formatCurrency(o.total_paise)}</Text>
-                    </View>
-                    <Text style={styles.recentOrderId}>#{String(o.id).slice(-6).toUpperCase()}</Text>
+                <View style={styles.recentOrdersHeader}>
+                  <Text style={styles.recentOrdersTitle}>Recent Orders</Text>
+                  <View style={styles.recentOrdersCount}>
+                    <Text style={styles.recentOrdersCountText}>{dashboard.recentOrders.length}</Text>
                   </View>
-                ))}
+                </View>
+                {dashboard.recentOrders.slice(0, 3).map(o => {
+                  const statusColor = orderStatusColor(o.status);
+                  return (
+                    <View key={o.id} style={[styles.recentOrderCard, { borderLeftColor: statusColor }]}>
+                      <View style={styles.recentOrderCardTop}>
+                        <Text style={styles.recentOrderRestaurant} numberOfLines={1}>{o.restaurant_name ?? "Unknown"}</Text>
+                        <View style={[styles.recentOrderBadge, { backgroundColor: statusColor + "22", borderColor: statusColor }]}>
+                          <View style={[styles.recentOrderBadgeDot, { backgroundColor: statusColor }]} />
+                          <Text style={[styles.recentOrderBadgeText, { color: statusColor }]}>{titleCase(o.status)}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.recentOrderCardBottom}>
+                        <Text style={styles.recentOrderCardId}>#{String(o.id).slice(-8).toUpperCase()}</Text>
+                        <Text style={styles.recentOrderCardDot}>·</Text>
+                        <Text style={[styles.recentOrderCardAmount, { color: statusColor }]}>{formatCurrency(o.total_paise)}</Text>
+                        <Text style={styles.recentOrderCardDot}>·</Text>
+                        <Text style={styles.recentOrderCardDate}>{new Date(o.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
               </>
             )}
 
@@ -2736,47 +2752,100 @@ const styles = StyleSheet.create({
   },
 
   // Recent orders rows
+  recentOrdersHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    marginBottom: 8,
+  },
   recentOrdersTitle: {
     color: "#94a3b8",
     fontSize: 10,
     fontWeight: "700" as const,
     letterSpacing: 1.5,
     textTransform: "uppercase" as const,
-    marginBottom: 2,
   },
-  recentOrderRow: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    backgroundColor: "#ffffff",
-    borderRadius: 8,
-    padding: 10,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: "#f1f5f9",
+  recentOrdersCount: {
+    backgroundColor: "#1e293b",
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
   },
-  recentOrderDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  recentOrderInfo: {
-    flex: 1,
-  },
-  recentOrderName: {
-    color: "#1e293b",
-    fontSize: 13,
-    fontWeight: "600" as const,
-  },
-  recentOrderMeta: {
+  recentOrdersCountText: {
     color: "#64748b",
-    fontSize: 11,
-    marginTop: 1,
-  },
-  recentOrderId: {
-    color: "#94a3b8",
     fontSize: 10,
     fontWeight: "700" as const,
   },
+  recentOrderCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 6,
+    gap: 5,
+  },
+  recentOrderCardTop: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    gap: 8,
+  },
+  recentOrderRestaurant: {
+    color: "#f1f5f9",
+    fontSize: 13,
+    fontWeight: "700" as const,
+    flex: 1,
+  },
+  recentOrderBadge: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 4,
+    borderRadius: 5,
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  recentOrderBadgeDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  recentOrderBadgeText: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+  },
+  recentOrderCardBottom: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 5,
+  },
+  recentOrderCardId: {
+    color: "#334155",
+    fontSize: 10,
+    fontWeight: "600" as const,
+  },
+  recentOrderCardDot: {
+    color: "#1e293b",
+    fontSize: 10,
+  },
+  recentOrderCardAmount: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+  },
+  recentOrderCardDate: {
+    color: "#475569",
+    fontSize: 10,
+  },
+  /* legacy dot/row kept for safety */
+  recentOrderRow: { flexDirection: "row" as const, alignItems: "center" as const, backgroundColor: "#0f172a", borderRadius: 8, padding: 10, gap: 10, borderWidth: 1, borderColor: "#1e293b" },
+  recentOrderDot: { width: 10, height: 10, borderRadius: 5 },
+  recentOrderInfo: { flex: 1 },
+  recentOrderName: { color: "#f1f5f9", fontSize: 13, fontWeight: "600" as const },
+  recentOrderMeta: { color: "#64748b", fontSize: 11, marginTop: 1 },
+  recentOrderId: { color: "#94a3b8", fontSize: 10, fontWeight: "700" as const },
 
   // Quick action row
   quickActions: {
@@ -3654,8 +3723,10 @@ const styles = StyleSheet.create({
     flexDirection: "row" as const,
     alignItems: "center" as const,
     gap: 6,
-    backgroundColor: TEAL,
+    backgroundColor: "#1e293b",
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#334155",
     paddingHorizontal: 14,
     paddingVertical: 10
   },
@@ -3666,7 +3737,7 @@ const styles = StyleSheet.create({
     fontSize: 14
   },
   ooLoadBtnText: {
-    color: "#fff",
+    color: "#94a3b8",
     fontSize: 13,
     fontWeight: "700" as const
   },
