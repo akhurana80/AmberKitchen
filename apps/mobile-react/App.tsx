@@ -79,9 +79,9 @@ export default function App() {
   const [restaurantOrders, setRestaurantOrders] = useState<Array<{ id: string; status: string; total_paise: number }>>([]);
   const [restaurantEarnings, setRestaurantEarnings] = useState<{ orders: string; gross_paise: string; estimated_payout_paise: string } | null>(null);
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
-  const [adminRestaurants, setAdminRestaurants] = useState<Array<{ id: string; name: string; address: string; approval_status: string; rejection_reason: string | null; is_active: boolean }>>([]);
+  const [adminRestaurants, setAdminRestaurants] = useState<Array<{ id: string; name: string; address: string; approval_status: string; rejection_reason: string | null; is_active: boolean; cuisine_type?: string | null; owner_phone?: string | null; owner_email?: string | null; created_at?: string }>>([]);
   const [restaurantSearch, setRestaurantSearch] = useState("");
-  const [restaurantSearchResults, setRestaurantSearchResults] = useState<Array<{ id: string; name: string; address: string; approval_status: string; rejection_reason: string | null; is_active: boolean }> | null>(null);
+  const [restaurantSearchResults, setRestaurantSearchResults] = useState<Array<{ id: string; name: string; address: string; approval_status: string; rejection_reason: string | null; is_active: boolean; cuisine_type?: string | null; owner_phone?: string | null; owner_email?: string | null; created_at?: string }> | null>(null);
   const [adminUsers, setAdminUsers] = useState<Array<{ id: string; phone: string | null; email: string | null; name: string | null; role: string; is_banned: boolean }>>([]);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [userOrdersMap, setUserOrdersMap] = useState<Record<string, Array<{ id: string; status: string; total_paise: number; restaurant_name: string; created_at: string }>>>({});
@@ -1454,89 +1454,181 @@ export default function App() {
             <Divider label="Restaurant Approvals" icon="✅" subtitle={adminRestaurants.length > 0 ? `${adminRestaurants.filter(r => r.approval_status === "pending").length} pending · ${adminRestaurants.length} total` : "Approve, reject or offboard restaurants"} collapsed={isCollapsed("Restaurant Approvals")} onPress={() => togglePanel("Restaurant Approvals")} />
             {!isCollapsed("Restaurant Approvals") && (
               <>
-            <View style={styles.orderSearchRow}>
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                placeholder="Search restaurant name…"
-                placeholderTextColor="#94a3b8"
-                value={restaurantSearch}
-                onChangeText={text => { setRestaurantSearch(text); if (!text) setRestaurantSearchResults(null); }}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <Pressable
-                style={[styles.button, { marginLeft: 8 }, (!restaurantSearch.trim() || loading) && styles.buttonDisabled]}
-                disabled={!restaurantSearch.trim() || loading}
-                onPress={async () => {
-                  const result = await run("Searching restaurants", () => api.adminRestaurantsSearch(token, restaurantSearch.trim()));
-                  if (result) setRestaurantSearchResults(result as typeof restaurantSearchResults);
-                }}
-              >
-                <Text style={styles.buttonText}>Load</Text>
-              </Pressable>
-            </View>
-            {(() => {
-              const q = restaurantSearch.trim().toLowerCase();
-              const displayRestaurants = restaurantSearchResults
-                ?? (q
-                  ? adminRestaurants.filter(r => r.name.toLowerCase().includes(q))
-                  : Object.values(
-                      adminRestaurants.reduce<Record<string, typeof adminRestaurants[0]>>((acc, r) => {
-                        if (!acc[r.approval_status]) acc[r.approval_status] = r;
-                        return acc;
-                      }, {})
-                    ).slice(0, 5));
-              if (adminRestaurants.length === 0 && !restaurantSearchResults) {
-                return <Text style={styles.emptyHint}>No restaurants to review. Load admin dashboard first.</Text>;
-              }
-              if (displayRestaurants.length === 0) {
-                return <Text style={styles.emptyHint}>{q ? `No restaurants match "${restaurantSearch}".` : "No pending approvals."}</Text>;
-              }
-              return displayRestaurants.map(item => (
-                <RestaurantRow
-                  key={item.id}
-                  name={item.name}
-                  approvalStatus={item.approval_status}
-                  isActive={item.is_active}
-                  rejectionReason={item.rejection_reason}
-                  onApprove={item.approval_status === "approved" ? undefined : async () => {
-                    const result = await run("Approving restaurant", () => api.updateRestaurantApproval(token, item.id, "approved"));
-                    if (result) {
-                      setAdminRestaurants(prev => prev.map(r => r.id === item.id ? { ...r, approval_status: "approved", rejection_reason: null } : r));
-                      setRestaurantSearchResults(prev => prev ? prev.map(r => r.id === item.id ? { ...r, approval_status: "approved", rejection_reason: null } : r) : null);
-                    }
-                  }}
-                  onReject={item.approval_status === "pending" ? () => {
-                    Alert.prompt("Reject Restaurant", "Enter rejection reason:", [
-                      { text: "Cancel", style: "cancel" },
-                      {
-                        text: "Reject", style: "destructive", onPress: async (reason) => {
-                          const result = await run("Rejecting restaurant", () => api.updateRestaurantApproval(token, item.id, "rejected", reason ?? ""));
-                          if (result) {
-                            setAdminRestaurants(prev => prev.map(r => r.id === item.id ? { ...r, approval_status: "rejected", rejection_reason: reason ?? null } : r));
-                            setRestaurantSearchResults(prev => prev ? prev.map(r => r.id === item.id ? { ...r, approval_status: "rejected", rejection_reason: reason ?? null } : r) : null);
-                          }
-                        }
-                      }
-                    ], "plain-text");
-                  } : undefined}
-                  onOffboard={item.approval_status === "approved" && item.is_active ? async () => {
-                    Alert.alert("Offboard Restaurant", `Deactivate "${item.name}"? Customers will not be able to order from it.`, [
-                      { text: "Cancel", style: "cancel" },
-                      {
-                        text: "Offboard", style: "destructive", onPress: async () => {
-                          const result = await run("Offboarding restaurant", () => api.offboardRestaurant(token, item.id));
-                          if (result) {
-                            setAdminRestaurants(prev => prev.map(r => r.id === item.id ? { ...r, is_active: false } : r));
-                            setRestaurantSearchResults(prev => prev ? prev.map(r => r.id === item.id ? { ...r, is_active: false } : r) : null);
-                          }
-                        }
-                      }
-                    ]);
-                  } : undefined}
-                />
-              ));
-            })()}
+                {/* Status summary */}
+                {adminRestaurants.length > 0 && (
+                  <View style={styles.raStatsRow}>
+                    {[
+                      { label: "Pending",  color: "#eab308", count: adminRestaurants.filter(r => r.approval_status === "pending").length },
+                      { label: "Approved", color: "#22c55e", count: adminRestaurants.filter(r => r.approval_status === "approved").length },
+                      { label: "Rejected", color: "#ef4444", count: adminRestaurants.filter(r => r.approval_status === "rejected").length },
+                      { label: "Inactive", color: "#64748b", count: adminRestaurants.filter(r => !r.is_active).length },
+                    ].map(s => (
+                      <View key={s.label} style={styles.raStatPill}>
+                        <View style={[styles.raStatDot, { backgroundColor: s.color }]} />
+                        <Text style={[styles.raStatCount, { color: s.color }]}>{s.count}</Text>
+                        <Text style={styles.raStatLabel}>{s.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Search */}
+                <View style={styles.raSearchRow}>
+                  <Text style={styles.raSearchIcon}>🔍</Text>
+                  <TextInput
+                    style={styles.raSearchInput}
+                    placeholder="Search by restaurant name…"
+                    placeholderTextColor="#475569"
+                    value={restaurantSearch}
+                    onChangeText={text => { setRestaurantSearch(text); if (!text) setRestaurantSearchResults(null); }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  {restaurantSearch.trim().length > 0 && (
+                    <Pressable
+                      style={[styles.raSearchBtn, (!restaurantSearch.trim() || loading) && { opacity: 0.4 }]}
+                      disabled={!restaurantSearch.trim() || loading}
+                      onPress={async () => {
+                        const result = await run("Searching restaurants", () => api.adminRestaurantsSearch(token, restaurantSearch.trim()));
+                        if (result) setRestaurantSearchResults(result as typeof restaurantSearchResults);
+                      }}
+                    >
+                      <Text style={styles.raSearchBtnText}>Search</Text>
+                    </Pressable>
+                  )}
+                </View>
+
+                {/* Restaurant cards */}
+                {(() => {
+                  const q = restaurantSearch.trim().toLowerCase();
+                  const displayRestaurants = restaurantSearchResults
+                    ?? (q
+                      ? adminRestaurants.filter(r => r.name.toLowerCase().includes(q))
+                      : adminRestaurants.slice(0, 10));
+                  if (adminRestaurants.length === 0 && !restaurantSearchResults) {
+                    return (
+                      <View style={styles.raEmpty}>
+                        <Text style={styles.raEmptyIcon}>🏪</Text>
+                        <Text style={styles.raEmptyText}>No restaurants loaded</Text>
+                        <Text style={styles.raEmptyHint}>Refresh the admin dashboard to load restaurant data.</Text>
+                      </View>
+                    );
+                  }
+                  if (displayRestaurants.length === 0) {
+                    return (
+                      <View style={styles.raEmpty}>
+                        <Text style={styles.raEmptyIcon}>🔍</Text>
+                        <Text style={styles.raEmptyText}>No results for "{restaurantSearch}"</Text>
+                      </View>
+                    );
+                  }
+                  return displayRestaurants.map(item => {
+                    const statusColor = restaurantStatusColor(item.approval_status);
+                    return (
+                      <View key={item.id} style={[styles.raCard, { borderLeftColor: statusColor }]}>
+                        {/* Header */}
+                        <View style={styles.raCardHeader}>
+                          <View style={styles.raCardTitleRow}>
+                            <Text style={styles.raCardName} numberOfLines={1}>{item.name}</Text>
+                            {item.cuisine_type && (
+                              <View style={styles.raCuisinePill}>
+                                <Text style={styles.raCuisineText}>{item.cuisine_type}</Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={[styles.raStatusBadge, { backgroundColor: statusColor + "22", borderColor: statusColor }]}>
+                            <View style={[styles.raStatusDot, { backgroundColor: statusColor }]} />
+                            <Text style={[styles.raStatusText, { color: statusColor }]}>{titleCase(item.approval_status)}</Text>
+                          </View>
+                        </View>
+
+                        {/* Meta */}
+                        <View style={styles.raCardMeta}>
+                          {item.address ? (
+                            <View style={styles.raMetaRow}>
+                              <Text style={styles.raMetaIcon}>📍</Text>
+                              <Text style={styles.raMetaText} numberOfLines={1}>{item.address}</Text>
+                            </View>
+                          ) : null}
+                          {item.owner_phone ? (
+                            <View style={styles.raMetaRow}>
+                              <Text style={styles.raMetaIcon}>☎</Text>
+                              <Text style={styles.raMetaText}>{item.owner_phone}</Text>
+                            </View>
+                          ) : null}
+                        </View>
+
+                        {/* Rejection reason */}
+                        {item.approval_status === "rejected" && item.rejection_reason ? (
+                          <View style={styles.raRejectCallout}>
+                            <Text style={styles.raRejectIcon}>⚠️</Text>
+                            <Text style={styles.raRejectText}>{item.rejection_reason}</Text>
+                          </View>
+                        ) : null}
+
+                        {/* Inactive notice */}
+                        {item.is_active === false && item.approval_status === "approved" ? (
+                          <View style={styles.raInactiveCallout}>
+                            <Text style={styles.raInactiveText}>⊘ Offboarded — not visible to customers</Text>
+                          </View>
+                        ) : null}
+
+                        {/* Actions */}
+                        {(item.approval_status !== "approved" || (item.approval_status === "approved" && item.is_active)) && (
+                          <View style={styles.raActions}>
+                            {item.approval_status !== "approved" && (
+                              <Pressable style={styles.raApproveBtn} onPress={async () => {
+                                const result = await run("Approving restaurant", () => api.updateRestaurantApproval(token, item.id, "approved"));
+                                if (result) {
+                                  setAdminRestaurants(prev => prev.map(r => r.id === item.id ? { ...r, approval_status: "approved", rejection_reason: null } : r));
+                                  setRestaurantSearchResults(prev => prev ? prev.map(r => r.id === item.id ? { ...r, approval_status: "approved", rejection_reason: null } : r) : null);
+                                }
+                              }}>
+                                <Text style={styles.raApproveBtnText}>✓ Approve</Text>
+                              </Pressable>
+                            )}
+                            {item.approval_status === "pending" && (
+                              <Pressable style={styles.raRejectBtn} onPress={() => {
+                                Alert.prompt("Reject Restaurant", "Enter rejection reason:", [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Reject", style: "destructive", onPress: async (reason) => {
+                                      const result = await run("Rejecting restaurant", () => api.updateRestaurantApproval(token, item.id, "rejected", reason ?? ""));
+                                      if (result) {
+                                        setAdminRestaurants(prev => prev.map(r => r.id === item.id ? { ...r, approval_status: "rejected", rejection_reason: reason ?? null } : r));
+                                        setRestaurantSearchResults(prev => prev ? prev.map(r => r.id === item.id ? { ...r, approval_status: "rejected", rejection_reason: reason ?? null } : r) : null);
+                                      }
+                                    }
+                                  }
+                                ], "plain-text");
+                              }}>
+                                <Text style={styles.raRejectBtnText}>✕ Reject</Text>
+                              </Pressable>
+                            )}
+                            {item.approval_status === "approved" && item.is_active && (
+                              <Pressable style={styles.raOffboardBtn} onPress={() => {
+                                Alert.alert("Offboard Restaurant", `Deactivate "${item.name}"? Customers will not be able to order from it.`, [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Offboard", style: "destructive", onPress: async () => {
+                                      const result = await run("Offboarding restaurant", () => api.offboardRestaurant(token, item.id));
+                                      if (result) {
+                                        setAdminRestaurants(prev => prev.map(r => r.id === item.id ? { ...r, is_active: false } : r));
+                                        setRestaurantSearchResults(prev => prev ? prev.map(r => r.id === item.id ? { ...r, is_active: false } : r) : null);
+                                      }
+                                    }
+                                  }
+                                ]);
+                              }}>
+                                <Text style={styles.raOffboardBtnText}>⊘ Offboard</Text>
+                              </Pressable>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    );
+                  });
+                })()}
               </>
             )}
 
@@ -2867,5 +2959,239 @@ const styles = StyleSheet.create({
     fontWeight: "600" as const,
     textTransform: "uppercase" as const,
     letterSpacing: 0.5
+  },
+
+  /* ── Restaurant Approvals panel ── */
+  raStatsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12
+  },
+  raStatPill: {
+    flex: 1,
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    gap: 3
+  },
+  raStatDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3
+  },
+  raStatCount: {
+    fontSize: 16,
+    fontWeight: "800" as const,
+    lineHeight: 18
+  },
+  raStatLabel: {
+    color: "#64748b",
+    fontSize: 9,
+    fontWeight: "600" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.4
+  },
+  raSearchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#334155",
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    height: 44
+  },
+  raSearchIcon: {
+    fontSize: 14,
+    marginRight: 8
+  },
+  raSearchInput: {
+    flex: 1,
+    color: "#f1f5f9",
+    fontSize: 14,
+    height: 44
+  },
+  raSearchBtn: {
+    backgroundColor: TEAL,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginLeft: 8
+  },
+  raSearchBtnText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700" as const
+  },
+  raCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    padding: 14,
+    marginBottom: 10
+  },
+  raCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+    gap: 8
+  },
+  raCardTitleRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap"
+  },
+  raCardName: {
+    color: "#f1f5f9",
+    fontSize: 15,
+    fontWeight: "700" as const,
+    flexShrink: 1
+  },
+  raCuisinePill: {
+    backgroundColor: "#1e293b",
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2
+  },
+  raCuisineText: {
+    color: "#94a3b8",
+    fontSize: 10,
+    fontWeight: "600" as const
+  },
+  raStatusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3
+  },
+  raStatusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3
+  },
+  raStatusText: {
+    fontSize: 11,
+    fontWeight: "700" as const
+  },
+  raCardMeta: {
+    gap: 4,
+    marginBottom: 8
+  },
+  raMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
+  },
+  raMetaIcon: {
+    fontSize: 11
+  },
+  raMetaText: {
+    color: "#64748b",
+    fontSize: 12,
+    flex: 1
+  },
+  raRejectCallout: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    backgroundColor: "#450a0a",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8
+  },
+  raRejectIcon: {
+    fontSize: 13
+  },
+  raRejectText: {
+    color: "#fca5a5",
+    fontSize: 12,
+    flex: 1,
+    lineHeight: 17
+  },
+  raInactiveCallout: {
+    backgroundColor: "#1e293b",
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 8
+  },
+  raInactiveText: {
+    color: "#64748b",
+    fontSize: 12
+  },
+  raActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4
+  },
+  raApproveBtn: {
+    flex: 1,
+    backgroundColor: "#14532d",
+    borderRadius: 8,
+    paddingVertical: 9,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#16a34a"
+  },
+  raApproveBtnText: {
+    color: "#4ade80",
+    fontSize: 13,
+    fontWeight: "700" as const
+  },
+  raRejectBtn: {
+    flex: 1,
+    backgroundColor: "#450a0a",
+    borderRadius: 8,
+    paddingVertical: 9,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#dc2626"
+  },
+  raRejectBtnText: {
+    color: "#fca5a5",
+    fontSize: 13,
+    fontWeight: "700" as const
+  },
+  raOffboardBtn: {
+    flex: 1,
+    backgroundColor: "#1e293b",
+    borderRadius: 8,
+    paddingVertical: 9,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#475569"
+  },
+  raOffboardBtnText: {
+    color: "#94a3b8",
+    fontSize: 13,
+    fontWeight: "700" as const
+  },
+  raEmpty: {
+    alignItems: "center",
+    paddingVertical: 28,
+    gap: 6
+  },
+  raEmptyIcon: {
+    fontSize: 32
+  },
+  raEmptyText: {
+    color: "#94a3b8",
+    fontSize: 14,
+    fontWeight: "600" as const
+  },
+  raEmptyHint: {
+    color: "#475569",
+    fontSize: 12,
+    textAlign: "center"
   }
 });
