@@ -3,6 +3,7 @@ export type PaymentProvider = "paytm" | "phonepe" | "razorpay";
 
 export type AuthSession = {
   token: string;
+  refreshToken?: string;
   user: unknown;
 };
 

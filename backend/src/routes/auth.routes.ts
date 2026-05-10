@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { query } from "../db";
-import { signToken, UserRole } from "../auth";
+import { signToken, signRefreshToken, verifyRefreshToken, UserRole } from "../auth";
 import { createOtp, verifyOtp } from "../services/otp.service";
 import { verifyGoogleIdToken } from "../services/google-auth.service";
 
@@ -30,7 +30,8 @@ authRoutes.post("/otp/verify", async (req, res, next) => {
     }
 
     const user = await upsertUser({ phone: body.phone, role: body.role });
-    res.json({ token: signToken({ id: user.id, role: user.role }), user });
+    const authUser = { id: user.id, role: user.role };
+    res.json({ token: signToken(authUser), refreshToken: signRefreshToken(authUser), user });
   } catch (error) {
     next(error);
   }
@@ -44,9 +45,26 @@ authRoutes.post("/google", async (req, res, next) => {
     }).parse(req.body);
     const profile = await verifyGoogleIdToken(body.idToken);
     const user = await upsertUser({ email: profile.email, name: profile.name, googleId: profile.googleId, role: body.role });
-    res.json({ token: signToken({ id: user.id, role: user.role }), user });
+    const authUser = { id: user.id, role: user.role };
+    res.json({ token: signToken(authUser), refreshToken: signRefreshToken(authUser), user });
   } catch (error) {
     next(error);
+  }
+});
+
+authRoutes.post("/refresh", async (req, res, next) => {
+  try {
+    const { refreshToken } = z.object({ refreshToken: z.string().min(10) }).parse(req.body);
+    const decoded = verifyRefreshToken(refreshToken);
+    const result = await query<{ id: string; role: UserRole }>(
+      "select id, role from users where id = $1",
+      [decoded.id]
+    );
+    if (!result.rows[0]) return res.status(401).json({ error: "User not found" });
+    const authUser = { id: result.rows[0].id, role: result.rows[0].role };
+    res.json({ token: signToken(authUser), refreshToken: signRefreshToken(authUser) });
+  } catch {
+    res.status(401).json({ error: "Invalid or expired refresh token" });
   }
 });
 

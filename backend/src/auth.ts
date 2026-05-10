@@ -18,7 +18,15 @@ declare global {
 }
 
 export function signToken(user: AuthUser) {
-  return jwt.sign(user, config.jwtSecret, { expiresIn: "7d" });
+  return jwt.sign(user, config.jwtSecret, { expiresIn: "1h" });
+}
+
+export function signRefreshToken(user: AuthUser) {
+  return jwt.sign({ id: user.id, role: user.role }, config.jwtSecret + ":refresh", { expiresIn: "30d" });
+}
+
+export function verifyRefreshToken(token: string): AuthUser {
+  return jwt.verify(token, config.jwtSecret + ":refresh") as AuthUser;
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {

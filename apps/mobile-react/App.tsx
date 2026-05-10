@@ -215,11 +215,35 @@ export default function App() {
     }
   }, []);
 
+  // Always reads the latest refresh token from SecureStore — no stale-closure issues.
+  const silentRefresh = useCallback(async (): Promise<string | null> => {
+    const stored = await SecureStore.getItemAsync("amberkitchen.refresh_token");
+    if (!stored) return null;
+    try {
+      const result = await api.refreshSession(stored);
+      await Promise.all([
+        SecureStore.setItemAsync("amberkitchen.token", result.token),
+        SecureStore.setItemAsync("amberkitchen.refresh_token", result.refreshToken)
+      ]);
+      setToken(result.token);
+      return result.token;
+    } catch {
+      setToken("");
+      await Promise.all([
+        SecureStore.deleteItemAsync("amberkitchen.token"),
+        SecureStore.deleteItemAsync("amberkitchen.refresh_token")
+      ]);
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    api.setOnRefresh(silentRefresh);
+  }, [silentRefresh]);
+
   useEffect(() => {
     void SecureStore.getItemAsync("amberkitchen.token").then(saved => {
       if (!saved) return;
-      // Decode role from JWT payload (base64 middle segment) so the correct
-      // tab and data-load function are used without requiring a fresh login.
       try {
         const payload = JSON.parse(atob(saved.split(".")[1]));
         if (payload?.role && roleOptions.includes(payload.role)) {
@@ -276,9 +300,12 @@ export default function App() {
     return () => { socket.disconnect(); };
   }, [token, orderId]);
 
-  async function saveToken(nextToken: string) {
+  async function saveToken(nextToken: string, nextRefreshToken?: string) {
     setToken(nextToken);
     await SecureStore.setItemAsync("amberkitchen.token", nextToken);
+    if (nextRefreshToken) {
+      await SecureStore.setItemAsync("amberkitchen.refresh_token", nextRefreshToken);
+    }
   }
 
   async function logout() {
@@ -292,7 +319,10 @@ export default function App() {
     setOrderId("");
     setWallet(null);
     setDashboard(null);
-    await SecureStore.deleteItemAsync("amberkitchen.token");
+    await Promise.all([
+      SecureStore.deleteItemAsync("amberkitchen.token"),
+      SecureStore.deleteItemAsync("amberkitchen.refresh_token")
+    ]);
   }
 
   function validatePhone(p: string): string | null {
@@ -345,13 +375,11 @@ export default function App() {
     if (otpErr) { Alert.alert("Invalid OTP", otpErr); return; }
     const response = await run("Verifying OTP", () => api.verifyOtp(phone, otp, role));
     if (response && typeof response === "object" && "token" in response) {
-      const userRole = (response as { user?: { role?: string } }).user?.role;
-      // Set role and token in the same synchronous block so React 18 batches
-      // them into one render — useEffect([token,role]) then fires with the
-      // correct role and calls loadAdmin() instead of loadDriverWork().
+      const r = response as { token: string; refreshToken?: string; user?: { role?: string } };
+      const userRole = r.user?.role;
       if (userRole && roleOptions.includes(userRole as Role)) setRole(userRole as Role);
-      setToken(String(response.token));
-      void SecureStore.setItemAsync("amberkitchen.token", String(response.token));
+      setToken(r.token);
+      void saveToken(r.token, r.refreshToken);
     }
   }
 
@@ -362,7 +390,8 @@ export default function App() {
     }
     const response = await run("Google login", () => api.googleLogin(googleIdToken, role));
     if (response && typeof response === "object" && "token" in response) {
-      await saveToken(String(response.token));
+      const r = response as { token: string; refreshToken?: string };
+      await saveToken(r.token, r.refreshToken);
     }
   }
 

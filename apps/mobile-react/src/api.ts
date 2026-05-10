@@ -19,7 +19,32 @@ type RequestOptions = {
 };
 
 export class ApiClient {
+  private onRefresh?: () => Promise<string | null>;
+
   constructor(private readonly baseUrl = config.apiBaseUrl) {}
+
+  setOnRefresh(fn: () => Promise<string | null>) {
+    this.onRefresh = fn;
+  }
+
+  async refreshSession(refreshToken: string) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/auth/refresh`, {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ refreshToken })
+      });
+      const text = await response.text();
+      const body = text ? JSON.parse(text) : null;
+      if (!response.ok) throw new Error(body?.error ?? "Refresh failed");
+      return body as { token: string; refreshToken: string };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   async requestOtp(phone: string) {
     return this.post<{ sent: boolean; devCode?: string }>("/api/v1/auth/otp/request", { phone });
@@ -486,7 +511,7 @@ export class ApiClient {
     return this.request<T>(path, { method: "PATCH", body: JSON.stringify(body) }, options);
   }
 
-  private async request<T>(path: string, init: RequestInit, options?: RequestOptions): Promise<T> {
+  private async request<T>(path: string, init: RequestInit, options?: RequestOptions, isRetry = false): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10000);
     try {
@@ -499,6 +524,14 @@ export class ApiClient {
           ...(options?.idempotencyKey ? { "idempotency-key": options.idempotencyKey } : {})
         }
       });
+
+      if (response.status === 401 && !isRetry && this.onRefresh) {
+        const newToken = await this.onRefresh();
+        if (newToken) {
+          return this.request<T>(path, init, { ...options, token: newToken }, true);
+        }
+      }
+
       const text = await response.text();
       const body = text ? JSON.parse(text) : null;
       if (!response.ok) {
