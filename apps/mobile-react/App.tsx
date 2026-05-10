@@ -762,7 +762,7 @@ export default function App() {
             </View>
 
             {/* Marketplace & Orders */}
-            <Divider label="Marketplace & Orders" collapsed={isCollapsed("Marketplace & Orders")} onPress={() => togglePanel("Marketplace & Orders")} />
+            <Divider label="Marketplace & Orders" icon="🛒" subtitle="Restaurants, orders, payments and ETA" collapsed={isCollapsed("Marketplace & Orders")} onPress={() => togglePanel("Marketplace & Orders")} />
             {!isCollapsed("Marketplace & Orders") && (
               <>
             <Text style={styles.sectionHint}>Load restaurants, create a test order, then pay and track end-to-end.</Text>
@@ -857,7 +857,7 @@ export default function App() {
             )}
 
             {/* Driver Onboarding */}
-            <Divider label="Driver Onboarding" collapsed={isCollapsed("Driver Onboarding")} onPress={() => togglePanel("Driver Onboarding")} />
+            <Divider label="Driver Onboarding" icon="🚗" subtitle="Documents, verification and application status" collapsed={isCollapsed("Driver Onboarding")} onPress={() => togglePanel("Driver Onboarding")} />
             {!isCollapsed("Driver Onboarding") && (
               <>
             <TextInput style={styles.input} value={driverFullName} onChangeText={setDriverFullName} placeholder="Full name" />
@@ -900,7 +900,7 @@ export default function App() {
             )}
 
             {/* Active Deliveries */}
-            <Divider label="Active Deliveries" collapsed={isCollapsed("Active Deliveries")} onPress={() => togglePanel("Active Deliveries")} />
+            <Divider label="Active Deliveries" icon="📍" subtitle="Live location, delivery status and navigation" collapsed={isCollapsed("Active Deliveries")} onPress={() => togglePanel("Active Deliveries")} />
             {!isCollapsed("Active Deliveries") && (
               <>
             <View style={styles.actions}>
@@ -951,7 +951,7 @@ export default function App() {
             )}
 
             {/* Wallet */}
-            <Divider label="Wallet & Earnings" collapsed={isCollapsed("Wallet & Earnings")} onPress={() => togglePanel("Wallet & Earnings")} />
+            <Divider label="Wallet & Earnings" icon="💰" subtitle="Balance, transactions and payout requests" collapsed={isCollapsed("Wallet & Earnings")} onPress={() => togglePanel("Wallet & Earnings")} />
             {!isCollapsed("Wallet & Earnings") && (
               <>
             {wallet ? (
@@ -980,7 +980,7 @@ export default function App() {
           <Card title="Restaurant Panel">
             <Text style={styles.sectionHint}>Manage onboarding, menu items, incoming orders and earnings.</Text>
 
-            <Divider label="Restaurant Onboarding" collapsed={isCollapsed("Restaurant Onboarding")} onPress={() => togglePanel("Restaurant Onboarding")} />
+            <Divider label="Restaurant Onboarding" icon="🏪" subtitle="Register your restaurant and upload documents" collapsed={isCollapsed("Restaurant Onboarding")} onPress={() => togglePanel("Restaurant Onboarding")} />
             {!isCollapsed("Restaurant Onboarding") && (
               <>
             <TextInput style={styles.input} value={restaurantName} onChangeText={setRestaurantName} placeholder="Restaurant name" />
@@ -1011,7 +1011,7 @@ export default function App() {
               </>
             )}
 
-            <Divider label="Incoming Orders" collapsed={isCollapsed("Incoming Orders")} onPress={() => togglePanel("Incoming Orders")} />
+            <Divider label="Incoming Orders" icon="📥" subtitle="Accept, prepare and track customer orders" collapsed={isCollapsed("Incoming Orders")} onPress={() => togglePanel("Incoming Orders")} />
             {!isCollapsed("Incoming Orders") && (
               <>
             <View style={styles.actions}>
@@ -1108,7 +1108,7 @@ export default function App() {
             </View>
 
             {/* Order Operations */}
-            <Divider label="Order Operations" collapsed={isCollapsed("Order Operations")} onPress={() => togglePanel("Order Operations")} />
+            <Divider label="Order Operations" icon="⚙️" subtitle="Assign drivers and manage active orders" collapsed={isCollapsed("Order Operations")} onPress={() => togglePanel("Order Operations")} />
             {!isCollapsed("Order Operations") && (
               <>
             <TextInput
@@ -1134,7 +1134,7 @@ export default function App() {
             )}
 
             {/* User Management */}
-            <Divider label="User Management" collapsed={isCollapsed("User Management")} onPress={() => togglePanel("User Management")} />
+            <Divider label="User Management" icon="👥" subtitle={adminUsers.length > 0 ? `${adminUsers.length} users loaded · search by name, phone or role` : "Search or load dashboard to see users"} collapsed={isCollapsed("User Management")} onPress={() => togglePanel("User Management")} />
             {!isCollapsed("User Management") && (
               <>
             {/* Search bar */}
@@ -1308,7 +1308,7 @@ export default function App() {
             )}
 
             {/* Restaurant Approvals */}
-            <Divider label="Restaurant Approvals" collapsed={isCollapsed("Restaurant Approvals")} onPress={() => togglePanel("Restaurant Approvals")} />
+            <Divider label="Restaurant Approvals" icon="✅" subtitle={adminRestaurants.length > 0 ? `${adminRestaurants.filter(r => r.approval_status === "pending").length} pending · ${adminRestaurants.length} total` : "Approve, reject or offboard restaurants"} collapsed={isCollapsed("Restaurant Approvals")} onPress={() => togglePanel("Restaurant Approvals")} />
             {!isCollapsed("Restaurant Approvals") && (
               <>
             <View style={styles.orderSearchRow}>
@@ -1398,7 +1398,7 @@ export default function App() {
             )}
 
             {/* Order + Payment Monitoring */}
-            <Divider label="Order + Payment Monitoring" collapsed={isCollapsed("Order + Payment Monitoring")} onPress={() => togglePanel("Order + Payment Monitoring")} />
+            <Divider label="Order + Payment Monitoring" icon="📊" subtitle="Search and monitor orders across all restaurants" collapsed={isCollapsed("Order + Payment Monitoring")} onPress={() => togglePanel("Order + Payment Monitoring")} />
             {!isCollapsed("Order + Payment Monitoring") && (
               <>
             <View style={styles.orderSearchRow}>
@@ -1456,7 +1456,7 @@ export default function App() {
             )}
 
             {/* Live Tracking */}
-            <Divider label="Live Tracking + Driver Load" collapsed={isCollapsed("Live Tracking + Driver Load")} onPress={() => togglePanel("Live Tracking + Driver Load")} />
+            <Divider label="Live Tracking + Driver Load" icon="📡" subtitle={deliveryOrders.length > 0 ? `${deliveryOrders.length} active deliveries · ${driverLoad.length} drivers` : "Real-time delivery and driver availability"} collapsed={isCollapsed("Live Tracking + Driver Load")} onPress={() => togglePanel("Live Tracking + Driver Load")} />
             {!isCollapsed("Live Tracking + Driver Load") && (
               <>
             <View style={styles.orderSearchRow}>
@@ -1499,7 +1499,7 @@ export default function App() {
             )}
 
             {/* Driver Onboarding Admin */}
-            <Divider label="Driver Onboarding Admin" collapsed={isCollapsed("Driver Onboarding Admin")} onPress={() => togglePanel("Driver Onboarding Admin")} />
+            <Divider label="Driver Onboarding Admin" icon="🪪" subtitle={driverApplications.length > 0 ? `${driverApplications.length} applications · ${driverReferrals.length} referrals` : "Review driver applications and referrals"} collapsed={isCollapsed("Driver Onboarding Admin")} onPress={() => togglePanel("Driver Onboarding Admin")} />
             {!isCollapsed("Driver Onboarding Admin") && (
               <>
             {driverApplications.length === 0
@@ -1526,7 +1526,7 @@ export default function App() {
             )}
 
             {/* Zones / Campaigns / Incentives */}
-            <Divider label="Zones, Campaigns & Incentives" collapsed={isCollapsed("Zones, Campaigns & Incentives")} onPress={() => togglePanel("Zones, Campaigns & Incentives")} />
+            <Divider label="Zones, Campaigns & Incentives" icon="🎯" subtitle="Delivery zones, discount offers and driver rewards" collapsed={isCollapsed("Zones, Campaigns & Incentives")} onPress={() => togglePanel("Zones, Campaigns & Incentives")} />
             {!isCollapsed("Zones, Campaigns & Incentives") && (
               <>
             <View style={styles.actions}>
@@ -1559,7 +1559,7 @@ export default function App() {
             )}
 
             {/* Analytics */}
-            <Divider label="Analytics & Predictions" collapsed={isCollapsed("Analytics & Predictions")} onPress={() => togglePanel("Analytics & Predictions")} />
+            <Divider label="Analytics & Predictions" icon="📈" subtitle="AI-powered demand forecasts and order trends" collapsed={isCollapsed("Analytics & Predictions")} onPress={() => togglePanel("Analytics & Predictions")} />
             {!isCollapsed("Analytics & Predictions") && (
               <>
             {analyticsJobs.length === 0
@@ -1578,7 +1578,7 @@ export default function App() {
             )}
 
             {/* Payouts */}
-            <Divider label="Payouts" collapsed={isCollapsed("Payouts")} onPress={() => togglePanel("Payouts")} />
+            <Divider label="Payouts" icon="💸" subtitle={adminPayouts.length > 0 ? `${adminPayouts.length} payout${adminPayouts.length !== 1 ? "s" : ""} pending` : "Driver and restaurant payout management"} collapsed={isCollapsed("Payouts")} onPress={() => togglePanel("Payouts")} />
             {!isCollapsed("Payouts") && (
               <>
             {adminPayouts.length === 0
@@ -1599,7 +1599,7 @@ export default function App() {
             )}
 
             {/* Support Tickets */}
-            <Divider label="Support Tickets" collapsed={isCollapsed("Support Tickets")} onPress={() => togglePanel("Support Tickets")} />
+            <Divider label="Support Tickets" icon="🎫" subtitle={supportTickets.length > 0 ? `${supportTickets.length} ticket${supportTickets.length !== 1 ? "s" : ""}` : "Customer support and issue resolution"} collapsed={isCollapsed("Support Tickets")} onPress={() => togglePanel("Support Tickets")} />
             {!isCollapsed("Support Tickets") && (
               <>
             <View style={styles.actions}>
@@ -1619,7 +1619,7 @@ export default function App() {
             )}
 
             {/* Security & Audit */}
-            <Divider label="Security & Audit Logs" collapsed={isCollapsed("Security & Audit Logs")} onPress={() => togglePanel("Security & Audit Logs")} />
+            <Divider label="Security & Audit Logs" icon="🔒" subtitle={auditLogs.length > 0 ? `${auditLogs.length} log entries · ${verificationChecks.length} verification checks` : "Access logs, audit trail and verification"} collapsed={isCollapsed("Security & Audit Logs")} onPress={() => togglePanel("Security & Audit Logs")} />
             {!isCollapsed("Security & Audit Logs") && (
               <>
             {auditLogs.length === 0
@@ -1692,14 +1692,31 @@ function RoleDropdown({ value, onChange }: { value: Role; onChange: (r: Role) =>
   );
 }
 
-function Divider({ label, collapsed, onPress }: { label: string; collapsed?: boolean; onPress?: () => void }) {
+function Divider({ label, icon, subtitle, collapsed, onPress }: {
+  label: string;
+  icon?: string;
+  subtitle?: string;
+  collapsed?: boolean;
+  onPress?: () => void;
+}) {
   return (
     <Pressable style={styles.divider} onPress={onPress}>
-      <View style={styles.dividerBadge}>
-        <Text style={styles.dividerLabel}>{label}</Text>
-        {onPress && <Text style={styles.dividerChevron}>{collapsed ? " ▶" : " ▼"}</Text>}
+      <View style={styles.dividerInner}>
+        {icon && (
+          <View style={styles.dividerIconWrap}>
+            <Text style={styles.dividerIconText}>{icon}</Text>
+          </View>
+        )}
+        <View style={styles.dividerTextBlock}>
+          <Text style={styles.dividerLabel}>{label}</Text>
+          {subtitle ? <Text style={styles.dividerSubtitle}>{subtitle}</Text> : null}
+        </View>
+        {onPress && (
+          <View style={[styles.dividerChevronPill, !collapsed && styles.dividerChevronPillOpen]}>
+            <Text style={styles.dividerChevron}>{collapsed ? "▶" : "▼"}</Text>
+          </View>
+        )}
       </View>
-      <View style={styles.dividerLine} />
     </Pressable>
   );
 }
@@ -1894,16 +1911,31 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 18, fontWeight: "800", color: "#0f172a" },
 
-  // Divider
-  divider: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12, marginBottom: 4 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: "#d1fae5" },
-  dividerBadge: {
-    backgroundColor: TEAL,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  // Divider (production panel button)
+  divider: {
+    backgroundColor: "#ffffff",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderLeftWidth: 3,
+    borderLeftColor: TEAL,
+    marginTop: 6,
+    marginBottom: 2,
+    shadowColor: "#0f172a",
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
   },
-  dividerLabel: { fontSize: 13, fontWeight: "800", color: "#ffffff", textTransform: "uppercase", letterSpacing: 0.8 },
+  dividerInner: { flexDirection: "row" as const, alignItems: "center" as const, paddingHorizontal: 12, paddingVertical: 11, gap: 10 },
+  dividerIconWrap: { width: 32, height: 32, borderRadius: 8, backgroundColor: "#f0fdf4", alignItems: "center" as const, justifyContent: "center" as const },
+  dividerIconText: { fontSize: 16 },
+  dividerTextBlock: { flex: 1, gap: 1 },
+  dividerLabel: { fontSize: 13, fontWeight: "700" as const, color: "#1e293b" },
+  dividerSubtitle: { fontSize: 11, color: "#94a3b8" },
+  dividerLine: { flex: 1, height: 1, backgroundColor: "#d1fae5" },
+  dividerChevronPill: { backgroundColor: "#f1f5f9", borderRadius: 6, width: 26, height: 26, alignItems: "center" as const, justifyContent: "center" as const },
+  dividerChevronPillOpen: { backgroundColor: "#f0fdf4" },
 
   sectionTitle: { fontWeight: "800", color: "#334155" },
   sectionHint: { color: "#475569", fontSize: 13, lineHeight: 18 },
@@ -2509,8 +2541,8 @@ const styles = StyleSheet.create({
   },
 
   dividerChevron: {
-    color: "#ffffff",
-    fontSize: 11,
+    color: "#64748b",
+    fontSize: 10,
     fontWeight: "700" as const
   },
 
