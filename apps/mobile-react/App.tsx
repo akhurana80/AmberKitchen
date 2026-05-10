@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Image,
   KeyboardAvoidingView,
   Linking,
@@ -37,6 +38,15 @@ import {
 } from "./src/types";
 
 type Tab = "driver" | "restaurant" | "admin";
+
+// Show foreground notifications and handle badge/sound
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 const roleOptions: Role[] = ["driver", "restaurant", "admin", "super_admin", "delivery_admin"];
 
@@ -300,6 +310,26 @@ export default function App() {
     return () => { socket.disconnect(); };
   }, [token, orderId]);
 
+  // Poll order status every 30 s as a fallback when socket drops
+  useEffect(() => {
+    const ACTIVE_STATUSES = new Set(["pending", "accepted", "preparing", "ready", "picked_up", "out_for_delivery"]);
+    if (!token || !orderId) return;
+    const poll = async () => {
+      try {
+        const updated = await api.getOrder(token, orderId);
+        setOrder(updated);
+      } catch {
+        // silent — socket handles live updates; this is just a safety net
+      }
+    };
+    poll();
+    const interval = setInterval(async () => {
+      if (!order || ACTIVE_STATUSES.has(order.status)) await poll();
+    }, 30000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, orderId]);
+
   async function saveToken(nextToken: string, nextRefreshToken?: string) {
     setToken(nextToken);
     await SecureStore.setItemAsync("amberkitchen.token", nextToken);
@@ -398,9 +428,20 @@ export default function App() {
   async function enablePush() {
     if (!token) { Alert.alert("Login required", "Log in before registering for push notifications."); return; }
     await run("Registering push", async () => {
+      // Android requires a notification channel before requesting permissions
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync("default", {
+          name: "AmberKitchen",
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: "#E23744",
+        });
+      }
       const permission = await Notifications.requestPermissionsAsync();
       if (!permission.granted) throw new Error("Push notification permission denied. Enable it in Settings.");
-      const pushToken = await Notifications.getExpoPushTokenAsync();
+      const pushToken = await Notifications.getExpoPushTokenAsync({
+        projectId: "amberkitchen-mobile",
+      });
       await api.registerDeviceToken(token, pushToken.data);
     });
   }
@@ -581,13 +622,17 @@ export default function App() {
     }
     const phoneErr = validatePhone(restaurantPhone);
     if (phoneErr) { Alert.alert("Invalid contact phone", phoneErr); return; }
+    if (!restaurantCuisine.trim()) {
+      Alert.alert("Cuisine required", "Enter the cuisine type (e.g. North Indian, Chinese, Pizza).");
+      return;
+    }
 
     await run("Submitting restaurant onboarding", () => api.onboardRestaurant(token, {
       name: restaurantName,
       address: restaurantAddress,
       contactName: restaurantName,
       contactPhone: restaurantPhone,
-      cuisineType: restaurantCuisine || "General"
+      cuisineType: restaurantCuisine.trim()
     }));
     await loadRestaurantPanel();
   }
@@ -1934,14 +1979,20 @@ export default function App() {
                           </View>
                         )}
                       </View>
-                      {visibleUsers.map(item => {
+                      <FlatList
+                        data={visibleUsers}
+                        keyExtractor={item => item.id}
+                        scrollEnabled={false}
+                        removeClippedSubviews={false}
+                        extraData={[expandedUserId, userOrdersMap, loading]}
+                        renderItem={({ item }) => {
                         const isExpanded = expandedUserId === item.id;
                         const orders = userOrdersMap[item.id];
                         const displayName = item.name ?? item.phone ?? item.email ?? item.id.slice(0, 8);
                         const accent = roleAccent(item.role);
                         const initial = (displayName[0] ?? "?").toUpperCase();
                         return (
-                          <View key={item.id} style={[styles.umCard, { borderLeftColor: accent }, item.is_banned && styles.umCardBanned]}>
+                          <View style={[styles.umCard, { borderLeftColor: accent }, item.is_banned && styles.umCardBanned]}>
                             <Pressable onPress={() => setExpandedUserId(isExpanded ? null : item.id)}>
                               <View style={styles.umCardHeader}>
                                 <View style={[styles.umAvatar, { backgroundColor: accent + "22" }]}>
@@ -2069,13 +2120,14 @@ export default function App() {
                             )}
                           </View>
                         );
-                      })}
-                      {remaining > 0 && (
-                        <Pressable style={styles.umLoadMoreBtn} onPress={() => setUserDisplayLimit(l => l + 10)}>
-                          <Text style={styles.umLoadMoreText}>Show {Math.min(remaining, 10)} more</Text>
-                          <Text style={styles.umLoadMoreCount}>{remaining} remaining</Text>
-                        </Pressable>
-                      )}
+                        }}
+                        ListFooterComponent={remaining > 0 ? (
+                          <Pressable style={styles.umLoadMoreBtn} onPress={() => setUserDisplayLimit(l => l + 10)}>
+                            <Text style={styles.umLoadMoreText}>Show {Math.min(remaining, 10)} more</Text>
+                            <Text style={styles.umLoadMoreCount}>{remaining} remaining</Text>
+                          </Pressable>
+                        ) : null}
+                      />
                     </>
                   );
                 })()}
@@ -2154,10 +2206,17 @@ export default function App() {
                       </View>
                     );
                   }
-                  return displayRestaurants.map(item => {
+                  return (
+                  <FlatList
+                    data={displayRestaurants}
+                    keyExtractor={item => item.id}
+                    scrollEnabled={false}
+                    removeClippedSubviews={false}
+                    extraData={loading}
+                    renderItem={({ item }) => {
                     const statusColor = restaurantStatusColor(item.approval_status);
                     return (
-                      <View key={item.id} style={[styles.raCard, { borderLeftColor: statusColor }]}>
+                      <View style={[styles.raCard, { borderLeftColor: statusColor }]}>
                         {/* Header */}
                         <View style={styles.raCardHeader}>
                           <View style={styles.raCardTitleRow}>
@@ -2268,7 +2327,9 @@ export default function App() {
                         )}
                       </View>
                     );
-                  });
+                    }}
+                  />
+                  );
                 })()}
               </>
             )}
@@ -2391,10 +2452,16 @@ export default function App() {
                   return (
                     <>
                       <Text style={styles.umResultsCount}>{visibleOrders.length} of {displayOrders.length} order{displayOrders.length !== 1 ? "s" : ""}</Text>
-                      {visibleOrders.map(item => {
+                      <FlatList
+                        data={visibleOrders}
+                        keyExtractor={item => item.id}
+                        scrollEnabled={false}
+                        removeClippedSubviews={false}
+                        extraData={loading}
+                        renderItem={({ item }) => {
                         const statusColor = orderStatusColor(item.status);
                         return (
-                          <View key={item.id} style={[styles.opmOrderCard, { borderLeftColor: statusColor }]}>
+                          <View style={[styles.opmOrderCard, { borderLeftColor: statusColor }]}>
                             <View style={styles.opmOrderHeader}>
                               <Text style={styles.opmOrderRestaurant} numberOfLines={1}>{item.restaurant_name ?? "Unknown Restaurant"}</Text>
                               <View style={[styles.raStatusBadge, { backgroundColor: statusColor + "22", borderColor: statusColor }]}>
@@ -2431,13 +2498,14 @@ export default function App() {
                             )}
                           </View>
                         );
-                      })}
-                      {remainingOrders > 0 && (
-                        <Pressable style={styles.umLoadMoreBtn} onPress={() => setOrderDisplayLimit(l => l + 10)}>
-                          <Text style={styles.umLoadMoreText}>Show {Math.min(remainingOrders, 10)} more</Text>
-                          <Text style={styles.umLoadMoreCount}>{remainingOrders} remaining</Text>
-                        </Pressable>
-                      )}
+                        }}
+                        ListFooterComponent={remainingOrders > 0 ? (
+                          <Pressable style={styles.umLoadMoreBtn} onPress={() => setOrderDisplayLimit(l => l + 10)}>
+                            <Text style={styles.umLoadMoreText}>Show {Math.min(remainingOrders, 10)} more</Text>
+                            <Text style={styles.umLoadMoreCount}>{remainingOrders} remaining</Text>
+                          </Pressable>
+                        ) : null}
+                      />
                     </>
                   );
                 })()}
@@ -3243,12 +3311,16 @@ export default function App() {
                       <Text style={styles.raEmptyHint}>Customer support requests will appear here.</Text>
                     </View>
                   ) : (
-                    <>
-                      {visible.map(item => {
+                    <FlatList
+                      data={visible}
+                      keyExtractor={item => item.id}
+                      scrollEnabled={false}
+                      removeClippedSubviews={false}
+                      renderItem={({ item }) => {
                         const sColor = ticketStatusColor(item.status);
                         const cColor = ticketCategoryColor(item.category);
                         return (
-                          <View key={item.id} style={[styles.stCard, { borderLeftColor: sColor }]}>
+                          <View style={[styles.stCard, { borderLeftColor: sColor }]}>
                             <View style={styles.stCardHeader}>
                               <View style={[styles.stCategoryChip, { backgroundColor: cColor + "22", borderColor: cColor + "55" }]}>
                                 <Text style={[styles.stCategoryText, { color: cColor }]}>{titleCase(item.category)}</Text>
@@ -3266,14 +3338,14 @@ export default function App() {
                             </View>
                           </View>
                         );
-                      })}
-                      {remaining > 0 && (
+                      }}
+                      ListFooterComponent={remaining > 0 ? (
                         <Pressable style={styles.umLoadMoreBtn} onPress={() => setTicketDisplayLimit(l => l + 10)}>
                           <Text style={styles.umLoadMoreText}>Show {Math.min(remaining, 10)} more</Text>
                           <Text style={styles.umLoadMoreCount}>{remaining} remaining</Text>
                         </Pressable>
-                      )}
-                    </>
+                      ) : null}
+                    />
                   )}
                 </>
               );
@@ -3360,13 +3432,17 @@ export default function App() {
                       <Text style={styles.raEmptyHint}>Every API action is logged here. Perform operations to see the trail.</Text>
                     </View>
                   ) : (
-                    <>
-                      {visibleLogs.map(item => {
+                    <FlatList
+                      data={visibleLogs}
+                      keyExtractor={item => item.id}
+                      scrollEnabled={false}
+                      removeClippedSubviews={false}
+                      renderItem={({ item }) => {
                         const mColor = methodColor(item.method);
                         const sColor = statusCodeColor(item.status_code);
                         const pathShort = item.path.replace(/\/api\/v1/, "").replace(/\/[0-9a-f-]{36}/g, "/:id");
                         return (
-                          <View key={item.id} style={[styles.audLogCard, { borderLeftColor: sColor }]}>
+                          <View style={[styles.audLogCard, { borderLeftColor: sColor }]}>
                             <View style={styles.audLogRow}>
                               <View style={[styles.audMethodChip, { backgroundColor: mColor + "22", borderColor: mColor + "55" }]}>
                                 <Text style={[styles.audMethodText, { color: mColor }]}>{item.method}</Text>
@@ -3381,14 +3457,14 @@ export default function App() {
                             )}
                           </View>
                         );
-                      })}
-                      {remainingLogs > 0 && (
+                      }}
+                      ListFooterComponent={remainingLogs > 0 ? (
                         <Pressable style={styles.umLoadMoreBtn} onPress={() => setAuditDisplayLimit(l => l + 10)}>
                           <Text style={styles.umLoadMoreText}>Show {Math.min(remainingLogs, 10)} more</Text>
                           <Text style={styles.umLoadMoreCount}>{remainingLogs} remaining</Text>
                         </Pressable>
-                      )}
-                    </>
+                      ) : null}
+                    />
                   )}
                 </>
               );
