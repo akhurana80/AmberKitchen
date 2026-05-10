@@ -105,6 +105,7 @@ export default function App() {
   const [verificationChecks, setVerificationChecks] = useState<Array<{ id: string; provider: string; check_type: string; status: string }>>([]);
   const [analyticsJobs, setAnalyticsJobs] = useState<Array<{ id: string; job_type: string; status: string; summary: unknown; created_at: string }>>([]);
   const [demandPredictions, setDemandPredictions] = useState<Array<{ id: string; zone_key: string; cuisine_type: string | null; hour_start: string; predicted_orders: number; confidence: string }>>([]);
+  const [adminMktSnapshot, setAdminMktSnapshot] = useState<{ nearby: number; trending: number; offers: number } | null>(null);
 
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [collapsedPanels, setCollapsedPanels] = useState<Record<string, boolean>>({
@@ -338,6 +339,7 @@ export default function App() {
       setGooglePlaces(places.restaurants);
       setOffers(activeOffers);
       setSelectedRestaurantId(nearby[0]?.restaurant_id ?? hot[0]?.id ?? selectedRestaurantId);
+      setAdminMktSnapshot({ nearby: nearby.length, trending: hot.length, offers: activeOffers.length });
     });
   }
 
@@ -1197,7 +1199,7 @@ export default function App() {
 
             {/* Quick actions */}
             <View style={styles.quickActions}>
-              <Pressable style={styles.quickActionBtn} onPress={loadMarketplace} disabled={!authed || loading}>
+              <Pressable style={[styles.quickActionBtn, styles.quickActionBtnSecondary]} onPress={loadMarketplace} disabled={!authed || loading}>
                 <Text style={styles.quickActionIcon}>🛒</Text>
                 <Text style={styles.quickActionLabel}>Marketplace</Text>
               </Pressable>
@@ -1208,6 +1210,45 @@ export default function App() {
                 <Text style={styles.quickActionLabel}>AI Prediction</Text>
               </Pressable>
             </View>
+
+            {/* Marketplace quick-load results */}
+            {adminMktSnapshot && (
+              <View style={styles.adminMktStrip}>
+                <View style={styles.adminMktStripHeader}>
+                  <Text style={styles.adminMktStripTitle}>🛒 Marketplace Snapshot</Text>
+                  <Text style={styles.adminMktStripSub}>Live data</Text>
+                </View>
+                <View style={styles.adminMktPills}>
+                  {adminMktSnapshot.nearby > 0 && (
+                    <View style={[styles.adminMktPill, { borderLeftColor: "#0f766e" }]}>
+                      <Text style={styles.adminMktPillIcon}>🏪</Text>
+                      <View>
+                        <Text style={[styles.adminMktPillValue, { color: "#0f766e" }]}>{adminMktSnapshot.nearby}</Text>
+                        <Text style={styles.adminMktPillLabel}>Nearby</Text>
+                      </View>
+                    </View>
+                  )}
+                  {adminMktSnapshot.trending > 0 && (
+                    <View style={[styles.adminMktPill, { borderLeftColor: "#d97706" }]}>
+                      <Text style={styles.adminMktPillIcon}>🔥</Text>
+                      <View>
+                        <Text style={[styles.adminMktPillValue, { color: "#d97706" }]}>{adminMktSnapshot.trending}</Text>
+                        <Text style={styles.adminMktPillLabel}>Trending</Text>
+                      </View>
+                    </View>
+                  )}
+                  {adminMktSnapshot.offers > 0 && (
+                    <View style={[styles.adminMktPill, { borderLeftColor: "#7c3aed" }]}>
+                      <Text style={styles.adminMktPillIcon}>🏷️</Text>
+                      <View>
+                        <Text style={[styles.adminMktPillValue, { color: "#7c3aed" }]}>{adminMktSnapshot.offers}</Text>
+                        <Text style={styles.adminMktPillLabel}>Offers</Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              </View>
+            )}
 
             {/* Order Operations */}
             <Divider label="Order Operations" icon="⚙️" subtitle="Assign drivers and manage active orders" collapsed={isCollapsed("Order Operations")} onPress={() => togglePanel("Order Operations")} />
@@ -2774,5 +2815,57 @@ const styles = StyleSheet.create({
   roleDropdownItemTextActive: {
     color: TEAL,
     fontWeight: "700" as const
+  },
+  adminMktStrip: {
+    backgroundColor: "#0f172a",
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#1e293b"
+  },
+  adminMktStripHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10
+  },
+  adminMktStripTitle: {
+    color: "#f1f5f9",
+    fontSize: 13,
+    fontWeight: "700" as const
+  },
+  adminMktStripSub: {
+    color: "#64748b",
+    fontSize: 11
+  },
+  adminMktPills: {
+    flexDirection: "row",
+    gap: 10
+  },
+  adminMktPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#1e293b",
+    borderRadius: 8,
+    padding: 10,
+    borderLeftWidth: 3
+  },
+  adminMktPillIcon: {
+    fontSize: 18
+  },
+  adminMktPillValue: {
+    fontSize: 20,
+    fontWeight: "800" as const,
+    lineHeight: 22
+  },
+  adminMktPillLabel: {
+    color: "#94a3b8",
+    fontSize: 10,
+    fontWeight: "600" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.5
   }
 });
