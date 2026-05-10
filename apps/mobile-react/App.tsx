@@ -45,6 +45,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -564,9 +566,9 @@ export default function App() {
     const response = await run("Submitting onboarding", async () => {
       setUploadStep("reading");
       const [frontData, backData, selfieData] = await Promise.all([
-        FileSystem.readAsStringAsync(selectedAadhaarFront, { encoding: FileSystem.EncodingType.Base64 }),
-        FileSystem.readAsStringAsync(selectedAadhaarBack, { encoding: FileSystem.EncodingType.Base64 }),
-        FileSystem.readAsStringAsync(selectedSelfie, { encoding: FileSystem.EncodingType.Base64 })
+        FileSystem.readAsStringAsync(selectedAadhaarFront, { encoding: "base64" }),
+        FileSystem.readAsStringAsync(selectedAadhaarBack, { encoding: "base64" }),
+        FileSystem.readAsStringAsync(selectedSelfie, { encoding: "base64" })
       ]);
       setUploadStep("uploading1");
       const frontAsset = await api.createAzureBlobAsset(token, "aadhaar-front.jpg", "image/jpeg", 250000, frontData);
@@ -678,9 +680,9 @@ export default function App() {
     }
     await run("Running Azure verification", async () => {
       const [frontData, backData, selfieData] = await Promise.all([
-        FileSystem.readAsStringAsync(selectedAadhaarFront, { encoding: FileSystem.EncodingType.Base64 }),
-        FileSystem.readAsStringAsync(selectedAadhaarBack, { encoding: FileSystem.EncodingType.Base64 }),
-        FileSystem.readAsStringAsync(selectedSelfie, { encoding: FileSystem.EncodingType.Base64 })
+        FileSystem.readAsStringAsync(selectedAadhaarFront, { encoding: "base64" }),
+        FileSystem.readAsStringAsync(selectedAadhaarBack, { encoding: "base64" }),
+        FileSystem.readAsStringAsync(selectedSelfie, { encoding: "base64" })
       ]);
       const [frontAsset, backAsset, selfieAsset] = await Promise.all([
         api.createAzureBlobAsset(token, "aadhaar-front.jpg", "image/jpeg", 250000, frontData),
@@ -2292,7 +2294,7 @@ export default function App() {
                                 Alert.prompt("Reject Restaurant", "Enter rejection reason:", [
                                   { text: "Cancel", style: "cancel" },
                                   {
-                                    text: "Reject", style: "destructive", onPress: async (reason) => {
+                                    text: "Reject", style: "destructive", onPress: async (reason: string | undefined) => {
                                       const result = await run("Rejecting restaurant", () => api.updateRestaurantApproval(token, item.id, "rejected", reason ?? ""));
                                       if (result) {
                                         setAdminRestaurants(prev => prev.map(r => r.id === item.id ? { ...r, approval_status: "rejected", rejection_reason: reason ?? null } : r));
@@ -2783,7 +2785,7 @@ export default function App() {
                               style={styles.raRejectBtn}
                               onPress={() => Alert.prompt("Reject Application", "Enter reason for rejection:", [
                                 { text: "Cancel", style: "cancel" },
-                                { text: "Reject", style: "destructive", onPress: async (note) => {
+                                { text: "Reject", style: "destructive", onPress: async (note: string | undefined) => {
                                   if (item.id === "dev-mock-001") { setMockAppStatus("rejected"); return; }
                                   const result = await run("Rejecting application", () => api.updateDriverApplicationApproval(token, item.id, "rejected", note ?? "Rejected from AK Ops mobile"));
                                   if (result) setDriverApplications(prev => prev.map(a => a.id === item.id ? { ...a, approval_status: "rejected", admin_note: note ?? null } : a));
@@ -3219,7 +3221,7 @@ export default function App() {
                             style={styles.raRejectBtn}
                             onPress={() => Alert.prompt("Reject Payout", "Enter reason for rejection:", [
                               { text: "Cancel", style: "cancel" },
-                              { text: "Reject", style: "destructive", onPress: async (note) => {
+                              { text: "Reject", style: "destructive", onPress: async (note: string | undefined) => {
                                 const result = await run("Rejecting payout", () => api.updatePayoutApproval(token, item.id, "rejected", note ?? "Rejected from AK Ops mobile"));
                                 if (result) setAdminPayouts(prev => prev.map(p => p.id === item.id ? { ...p, status: "rejected" } : p));
                               }}
