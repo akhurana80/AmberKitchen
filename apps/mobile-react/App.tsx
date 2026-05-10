@@ -87,6 +87,7 @@ export default function App() {
   const [userOrdersMap, setUserOrdersMap] = useState<Record<string, Array<{ id: string; status: string; total_paise: number; restaurant_name: string; created_at: string }>>>({});
   const [userSearch, setUserSearch] = useState("");
   const [userSearchResults, setUserSearchResults] = useState<Array<{ id: string; phone: string | null; email: string | null; name: string | null; role: string; is_banned: boolean; created_at?: string }> | null>(null);
+  const [userDisplayLimit, setUserDisplayLimit] = useState(10);
   const [adminOrders, setAdminOrders] = useState<Array<{ id: string; status: string; total_paise: number; restaurant_name: string; customer_phone?: string | null; driver_phone?: string | null; created_at?: string }>>([]);
   const [orderSearch, setOrderSearch] = useState("");
   const [orderSearchResults, setOrderSearchResults] = useState<Array<{ id: string; status: string; total_paise: number; restaurant_name: string; customer_phone?: string | null; driver_phone?: string | null; created_at: string }> | null>(null);
@@ -1459,7 +1460,7 @@ export default function App() {
                     placeholder="Name, phone, email or User ID…"
                     placeholderTextColor="#475569"
                     value={userSearch}
-                    onChangeText={text => { setUserSearch(text); if (!text) setUserSearchResults(null); }}
+                    onChangeText={text => { setUserSearch(text); setUserDisplayLimit(10); if (!text) setUserSearchResults(null); }}
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
@@ -1493,7 +1494,10 @@ export default function App() {
                           (u.email ?? "").toLowerCase().includes(q) ||
                           u.id.toLowerCase().startsWith(q)
                         )
-                      : adminUsers.slice(0, 15));
+                      : adminUsers);
+
+                  const visibleUsers = displayUsers.slice(0, userDisplayLimit);
+                  const remaining = displayUsers.length - visibleUsers.length;
 
                   if (adminUsers.length === 0 && !userSearchResults) {
                     return (
@@ -1516,14 +1520,14 @@ export default function App() {
                   return (
                     <>
                       <View style={styles.umResultsMeta}>
-                        <Text style={styles.umResultsCount}>{displayUsers.length} user{displayUsers.length !== 1 ? "s" : ""}</Text>
+                        <Text style={styles.umResultsCount}>{visibleUsers.length} of {displayUsers.length} user{displayUsers.length !== 1 ? "s" : ""}</Text>
                         {userSearchResults && (
                           <View style={styles.umResultsTag}>
                             <Text style={styles.umResultsTagText}>Search results</Text>
                           </View>
                         )}
                       </View>
-                      {displayUsers.map(item => {
+                      {visibleUsers.map(item => {
                         const isExpanded = expandedUserId === item.id;
                         const orders = userOrdersMap[item.id];
                         const displayName = item.name ?? item.phone ?? item.email ?? item.id.slice(0, 8);
@@ -1637,6 +1641,12 @@ export default function App() {
                           </View>
                         );
                       })}
+                      {remaining > 0 && (
+                        <Pressable style={styles.umLoadMoreBtn} onPress={() => setUserDisplayLimit(l => l + 10)}>
+                          <Text style={styles.umLoadMoreText}>Show {Math.min(remaining, 10)} more</Text>
+                          <Text style={styles.umLoadMoreCount}>{remaining} remaining</Text>
+                        </Pressable>
+                      )}
                     </>
                   );
                 })()}
@@ -3150,6 +3160,27 @@ const styles = StyleSheet.create({
   umOrderDot: { width: 8, height: 8, borderRadius: 4, marginTop: 4 },
   umOrderName: { fontSize: 13, fontWeight: "600" as const, color: "#cbd5e1" },
   umOrderMeta: { fontSize: 11, color: "#475569", marginTop: 1 },
+  umLoadMoreBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    backgroundColor: "#1e293b",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#334155",
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    marginTop: 4,
+  },
+  umLoadMoreText: {
+    color: "#94a3b8",
+    fontSize: 13,
+    fontWeight: "700" as const,
+  },
+  umLoadMoreCount: {
+    color: "#475569",
+    fontSize: 11,
+  },
   /* legacy - kept for other uses */
   umSearchIcon: { fontSize: 14 },
   umSearchInput: { flex: 1, paddingVertical: Platform.OS === "ios" ? 11 : 8, fontSize: 14, color: "#1e293b" },
@@ -3347,14 +3378,16 @@ const styles = StyleSheet.create({
     height: 44
   },
   raSearchBtn: {
-    backgroundColor: TEAL,
+    backgroundColor: "#1e293b",
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#334155",
     paddingHorizontal: 12,
     paddingVertical: 5,
     marginLeft: 8
   },
   raSearchBtnText: {
-    color: "#fff",
+    color: "#94a3b8",
     fontSize: 12,
     fontWeight: "700" as const
   },
