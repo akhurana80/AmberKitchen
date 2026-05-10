@@ -765,93 +765,195 @@ export default function App() {
             <Divider label="Marketplace & Orders" icon="🛒" subtitle="Restaurants, orders, payments and ETA" collapsed={isCollapsed("Marketplace & Orders")} onPress={() => togglePanel("Marketplace & Orders")} />
             {!isCollapsed("Marketplace & Orders") && (
               <>
-            <Text style={styles.sectionHint}>Load restaurants, create a test order, then pay and track end-to-end.</Text>
-            <View style={styles.actions}>
-              <Button label={loading ? "Loading…" : "Load Marketplace"} onPress={loadMarketplace} disabled={!authed || loading} />
-              <Button label="Create Order" onPress={createOrder} disabled={!authed} />
+            {/* Primary actions */}
+            <View style={styles.mkTopRow}>
+              <Pressable style={[styles.mkPrimaryBtn, (!authed || loading) && styles.mkPrimaryBtnDisabled]} onPress={loadMarketplace} disabled={!authed || loading}>
+                <Text style={styles.mkPrimaryBtnIcon}>{loading ? "⏳" : "🔄"}</Text>
+                <Text style={styles.mkPrimaryBtnText}>{loading ? "Loading…" : "Load Marketplace"}</Text>
+              </Pressable>
+              <Pressable style={[styles.mkSecondaryBtn, !authed && styles.mkSecondaryBtnDisabled]} onPress={createOrder} disabled={!authed}>
+                <Text style={styles.mkSecondaryBtnText}>+ New Order</Text>
+              </Pressable>
             </View>
 
-            {restaurants.length === 0 && trending.length === 0
-              ? <Text style={styles.emptyHint}>No restaurants loaded — tap "Load Marketplace" first.</Text>
-              : null
-            }
-            {restaurants.slice(0, 3).map(item => (
-              <ListItem
-                key={item.menu_item_id}
-                title={`${item.restaurant_name} — ${item.menu_item_name}`}
-                subtitle={`₹${(item.price_paise / 100).toFixed(0)}${item.distance_km ? ` · ${Number(item.distance_km).toFixed(1)} km` : ""}${item.is_veg ? " · 🟢 Veg" : ""}`}
-                onPress={() => setSelectedRestaurantId(item.restaurant_id)}
-              />
-            ))}
-            {trending.slice(0, 2).map(item => (
-              <ListItem
-                key={item.id}
-                title={`${item.name} (Trending)`}
-                subtitle={`${item.recent_orders} recent orders${item.distance_km ? ` · ${Number(item.distance_km).toFixed(1)} km` : ""}`}
-                onPress={() => setSelectedRestaurantId(item.id)}
-              />
-            ))}
-            {offers.slice(0, 2).map(item => (
-              <ListItem key={item.id} title={`Offer: ${item.code} — ${item.title}`} subtitle={`${item.discount_type === "flat" ? `₹${item.discount_value / 100}` : `${item.discount_value}%`} off`} />
-            ))}
+            {/* Stats strip */}
+            {(restaurants.length > 0 || trending.length > 0 || offers.length > 0) && (
+              <View style={styles.mkStatsStrip}>
+                {restaurants.length > 0 && <View style={styles.mkStatPill}><Text style={styles.mkStatPillIcon}>🏪</Text><Text style={styles.mkStatPillText}>{restaurants.length} nearby</Text></View>}
+                {trending.length > 0 && <View style={styles.mkStatPill}><Text style={styles.mkStatPillIcon}>🔥</Text><Text style={styles.mkStatPillText}>{trending.length} trending</Text></View>}
+                {offers.length > 0 && <View style={styles.mkStatPill}><Text style={styles.mkStatPillIcon}>🏷️</Text><Text style={styles.mkStatPillText}>{offers.length} offers</Text></View>}
+              </View>
+            )}
 
+            {/* Empty state */}
+            {restaurants.length === 0 && trending.length === 0 && (
+              <Text style={styles.emptyHint}>Tap "Load Marketplace" to fetch nearby restaurants.</Text>
+            )}
+
+            {/* Nearby restaurants */}
+            {restaurants.length > 0 && (
+              <>
+                <View style={styles.mkSectionHeader}>
+                  <Text style={styles.mkSectionHeaderIcon}>🏪</Text>
+                  <Text style={styles.mkSectionHeaderText}>Nearby Restaurants</Text>
+                </View>
+                {restaurants.slice(0, 3).map(item => (
+                  <View key={item.menu_item_id} style={styles.mkCard}>
+                    <View style={styles.mkCardTop}>
+                      <View style={styles.mkRestaurantIcon}><Text style={styles.mkRestaurantEmoji}>🍽️</Text></View>
+                      <View style={styles.mkRestaurantInfo}>
+                        <Text style={styles.mkRestaurantName}>{item.restaurant_name}</Text>
+                        <Text style={styles.mkDishName}>{item.menu_item_name}</Text>
+                      </View>
+                      <Pressable style={styles.mkSelectBtn} onPress={() => setSelectedRestaurantId(item.restaurant_id)}>
+                        <Text style={styles.mkSelectBtnText}>Select</Text>
+                      </Pressable>
+                    </View>
+                    <View style={styles.mkCardMeta}>
+                      <Text style={styles.mkPrice}>₹{(item.price_paise / 100).toFixed(0)}</Text>
+                      {item.is_veg && <View style={styles.mkVegBadge}><Text style={styles.mkVegDot}>●</Text></View>}
+                      {item.distance_km ? <View style={styles.mkDistBadge}><Text style={styles.mkDistText}>{Number(item.distance_km).toFixed(1)} km</Text></View> : null}
+                    </View>
+                  </View>
+                ))}
+              </>
+            )}
+
+            {/* Trending */}
+            {trending.length > 0 && (
+              <>
+                <View style={styles.mkSectionHeader}>
+                  <Text style={styles.mkSectionHeaderIcon}>🔥</Text>
+                  <Text style={styles.mkSectionHeaderText}>Trending</Text>
+                </View>
+                {trending.slice(0, 2).map(item => (
+                  <View key={item.id} style={styles.mkCard}>
+                    <View style={styles.mkCardTop}>
+                      <View style={[styles.mkRestaurantIcon, { backgroundColor: "#fff7ed" }]}><Text style={styles.mkRestaurantEmoji}>🔥</Text></View>
+                      <View style={styles.mkRestaurantInfo}>
+                        <Text style={styles.mkRestaurantName}>{item.name}</Text>
+                        <Text style={styles.mkDishName}>{item.recent_orders} recent orders</Text>
+                      </View>
+                      {item.distance_km ? <View style={styles.mkDistBadge}><Text style={styles.mkDistText}>{Number(item.distance_km).toFixed(1)} km</Text></View> : null}
+                    </View>
+                    <Pressable style={styles.mkSelectBtn} onPress={() => setSelectedRestaurantId(item.id)}>
+                      <Text style={styles.mkSelectBtnText}>Select</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </>
+            )}
+
+            {/* Offers */}
+            {offers.length > 0 && (
+              <>
+                <View style={styles.mkSectionHeader}>
+                  <Text style={styles.mkSectionHeaderIcon}>🏷️</Text>
+                  <Text style={styles.mkSectionHeaderText}>Active Offers</Text>
+                </View>
+                <View style={styles.mkOfferChips}>
+                  {offers.slice(0, 3).map(item => (
+                    <View key={item.id} style={styles.mkOfferChip}>
+                      <Text style={styles.mkOfferCode}>{item.code}</Text>
+                      <Text style={styles.mkOfferDesc}>{item.discount_type === "flat" ? `₹${item.discount_value / 100}` : `${item.discount_value}%`} off — {item.title}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {/* Active order card */}
             {orderId ? (
-              <View style={styles.orderIdRow}>
-                <Text style={styles.fieldLabel}>Active Order ID: </Text>
-                <Text style={styles.fieldValue}>{orderId.slice(-12).toUpperCase()}</Text>
+              <View style={styles.mkOrderCard}>
+                <View style={styles.mkOrderCardHeader}>
+                  <View style={styles.mkOrderIdBadge}>
+                    <Text style={styles.mkOrderIdText}>#{orderId.slice(-10).toUpperCase()}</Text>
+                  </View>
+                  {order && <View style={[styles.mkOrderStatusDot, { backgroundColor: orderStatusColor(order.status) }]} />}
+                </View>
+
+                {order && (
+                  <View style={styles.mkOrderDetail}>
+                    <Text style={styles.mkOrderStatus}>{titleCase(order.status)}</Text>
+                    <Text style={styles.mkOrderTotal}>{formatCurrency(order.total_paise)}</Text>
+                  </View>
+                )}
+                {order?.delivery_address ? <Text style={styles.mkOrderAddress}>{order.delivery_address}</Text> : null}
+                {order?.driver_name ? <Text style={styles.mkOrderDriver}>🚗 {order.driver_name}</Text> : null}
+
+                <View style={styles.mkActionRow}>
+                  <Pressable style={styles.mkActionBtn} onPress={loadOrder}>
+                    <Text style={styles.mkActionIcon}>📋</Text>
+                    <Text style={styles.mkActionLabel}>Details</Text>
+                  </Pressable>
+                  <Pressable style={styles.mkActionBtn} onPress={loadEta}>
+                    <Text style={styles.mkActionIcon}>⏱</Text>
+                    <Text style={styles.mkActionLabel}>ETA</Text>
+                  </Pressable>
+                  <Pressable style={styles.mkActionBtn} onPress={openNavigation}>
+                    <Text style={styles.mkActionIcon}>🗺️</Text>
+                    <Text style={styles.mkActionLabel}>Navigate</Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.mkPayRow}>
+                  <Pressable style={[styles.mkPayBtn, { backgroundColor: "#00457c" }]} onPress={() => pay("paytm")}>
+                    <Text style={styles.mkPayBtnText}>Paytm</Text>
+                  </Pressable>
+                  <Pressable style={[styles.mkPayBtn, { backgroundColor: "#5f259f" }]} onPress={() => pay("phonepe")}>
+                    <Text style={styles.mkPayBtnText}>PhonePe</Text>
+                  </Pressable>
+                  <Pressable style={[styles.mkPayBtn, { backgroundColor: "#2d81f7" }]} onPress={() => pay("razorpay")}>
+                    <Text style={styles.mkPayBtnText}>Razorpay</Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.mkDangerRow}>
+                  <Pressable style={styles.mkDangerBtn} onPress={() => run("Cancelling order", () => api.cancelOrder(token, orderId, "Test cancellation from AK Ops"))}>
+                    <Text style={styles.mkDangerBtnText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable style={styles.mkDangerBtn} onPress={() => run("Requesting refund", () => api.requestRefund(token, orderId, "Test refund from AK Ops"))}>
+                    <Text style={styles.mkDangerBtnText}>Refund</Text>
+                  </Pressable>
+                  <Pressable style={styles.mkDangerBtn} onPress={async () => {
+                    const res = await run("Reordering", () => api.reorder(token, orderId));
+                    if (res && typeof res === "object" && "id" in res) setOrderId(String((res as { id: string }).id));
+                  }}>
+                    <Text style={styles.mkDangerBtnText}>Reorder</Text>
+                  </Pressable>
+                </View>
               </View>
             ) : null}
 
-            <View style={styles.actions}>
-              <Button label="Load Order" onPress={loadOrder} disabled={!orderId} />
-              <Button label="Load ETA" onPress={loadEta} disabled={!orderId} />
-              <Button label="Navigate" onPress={openNavigation} disabled={!orderId} />
-            </View>
-            <View style={styles.actions}>
-              <Button label="Pay Paytm" onPress={() => pay("paytm")} disabled={!orderId} />
-              <Button label="Pay PhonePe" onPress={() => pay("phonepe")} disabled={!orderId} />
-              <Button label="Pay Razorpay" onPress={() => pay("razorpay")} disabled={!orderId} />
-            </View>
-            <View style={styles.actions}>
-              <Button
-                label="Cancel Order"
-                onPress={() => run("Cancelling order", () => api.cancelOrder(token, orderId, "Test cancellation from AK Ops"))}
-                disabled={!orderId}
-              />
-              <Button
-                label="Request Refund"
-                onPress={() => run("Requesting refund", () => api.requestRefund(token, orderId, "Test refund from AK Ops"))}
-                disabled={!orderId}
-              />
-              <Button
-                label="Reorder"
-                onPress={async () => {
-                  const res = await run("Reordering", () => api.reorder(token, orderId));
-                  if (res && typeof res === "object" && "id" in res) setOrderId(String((res as { id: string }).id));
-                }}
-                disabled={!orderId}
-              />
-            </View>
-
-            {order && (
-              <Summary title="Order Details" lines={[
-                `Status: ${titleCase(order.status)}`,
-                `Total: ${formatCurrency(order.total_paise)}`,
-                `Address: ${order.delivery_address}`,
-                order.driver_name ? `Driver: ${order.driver_name}` : "No driver assigned yet",
-                ...(order.history.slice(0, 2).map(h => `  ${titleCase(h.status)}${h.note ? ` — ${h.note}` : ""}`))
-              ]} />
-            )}
+            {/* ETA card */}
             {eta && (
-              <Summary title="Delivery ETA" lines={[
-                `ETA: ${eta.predictedEtaMinutes} min`,
-                `To pickup: ${eta.route.distanceToPickupKm.toFixed(1)} km`,
-                `To dropoff: ${eta.route.distanceToDropoffKm.toFixed(1)} km`,
-                `Delivery by: ${new Date(eta.predictedDeliveryAt).toLocaleTimeString()}`
-              ]} />
+              <View style={styles.mkEtaCard}>
+                <View style={styles.mkEtaHeader}>
+                  <Text style={styles.mkEtaMinutes}>{eta.predictedEtaMinutes}</Text>
+                  <Text style={styles.mkEtaUnit}>min ETA</Text>
+                </View>
+                <View style={styles.mkEtaRoute}>
+                  <View style={styles.mkEtaRouteItem}>
+                    <Text style={styles.mkEtaRouteLabel}>To Pickup</Text>
+                    <Text style={styles.mkEtaRouteValue}>{eta.route.distanceToPickupKm.toFixed(1)} km</Text>
+                  </View>
+                  <View style={styles.mkEtaRouteItem}>
+                    <Text style={styles.mkEtaRouteLabel}>To Dropoff</Text>
+                    <Text style={styles.mkEtaRouteValue}>{eta.route.distanceToDropoffKm.toFixed(1)} km</Text>
+                  </View>
+                  <View style={styles.mkEtaRouteItem}>
+                    <Text style={styles.mkEtaRouteLabel}>Arrives By</Text>
+                    <Text style={styles.mkEtaRouteValue}>{new Date(eta.predictedDeliveryAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
+                  </View>
+                </View>
+              </View>
             )}
             {etaLoop.slice(0, 2).map(item => (
-              <ListItem key={item.id} title={`ETA ${item.predicted_eta_minutes} min (${item.source})`} subtitle={new Date(item.created_at).toLocaleTimeString()} />
+              <View key={item.id} style={styles.mkEtaLoopRow}>
+                <Text style={styles.mkEtaLoopMin}>{item.predicted_eta_minutes} min</Text>
+                <Text style={styles.mkEtaLoopSrc}>{item.source}</Text>
+                <Text style={styles.mkEtaLoopTime}>{new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
+              </View>
             ))}
               </>
             )}
@@ -2417,6 +2519,89 @@ const styles = StyleSheet.create({
   buttonBan: { backgroundColor: "#ef4444" },
   buttonUnban: { backgroundColor: "#f59e0b" },
   userOrderRow: { padding: 8, borderRadius: 6, backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#e5e7eb", gap: 2 },
+
+  // Marketplace
+  mkTopRow: { flexDirection: "row" as const, gap: 8 },
+  mkPrimaryBtn: {
+    flex: 1, backgroundColor: TEAL, borderRadius: 12, paddingVertical: 13,
+    flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 6,
+    shadowColor: TEAL, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 3,
+  },
+  mkPrimaryBtnDisabled: { backgroundColor: "#cbd5e1", shadowOpacity: 0, elevation: 0 },
+  mkPrimaryBtnIcon: { fontSize: 15 },
+  mkPrimaryBtnText: { color: "#ffffff", fontWeight: "700" as const, fontSize: 14 },
+  mkSecondaryBtn: {
+    borderWidth: 1.5, borderColor: TEAL, borderRadius: 12, paddingVertical: 13,
+    paddingHorizontal: 14, alignItems: "center" as const, justifyContent: "center" as const,
+  },
+  mkSecondaryBtnDisabled: { borderColor: "#cbd5e1" },
+  mkSecondaryBtnText: { color: TEAL, fontWeight: "700" as const, fontSize: 14 },
+  mkStatsStrip: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6 },
+  mkStatPill: {
+    flexDirection: "row" as const, alignItems: "center" as const,
+    backgroundColor: "#f0fdf4", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
+    gap: 4, borderWidth: 1, borderColor: "#bbf7d0",
+  },
+  mkStatPillIcon: { fontSize: 12 },
+  mkStatPillText: { color: "#166534", fontSize: 12, fontWeight: "600" as const },
+  mkSectionHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, marginTop: 2 },
+  mkSectionHeaderIcon: { fontSize: 13 },
+  mkSectionHeaderText: { color: "#64748b", fontSize: 11, fontWeight: "700" as const, letterSpacing: 1 },
+  mkCard: {
+    backgroundColor: "#ffffff", borderRadius: 12, padding: 12,
+    borderWidth: 1, borderColor: "#f1f5f9", gap: 8,
+    shadowColor: "#0f172a", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1,
+  },
+  mkCardTop: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10 },
+  mkRestaurantIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: "#f0fdf4", alignItems: "center" as const, justifyContent: "center" as const },
+  mkRestaurantEmoji: { fontSize: 20 },
+  mkRestaurantInfo: { flex: 1, gap: 2 },
+  mkRestaurantName: { fontSize: 14, fontWeight: "700" as const, color: "#1e293b" },
+  mkDishName: { fontSize: 12, color: "#64748b" },
+  mkSelectBtn: { backgroundColor: TEAL, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
+  mkSelectBtnText: { color: "#ffffff", fontWeight: "700" as const, fontSize: 12 },
+  mkCardMeta: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
+  mkPrice: { color: "#0f172a", fontWeight: "700" as const, fontSize: 14 },
+  mkVegBadge: { width: 16, height: 16, borderRadius: 3, borderWidth: 1.5, borderColor: "#16a34a", alignItems: "center" as const, justifyContent: "center" as const },
+  mkVegDot: { color: "#16a34a", fontSize: 8 },
+  mkDistBadge: { backgroundColor: "#f1f5f9", borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  mkDistText: { color: "#64748b", fontSize: 11, fontWeight: "600" as const },
+  mkOfferChips: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6 },
+  mkOfferChip: { backgroundColor: "#fff7ed", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderColor: "#fed7aa", gap: 2 },
+  mkOfferCode: { color: "#c2410c", fontSize: 12, fontWeight: "800" as const },
+  mkOfferDesc: { color: "#92400e", fontSize: 11 },
+  mkOrderCard: { backgroundColor: "#0a0f1e", borderRadius: 14, padding: 14, gap: 10 },
+  mkOrderCardHeader: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const },
+  mkOrderIdBadge: { backgroundColor: "#1e293b", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
+  mkOrderIdText: { color: "#94a3b8", fontSize: 11, fontWeight: "700" as const, letterSpacing: 1.5 },
+  mkOrderStatusDot: { width: 10, height: 10, borderRadius: 5 },
+  mkOrderDetail: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const },
+  mkOrderStatus: { color: "#ffffff", fontSize: 16, fontWeight: "700" as const },
+  mkOrderTotal: { color: "#14b8a6", fontSize: 16, fontWeight: "800" as const },
+  mkOrderAddress: { color: "#64748b", fontSize: 12 },
+  mkOrderDriver: { color: "#94a3b8", fontSize: 12, fontWeight: "600" as const },
+  mkActionRow: { flexDirection: "row" as const, gap: 8 },
+  mkActionBtn: { flex: 1, backgroundColor: "#1e293b", borderRadius: 10, paddingVertical: 10, alignItems: "center" as const, gap: 3 },
+  mkActionIcon: { fontSize: 16 },
+  mkActionLabel: { color: "#94a3b8", fontSize: 10, fontWeight: "600" as const },
+  mkPayRow: { flexDirection: "row" as const, gap: 6 },
+  mkPayBtn: { flex: 1, borderRadius: 8, paddingVertical: 9, alignItems: "center" as const },
+  mkPayBtnText: { color: "#ffffff", fontWeight: "700" as const, fontSize: 12 },
+  mkDangerRow: { flexDirection: "row" as const, gap: 6 },
+  mkDangerBtn: { flex: 1, backgroundColor: "#1e293b", borderRadius: 8, paddingVertical: 8, alignItems: "center" as const, borderWidth: 1, borderColor: "#334155" },
+  mkDangerBtnText: { color: "#94a3b8", fontSize: 12, fontWeight: "600" as const },
+  mkEtaCard: { backgroundColor: "#f0fdf4", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#bbf7d0", gap: 8 },
+  mkEtaHeader: { flexDirection: "row" as const, alignItems: "baseline" as const, gap: 6 },
+  mkEtaMinutes: { fontSize: 32, fontWeight: "800" as const, color: TEAL },
+  mkEtaUnit: { color: "#16a34a", fontSize: 14, fontWeight: "600" as const },
+  mkEtaRoute: { flexDirection: "row" as const, gap: 16 },
+  mkEtaRouteItem: { gap: 2 },
+  mkEtaRouteLabel: { color: "#64748b", fontSize: 10, fontWeight: "600" as const, letterSpacing: 0.8 },
+  mkEtaRouteValue: { color: "#1e293b", fontSize: 13, fontWeight: "700" as const },
+  mkEtaLoopRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, paddingVertical: 6, borderTopWidth: 1, borderTopColor: "#f1f5f9" },
+  mkEtaLoopMin: { color: TEAL, fontWeight: "700" as const, fontSize: 13, width: 50 },
+  mkEtaLoopSrc: { color: "#64748b", fontSize: 12, flex: 1 },
+  mkEtaLoopTime: { color: "#94a3b8", fontSize: 11 },
 
   // User Management (production)
   umSearchRow: { flexDirection: "row" as const, gap: 8, alignItems: "center" as const },
