@@ -1994,45 +1994,137 @@ export default function App() {
             )}
 
             {/* Live Tracking */}
-            <Divider label="Live Tracking + Driver Load" icon="📡" subtitle={deliveryOrders.length > 0 ? `${deliveryOrders.length} active deliveries · ${driverLoad.length} drivers` : "Real-time delivery and driver availability"} collapsed={isCollapsed("Live Tracking + Driver Load")} onPress={() => togglePanel("Live Tracking + Driver Load")} />
+            <Divider label="Live Tracking + Driver Load" icon="📡" subtitle={deliveryOrders.length > 0 ? `${deliveryOrders.length} active · ${driverLoad.filter(d => d.active_orders > 0).length} busy · ${driverLoad.length} drivers` : "Real-time delivery and driver availability"} collapsed={isCollapsed("Live Tracking + Driver Load")} onPress={() => togglePanel("Live Tracking + Driver Load")} />
             {!isCollapsed("Live Tracking + Driver Load") && (
               <>
-            <View style={styles.orderSearchRow}>
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                placeholder="Restaurant name, Order ID or driver phone…"
-                placeholderTextColor="#94a3b8"
-                value={deliverySearch}
-                onChangeText={setDeliverySearch}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-            {(() => {
-              const q = deliverySearch.trim().toLowerCase();
-              const deliveries = q
-                ? deliveryOrders.filter(o =>
-                    (o.restaurant_name ?? "").toLowerCase().includes(q) ||
-                    o.id.toLowerCase().startsWith(q)
-                  )
-                : deliveryOrders;
-              const drivers = q
-                ? driverLoad.filter(d => (d.phone ?? "").includes(q) || d.id.toLowerCase().startsWith(q))
-                : driverLoad;
-              const combined = [
-                ...deliveries.map(o => ({ key: o.id, title: `${o.restaurant_name} — ${titleCase(o.status)}`, subtitle: o.last_driver_lat ? `Driver at ${o.last_driver_lat}, ${o.last_driver_lng}` : "Driver location not available" })),
-                ...drivers.map(d => ({ key: d.id, title: d.phone ?? d.id, subtitle: `Active orders: ${d.active_orders} · Capacity score: ${d.capacity_score}` }))
-              ].slice(0, 5);
-              if (deliveryOrders.length === 0 && driverLoad.length === 0) {
-                return <Text style={styles.emptyHint}>No active deliveries or drivers.</Text>;
-              }
-              if (q && combined.length === 0) {
-                return <Text style={styles.emptyHint}>No results match "{deliverySearch}".</Text>;
-              }
-              return combined.map(item => (
-                <ListItem key={item.key} title={item.title} subtitle={item.subtitle} />
-              ));
-            })()}
+                {/* Live stats */}
+                {(deliveryOrders.length > 0 || driverLoad.length > 0) && (
+                  <View style={styles.ltStatsRow}>
+                    <View style={styles.ltStatCard}>
+                      <Text style={[styles.ltStatValue, { color: "#3b82f6" }]}>{deliveryOrders.length}</Text>
+                      <Text style={styles.ltStatLabel}>Active{"\n"}Deliveries</Text>
+                    </View>
+                    <View style={styles.ltStatCard}>
+                      <Text style={[styles.ltStatValue, { color: "#22c55e" }]}>{driverLoad.length}</Text>
+                      <Text style={styles.ltStatLabel}>Drivers{"\n"}Online</Text>
+                    </View>
+                    <View style={styles.ltStatCard}>
+                      <Text style={[styles.ltStatValue, { color: "#ef4444" }]}>{driverLoad.filter(d => d.active_orders > 0).length}</Text>
+                      <Text style={styles.ltStatLabel}>Drivers{"\n"}Busy</Text>
+                    </View>
+                    <View style={styles.ltStatCard}>
+                      <Text style={[styles.ltStatValue, { color: "#eab308" }]}>{driverLoad.filter(d => d.active_orders === 0).length}</Text>
+                      <Text style={styles.ltStatLabel}>Drivers{"\n"}Free</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Search */}
+                <View style={styles.raSearchRow}>
+                  <Text style={styles.raSearchIcon}>🔍</Text>
+                  <TextInput
+                    style={styles.raSearchInput}
+                    placeholder="Restaurant name, Order ID or driver phone…"
+                    placeholderTextColor="#475569"
+                    value={deliverySearch}
+                    onChangeText={setDeliverySearch}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  {deliverySearch.length > 0 && (
+                    <Pressable onPress={() => setDeliverySearch("")}>
+                      <Text style={styles.ooInputClear}>✕</Text>
+                    </Pressable>
+                  )}
+                </View>
+
+                {deliveryOrders.length === 0 && driverLoad.length === 0 ? (
+                  <View style={styles.raEmpty}>
+                    <Text style={styles.raEmptyIcon}>📡</Text>
+                    <Text style={styles.raEmptyText}>No active deliveries or drivers</Text>
+                    <Text style={styles.raEmptyHint}>Live data appears here when drivers are on delivery.</Text>
+                  </View>
+                ) : (() => {
+                  const q = deliverySearch.trim().toLowerCase();
+                  const filteredOrders = q
+                    ? deliveryOrders.filter(o => (o.restaurant_name ?? "").toLowerCase().includes(q) || o.id.toLowerCase().startsWith(q))
+                    : deliveryOrders;
+                  const filteredDrivers = q
+                    ? driverLoad.filter(d => (d.phone ?? "").includes(q) || d.id.toLowerCase().startsWith(q))
+                    : driverLoad;
+
+                  return (
+                    <>
+                      {/* Active Deliveries */}
+                      {filteredOrders.length > 0 && (
+                        <>
+                          <Text style={styles.ltSectionTitle}>⚡ Active Deliveries</Text>
+                          {filteredOrders.map(o => {
+                            const statusColor = orderStatusColor(o.status);
+                            const hasLocation = o.last_driver_lat && o.last_driver_lng;
+                            return (
+                              <View key={o.id} style={[styles.ltOrderCard, { borderLeftColor: statusColor }]}>
+                                <View style={styles.ltOrderCardHeader}>
+                                  <Text style={styles.ltOrderRestaurant} numberOfLines={1}>{o.restaurant_name ?? "Unknown"}</Text>
+                                  <View style={[styles.raStatusBadge, { backgroundColor: statusColor + "22", borderColor: statusColor }]}>
+                                    <View style={[styles.raStatusDot, { backgroundColor: statusColor }]} />
+                                    <Text style={[styles.raStatusText, { color: statusColor }]}>{titleCase(o.status)}</Text>
+                                  </View>
+                                </View>
+                                <View style={styles.ltOrderMeta}>
+                                  <Text style={styles.ltOrderId}>#{o.id.slice(0, 8).toUpperCase()}</Text>
+                                  <Text style={styles.ltOrderDot}>·</Text>
+                                  {hasLocation ? (
+                                    <Text style={styles.ltLocationText}>📍 {parseFloat(o.last_driver_lat!).toFixed(4)}, {parseFloat(o.last_driver_lng!).toFixed(4)}</Text>
+                                  ) : (
+                                    <Text style={styles.ltNoLocation}>📍 Location unavailable</Text>
+                                  )}
+                                </View>
+                              </View>
+                            );
+                          })}
+                        </>
+                      )}
+
+                      {/* Driver Load */}
+                      {filteredDrivers.length > 0 && (
+                        <>
+                          <Text style={[styles.ltSectionTitle, { marginTop: filteredOrders.length > 0 ? 8 : 0 }]}>🚗 Driver Load</Text>
+                          {filteredDrivers.map(d => {
+                            const capacityColor = d.capacity_score >= 0.7 ? "#22c55e" : d.capacity_score >= 0.4 ? "#eab308" : "#ef4444";
+                            const capacityLabel = d.capacity_score >= 0.7 ? "Available" : d.capacity_score >= 0.4 ? "Busy" : "Overloaded";
+                            const barWidth = `${Math.round(d.capacity_score * 100)}%`;
+                            return (
+                              <View key={d.id} style={[styles.ltDriverCard, { borderLeftColor: capacityColor }]}>
+                                <View style={styles.ltDriverCardHeader}>
+                                  <View style={styles.ltDriverInfo}>
+                                    <Text style={styles.ltDriverPhone}>{d.phone ?? d.id.slice(0, 12)}</Text>
+                                    <Text style={styles.ltDriverOrders}>{d.active_orders} active order{d.active_orders !== 1 ? "s" : ""}</Text>
+                                  </View>
+                                  <View style={[styles.ltCapacityBadge, { backgroundColor: capacityColor + "22", borderColor: capacityColor }]}>
+                                    <View style={[styles.raStatusDot, { backgroundColor: capacityColor }]} />
+                                    <Text style={[styles.raStatusText, { color: capacityColor }]}>{capacityLabel}</Text>
+                                  </View>
+                                </View>
+                                <View style={styles.ltCapacityBarBg}>
+                                  <View style={[styles.ltCapacityBarFill, { width: barWidth as `${number}%`, backgroundColor: capacityColor }]} />
+                                </View>
+                                <Text style={styles.ltCapacityScore}>Capacity score: {Math.round(d.capacity_score * 100)}%</Text>
+                              </View>
+                            );
+                          })}
+                        </>
+                      )}
+
+                      {q && filteredOrders.length === 0 && filteredDrivers.length === 0 && (
+                        <View style={styles.raEmpty}>
+                          <Text style={styles.raEmptyIcon}>🔍</Text>
+                          <Text style={styles.raEmptyText}>No results for "{deliverySearch}"</Text>
+                        </View>
+                      )}
+                    </>
+                  );
+                })()}
               </>
             )}
 
@@ -2274,23 +2366,121 @@ export default function App() {
             )}
 
             {/* Payouts */}
-            <Divider label="Payouts" icon="💸" subtitle={adminPayouts.length > 0 ? `${adminPayouts.length} payout${adminPayouts.length !== 1 ? "s" : ""} pending` : "Driver and restaurant payout management"} collapsed={isCollapsed("Payouts")} onPress={() => togglePanel("Payouts")} />
+            <Divider label="Payouts" icon="💸" subtitle={adminPayouts.length > 0 ? `${adminPayouts.filter(p => p.status === "pending").length} pending · ${adminPayouts.length} total` : "Driver and restaurant payout management"} collapsed={isCollapsed("Payouts")} onPress={() => togglePanel("Payouts")} />
             {!isCollapsed("Payouts") && (
               <>
-            {adminPayouts.length === 0
-              ? <Text style={styles.emptyHint}>No pending payouts.</Text>
-              : adminPayouts.slice(0, 5).map(item => (
-                <ListItem
-                  key={item.id}
-                  title={`${titleCase(item.role)} payout — ${titleCase(item.status)}`}
-                  subtitle={`${item.phone ?? "–"} · ${formatCurrency(item.amount_paise)} via ${item.method}`}
-                  onPress={async () => {
-                    const result = await run("Approving payout", () => api.updatePayoutApproval(token, item.id, "approved", "Approved from AK Ops mobile"));
-                    if (result) setAdminPayouts(prev => prev.map(p => p.id === item.id ? { ...p, status: "approved" } : p));
-                  }}
-                />
-              ))
-            }
+                {/* Stats row */}
+                {adminPayouts.length > 0 && (
+                  <View style={styles.raStatsRow}>
+                    {[
+                      { label: "Pending",  color: "#eab308", count: adminPayouts.filter(p => p.status === "pending").length },
+                      { label: "Approved", color: "#3b82f6", count: adminPayouts.filter(p => p.status === "approved").length },
+                      { label: "Paid",     color: "#22c55e", count: adminPayouts.filter(p => p.status === "paid").length },
+                      { label: "Rejected", color: "#ef4444", count: adminPayouts.filter(p => p.status === "rejected").length },
+                    ].map(s => (
+                      <View key={s.label} style={styles.raStatPill}>
+                        <View style={[styles.raStatDot, { backgroundColor: s.color }]} />
+                        <Text style={[styles.raStatCount, { color: s.color }]}>{s.count}</Text>
+                        <Text style={styles.raStatLabel}>{s.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Total pending amount */}
+                {adminPayouts.filter(p => p.status === "pending").length > 0 && (
+                  <View style={styles.payoutTotalCard}>
+                    <Text style={styles.payoutTotalLabel}>Total Pending</Text>
+                    <Text style={styles.payoutTotalAmount}>
+                      {formatCurrency(adminPayouts.filter(p => p.status === "pending").reduce((s, p) => s + p.amount_paise, 0))}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Payout cards */}
+                {adminPayouts.length === 0 ? (
+                  <View style={styles.raEmpty}>
+                    <Text style={styles.raEmptyIcon}>💸</Text>
+                    <Text style={styles.raEmptyText}>No payouts</Text>
+                    <Text style={styles.raEmptyHint}>Payout requests will appear here when drivers or restaurants request payments.</Text>
+                  </View>
+                ) : adminPayouts.map(item => {
+                  const payoutStatusColor = (s: string) =>
+                    s === "paid" ? "#22c55e" : s === "approved" ? "#3b82f6" : s === "rejected" ? "#ef4444" : "#eab308";
+                  const statusColor = payoutStatusColor(item.status);
+                  const roleColor = roleAccent(item.role);
+                  return (
+                    <View key={item.id} style={[styles.payoutCard, { borderLeftColor: statusColor }]}>
+                      {/* Header */}
+                      <View style={styles.payoutCardHeader}>
+                        <View style={styles.payoutCardLeft}>
+                          <View style={[styles.payoutRolePill, { backgroundColor: roleColor + "22", borderColor: roleColor + "55" }]}>
+                            <Text style={[styles.payoutRolePillText, { color: roleColor }]}>{titleCase(item.role)}</Text>
+                          </View>
+                          {item.phone && <Text style={styles.payoutPhone}>{item.phone}</Text>}
+                        </View>
+                        <View style={[styles.raStatusBadge, { backgroundColor: statusColor + "22", borderColor: statusColor }]}>
+                          <View style={[styles.raStatusDot, { backgroundColor: statusColor }]} />
+                          <Text style={[styles.raStatusText, { color: statusColor }]}>{titleCase(item.status)}</Text>
+                        </View>
+                      </View>
+
+                      {/* Amount + method */}
+                      <View style={styles.payoutAmountRow}>
+                        <Text style={[styles.payoutAmount, { color: statusColor }]}>{formatCurrency(item.amount_paise)}</Text>
+                        <View style={styles.payoutMethodChip}>
+                          <Text style={styles.payoutMethodText}>via {titleCase(item.method)}</Text>
+                        </View>
+                      </View>
+
+                      {/* Actions */}
+                      {(item.status === "pending" || item.status === "approved") && (
+                        <View style={styles.raActions}>
+                          {item.status === "pending" && (
+                            <Pressable
+                              style={styles.raApproveBtn}
+                              onPress={() => Alert.alert("Approve Payout", `Approve ${formatCurrency(item.amount_paise)} payout?`, [
+                                { text: "Cancel", style: "cancel" },
+                                { text: "Approve", onPress: async () => {
+                                  const result = await run("Approving payout", () => api.updatePayoutApproval(token, item.id, "approved", "Approved from AK Ops mobile"));
+                                  if (result) setAdminPayouts(prev => prev.map(p => p.id === item.id ? { ...p, status: "approved" } : p));
+                                }}
+                              ])}
+                            >
+                              <Text style={styles.raApproveBtnText}>✓ Approve</Text>
+                            </Pressable>
+                          )}
+                          {item.status === "approved" && (
+                            <Pressable
+                              style={[styles.raApproveBtn, { backgroundColor: "#0c2d1a", borderColor: "#22c55e" }]}
+                              onPress={() => Alert.alert("Mark as Paid", `Confirm payment of ${formatCurrency(item.amount_paise)}?`, [
+                                { text: "Cancel", style: "cancel" },
+                                { text: "Mark Paid", onPress: async () => {
+                                  const result = await run("Marking payout paid", () => api.updatePayoutApproval(token, item.id, "paid"));
+                                  if (result) setAdminPayouts(prev => prev.map(p => p.id === item.id ? { ...p, status: "paid" } : p));
+                                }}
+                              ])}
+                            >
+                              <Text style={[styles.raApproveBtnText, { color: "#4ade80" }]}>💳 Mark Paid</Text>
+                            </Pressable>
+                          )}
+                          <Pressable
+                            style={styles.raRejectBtn}
+                            onPress={() => Alert.prompt("Reject Payout", "Enter reason for rejection:", [
+                              { text: "Cancel", style: "cancel" },
+                              { text: "Reject", style: "destructive", onPress: async (note) => {
+                                const result = await run("Rejecting payout", () => api.updatePayoutApproval(token, item.id, "rejected", note ?? "Rejected from AK Ops mobile"));
+                                if (result) setAdminPayouts(prev => prev.map(p => p.id === item.id ? { ...p, status: "rejected" } : p));
+                              }}
+                            ], "plain-text")}
+                          >
+                            <Text style={styles.raRejectBtnText}>✕ Reject</Text>
+                          </Pressable>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
               </>
             )}
 
@@ -3502,6 +3692,218 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700" as const,
     marginLeft: "auto" as const,
+  },
+
+  /* ── Payouts panel ── */
+  payoutTotalCard: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#eab30844",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  payoutTotalLabel: {
+    color: "#64748b",
+    fontSize: 11,
+    fontWeight: "700" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.6,
+  },
+  payoutTotalAmount: {
+    color: "#eab308",
+    fontSize: 20,
+    fontWeight: "800" as const,
+  },
+  payoutCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    padding: 14,
+    marginBottom: 10,
+    gap: 10,
+  },
+  payoutCardHeader: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
+    gap: 8,
+  },
+  payoutCardLeft: {
+    gap: 4,
+  },
+  payoutRolePill: {
+    alignSelf: "flex-start" as const,
+    borderRadius: 6,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  payoutRolePillText: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+  },
+  payoutPhone: {
+    color: "#64748b",
+    fontSize: 12,
+  },
+  payoutAmountRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 10,
+  },
+  payoutAmount: {
+    fontSize: 22,
+    fontWeight: "800" as const,
+  },
+  payoutMethodChip: {
+    backgroundColor: "#1e293b",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  payoutMethodText: {
+    color: "#64748b",
+    fontSize: 11,
+    fontWeight: "600" as const,
+  },
+
+  /* ── Live Tracking + Driver Load panel ── */
+  ltStatsRow: {
+    flexDirection: "row" as const,
+    gap: 8,
+    marginBottom: 12,
+  },
+  ltStatCard: {
+    flex: 1,
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    paddingVertical: 10,
+    alignItems: "center" as const,
+    gap: 4,
+  },
+  ltStatValue: {
+    fontSize: 20,
+    fontWeight: "800" as const,
+    lineHeight: 22,
+  },
+  ltStatLabel: {
+    color: "#475569",
+    fontSize: 9,
+    fontWeight: "600" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.4,
+    textAlign: "center" as const,
+  },
+  ltSectionTitle: {
+    color: "#64748b",
+    fontSize: 10,
+    fontWeight: "700" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  ltOrderCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    borderLeftWidth: 3,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    padding: 12,
+    marginBottom: 8,
+    gap: 6,
+  },
+  ltOrderCardHeader: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
+    gap: 8,
+  },
+  ltOrderRestaurant: {
+    color: "#f1f5f9",
+    fontSize: 13,
+    fontWeight: "700" as const,
+    flex: 1,
+  },
+  ltOrderMeta: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+  },
+  ltOrderId: {
+    color: "#334155",
+    fontSize: 10,
+    fontWeight: "600" as const,
+  },
+  ltOrderDot: {
+    color: "#1e293b",
+    fontSize: 10,
+  },
+  ltLocationText: {
+    color: "#3b82f6",
+    fontSize: 11,
+  },
+  ltNoLocation: {
+    color: "#334155",
+    fontSize: 11,
+  },
+  ltDriverCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    borderLeftWidth: 3,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    padding: 12,
+    marginBottom: 8,
+    gap: 8,
+  },
+  ltDriverCardHeader: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
+  },
+  ltDriverInfo: {
+    gap: 2,
+  },
+  ltDriverPhone: {
+    color: "#f1f5f9",
+    fontSize: 13,
+    fontWeight: "700" as const,
+  },
+  ltDriverOrders: {
+    color: "#64748b",
+    fontSize: 11,
+  },
+  ltCapacityBadge: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  ltCapacityBarBg: {
+    height: 4,
+    backgroundColor: "#1e293b",
+    borderRadius: 2,
+    overflow: "hidden" as const,
+  },
+  ltCapacityBarFill: {
+    height: 4,
+    borderRadius: 2,
+  },
+  ltCapacityScore: {
+    color: "#475569",
+    fontSize: 10,
   },
   /* legacy - kept for other uses */
   umSearchIcon: { fontSize: 14 },
