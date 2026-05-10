@@ -279,11 +279,24 @@ export default function App() {
     await SecureStore.deleteItemAsync("amberkitchen.token");
   }
 
+  function validatePhone(p: string): string | null {
+    const digits = p.replace(/\D/g, "");
+    if (!digits) return "Phone number is required.";
+    if (digits.length < 10) return "Enter a valid 10-digit phone number.";
+    if (digits.length > 12) return "Phone number is too long.";
+    return null;
+  }
+
+  function validateOtp(o: string): string | null {
+    const digits = o.replace(/\D/g, "");
+    if (!digits) return "OTP is required.";
+    if (digits.length !== 6) return "OTP must be exactly 6 digits.";
+    return null;
+  }
+
   async function requestOtp() {
-    if (!phone.trim()) {
-      Alert.alert("Phone required", "Enter your phone number before requesting an OTP.");
-      return;
-    }
+    const err = validatePhone(phone);
+    if (err) { Alert.alert("Invalid phone number", err); return; }
     const response = await run("Sending OTP", () => api.requestOtp(phone));
     if (response != null) {
       setOtpSent(true);
@@ -294,10 +307,10 @@ export default function App() {
   }
 
   async function verifyOtp() {
-    if (!phone.trim() || !otp.trim()) {
-      Alert.alert("Fields required", "Enter both phone number and OTP.");
-      return;
-    }
+    const phoneErr = validatePhone(phone);
+    if (phoneErr) { Alert.alert("Invalid phone number", phoneErr); return; }
+    const otpErr = validateOtp(otp);
+    if (otpErr) { Alert.alert("Invalid OTP", otpErr); return; }
     const response = await run("Verifying OTP", () => api.verifyOtp(phone, otp, role));
     if (response && typeof response === "object" && "token" in response) {
       const userRole = (response as { user?: { role?: string } }).user?.role;
@@ -493,10 +506,17 @@ export default function App() {
 
   async function onboardRestaurant() {
     if (!token) return;
-    if (!restaurantName || !restaurantAddress || !restaurantPhone) {
-      Alert.alert("Incomplete form", "Provide restaurant name, address, and contact phone number.");
+    if (!restaurantName.trim()) {
+      Alert.alert("Name required", "Enter the restaurant name.");
       return;
     }
+    if (!restaurantAddress.trim()) {
+      Alert.alert("Address required", "Enter the restaurant address.");
+      return;
+    }
+    const phoneErr = validatePhone(restaurantPhone);
+    if (phoneErr) { Alert.alert("Invalid contact phone", phoneErr); return; }
+
     await run("Submitting restaurant onboarding", () => api.onboardRestaurant(token, {
       name: restaurantName,
       address: restaurantAddress,
@@ -633,40 +653,80 @@ export default function App() {
     const formType = zciFormType;
     if (!token || !formType) return;
     const f = zciFormData;
-    setZciFormType(null);
     const autoId = () => Date.now().toString(36).slice(-4).toUpperCase();
+
     if (formType === "zone") {
-      await run("Creating zone", () => api.createZone(
-        token,
-        f.name.trim() || `Zone ${autoId()}`,
-        f.city.trim() || "Delhi NCR",
-        location.lat, location.lng,
-        Number(f.radiusKm) || 3,
-        Number(f.slaMinutes) || 20
-      ));
+      if (!f.name.trim()) { Alert.alert("Name required", "Enter a zone name."); return; }
+      if (!f.city.trim()) { Alert.alert("City required", "Enter a city for this zone."); return; }
+      const radius = Number(f.radiusKm);
+      if (!f.radiusKm.trim() || isNaN(radius) || radius <= 0) {
+        Alert.alert("Invalid radius", "Radius must be a positive number (e.g. 3)."); return;
+      }
+      const sla = Number(f.slaMinutes);
+      if (!f.slaMinutes.trim() || isNaN(sla) || sla <= 0 || !Number.isInteger(sla)) {
+        Alert.alert("Invalid SLA", "SLA must be a whole number of minutes (e.g. 20)."); return;
+      }
+      const surge = Number(f.surgeMultiplier);
+      if (isNaN(surge) || surge < 1) {
+        Alert.alert("Invalid surge multiplier", "Surge multiplier must be 1.0 or higher."); return;
+      }
+      setZciFormType(null);
+      await run("Creating zone", () => api.createZone(token, f.name.trim(), f.city.trim(), location.lat, location.lng, radius, sla));
+
     } else if (formType === "offer") {
+      if (!f.title.trim()) { Alert.alert("Title required", "Enter an offer title."); return; }
+      const discountVal = Number(f.discountValue);
+      if (!f.discountValue.trim() || isNaN(discountVal) || discountVal <= 0) {
+        Alert.alert("Invalid discount", "Discount value must be a positive number."); return;
+      }
+      if (f.discountType === "percent" && discountVal > 100) {
+        Alert.alert("Invalid discount", "Percent discount cannot exceed 100%."); return;
+      }
+      const minOrder = Number(f.minOrderRupees);
+      if (f.minOrderRupees.trim() && (isNaN(minOrder) || minOrder < 0)) {
+        Alert.alert("Invalid minimum order", "Minimum order must be a positive number."); return;
+      }
+      setZciFormType(null);
       await run("Creating offer", () => api.createOffer(
         token,
         f.code.trim() || `MOB${Date.now().toString(36).slice(-5).toUpperCase()}`,
-        f.title.trim() || "Mobile Offer",
+        f.title.trim(),
         f.discountType,
-        Math.round(Number(f.discountValue) * 100),
-        Math.round(Number(f.minOrderRupees) * 100)
+        Math.round(discountVal * 100),
+        Math.round((minOrder || 0) * 100)
       ));
+
     } else if (formType === "campaign") {
+      if (!f.name.trim()) { Alert.alert("Name required", "Enter a campaign name."); return; }
+      const budget = Number(f.budgetRupees);
+      if (!f.budgetRupees.trim() || isNaN(budget) || budget <= 0) {
+        Alert.alert("Invalid budget", "Budget must be a positive number (in ₹)."); return;
+      }
+      setZciFormType(null);
       await run("Creating campaign", () => api.createCampaign(
         token,
-        f.name.trim() || `Campaign ${autoId()}`,
+        f.name.trim(),
         f.channel,
-        Math.round(Number(f.budgetRupees) * 100),
+        Math.round(budget * 100),
         f.aiCreative.trim() || undefined
       ));
+
     } else {
+      if (!f.title.trim()) { Alert.alert("Title required", "Enter an incentive title."); return; }
+      const target = Number(f.targetDeliveries);
+      if (!f.targetDeliveries.trim() || isNaN(target) || target <= 0 || !Number.isInteger(target)) {
+        Alert.alert("Invalid target", "Target deliveries must be a whole number (e.g. 50)."); return;
+      }
+      const reward = Number(f.rewardRupees);
+      if (!f.rewardRupees.trim() || isNaN(reward) || reward <= 0) {
+        Alert.alert("Invalid reward", "Reward must be a positive amount in ₹."); return;
+      }
+      setZciFormType(null);
       await run("Creating incentive", () => api.createDriverIncentive(
         token,
-        f.title.trim() || `Delivery Bonus ${autoId()}`,
-        Number(f.targetDeliveries) || 5,
-        Math.round(Number(f.rewardRupees) * 100)
+        f.title.trim(),
+        target,
+        Math.round(reward * 100)
       ));
     }
     await refreshZCI();
@@ -836,9 +896,9 @@ export default function App() {
                   />
                 </View>
                 <Pressable
-                  style={[styles.loginPrimaryBtn, (!phone.trim() || loading) && styles.loginPrimaryBtnDisabled]}
+                  style={[styles.loginPrimaryBtn, (phone.replace(/\D/g, "").length < 10 || loading) && styles.loginPrimaryBtnDisabled]}
                   onPress={requestOtp}
-                  disabled={!phone.trim() || loading}
+                  disabled={phone.replace(/\D/g, "").length < 10 || loading}
                 >
                   <Text style={styles.loginPrimaryBtnText}>{loading ? "Sending…" : "Send OTP"}</Text>
                 </Pressable>
@@ -882,9 +942,9 @@ export default function App() {
                   />
                 </View>
                 <Pressable
-                  style={[styles.loginPrimaryBtn, (!otp.trim() || loading) && styles.loginPrimaryBtnDisabled]}
+                  style={[styles.loginPrimaryBtn, (otp.replace(/\D/g, "").length !== 6 || loading) && styles.loginPrimaryBtnDisabled]}
                   onPress={verifyOtp}
-                  disabled={!otp.trim() || loading}
+                  disabled={otp.replace(/\D/g, "").length !== 6 || loading}
                 >
                   <Text style={styles.loginPrimaryBtnText}>{loading ? "Verifying…" : "Verify OTP"}</Text>
                 </Pressable>
