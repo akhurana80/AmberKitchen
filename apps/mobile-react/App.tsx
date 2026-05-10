@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Image,
+  KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   Pressable,
   SafeAreaView,
@@ -109,6 +111,19 @@ export default function App() {
   const [demandPredictions, setDemandPredictions] = useState<Array<{ id: string; zone_key: string; cuisine_type: string | null; hour_start: string; predicted_orders: number; confidence: string }>>([]);
   const [adminMktSnapshot, setAdminMktSnapshot] = useState<{ nearby: number; trending: number; offers: number } | null>(null);
   const [mockAppStatus, setMockAppStatus] = useState<"pending" | "approved" | "rejected">("pending");
+
+  const [zciFormType, setZciFormType] = useState<null | "zone" | "offer" | "campaign" | "incentive">(null);
+  const [zciFormData, setZciFormData] = useState<{
+    name: string; city: string; radiusKm: string; slaMinutes: string; surgeMultiplier: string;
+    code: string; title: string; discountType: "flat" | "percent"; discountValue: string; minOrderRupees: string;
+    channel: "push" | "email" | "whatsapp" | "ads"; budgetRupees: string; aiCreative: string;
+    targetDeliveries: string; rewardRupees: string;
+  }>({
+    name: "", city: "Delhi NCR", radiusKm: "3", slaMinutes: "20", surgeMultiplier: "1.0",
+    code: "", title: "", discountType: "flat", discountValue: "50", minOrderRupees: "199",
+    channel: "push", budgetRupees: "1000", aiCreative: "",
+    targetDeliveries: "5", rewardRupees: "75",
+  });
 
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [collapsedPanels, setCollapsedPanels] = useState<Record<string, boolean>>({
@@ -596,9 +611,177 @@ export default function App() {
     });
   }
 
+  async function refreshZCI() {
+    if (!token) return;
+    const [zonesRes, campaignsRes, incentivesRes] = await Promise.allSettled([
+      api.marketplaceZones(token),
+      api.campaigns(token),
+      api.driverIncentives(token),
+    ]);
+    if (zonesRes.status === "fulfilled") setZones(zonesRes.value as typeof zones);
+    if (campaignsRes.status === "fulfilled") setCampaigns(campaignsRes.value as typeof campaigns);
+    if (incentivesRes.status === "fulfilled") setIncentives(incentivesRes.value as typeof incentives);
+  }
+
+  async function submitZCIForm() {
+    const formType = zciFormType;
+    if (!token || !formType) return;
+    const f = zciFormData;
+    setZciFormType(null);
+    const autoId = () => Date.now().toString(36).slice(-4).toUpperCase();
+    if (formType === "zone") {
+      await run("Creating zone", () => api.createZone(
+        token,
+        f.name.trim() || `Zone ${autoId()}`,
+        f.city.trim() || "Delhi NCR",
+        location.lat, location.lng,
+        Number(f.radiusKm) || 3,
+        Number(f.slaMinutes) || 20
+      ));
+    } else if (formType === "offer") {
+      await run("Creating offer", () => api.createOffer(
+        token,
+        f.code.trim() || `MOB${Date.now().toString(36).slice(-5).toUpperCase()}`,
+        f.title.trim() || "Mobile Offer",
+        f.discountType,
+        Math.round(Number(f.discountValue) * 100),
+        Math.round(Number(f.minOrderRupees) * 100)
+      ));
+    } else if (formType === "campaign") {
+      await run("Creating campaign", () => api.createCampaign(
+        token,
+        f.name.trim() || `Campaign ${autoId()}`,
+        f.channel,
+        Math.round(Number(f.budgetRupees) * 100),
+        f.aiCreative.trim() || undefined
+      ));
+    } else {
+      await run("Creating incentive", () => api.createDriverIncentive(
+        token,
+        f.title.trim() || `Delivery Bonus ${autoId()}`,
+        Number(f.targetDeliveries) || 5,
+        Math.round(Number(f.rewardRupees) * 100)
+      ));
+    }
+    await refreshZCI();
+  }
+
+  const zciF = (k: keyof typeof zciFormData, v: string) => setZciFormData(d => ({ ...d, [k]: v }));
+  const zciAccent = zciFormType === "zone" ? "#2563eb" : zciFormType === "offer" ? "#7c3aed" : zciFormType === "campaign" ? "#d97706" : "#0f766e";
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
+
+      {/* ── ZCI Create Form Modal ── */}
+      <Modal visible={zciFormType !== null} transparent animationType="slide" onRequestClose={() => setZciFormType(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.zciModalOverlay}>
+          <View style={[styles.zciModalSheet, { borderTopColor: zciAccent }]}>
+            <View style={styles.zciModalHeader}>
+              <Text style={[styles.zciModalTitle, { color: zciAccent }]}>
+                {zciFormType === "zone" ? "🗺️ New Delivery Zone" : zciFormType === "offer" ? "🏷️ New Discount Offer" : zciFormType === "campaign" ? "📣 New Campaign" : "🎁 New Driver Incentive"}
+              </Text>
+              <Pressable onPress={() => setZciFormType(null)} style={styles.zciModalClose}>
+                <Text style={styles.zciModalCloseText}>✕</Text>
+              </Pressable>
+            </View>
+
+            {zciFormType === "zone" && (
+              <>
+                <Text style={styles.zciFieldLabel}>Zone Name</Text>
+                <TextInput style={styles.zciFieldInput} placeholder="e.g. Connaught Place" placeholderTextColor="#475569" value={zciFormData.name} onChangeText={v => zciF("name", v)} />
+                <Text style={styles.zciFieldLabel}>City</Text>
+                <TextInput style={styles.zciFieldInput} placeholder="Delhi NCR" placeholderTextColor="#475569" value={zciFormData.city} onChangeText={v => zciF("city", v)} />
+                <View style={styles.zciFieldRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.zciFieldLabel}>Radius (km)</Text>
+                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="3" placeholderTextColor="#475569" value={zciFormData.radiusKm} onChangeText={v => zciF("radiusKm", v)} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.zciFieldLabel}>SLA (min)</Text>
+                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="20" placeholderTextColor="#475569" value={zciFormData.slaMinutes} onChangeText={v => zciF("slaMinutes", v)} />
+                  </View>
+                </View>
+                <Text style={styles.zciFieldHint}>📍 Centre lat/lng taken from your device location automatically.</Text>
+              </>
+            )}
+
+            {zciFormType === "offer" && (
+              <>
+                <Text style={styles.zciFieldLabel}>Offer Code (auto-generated if blank)</Text>
+                <TextInput style={styles.zciFieldInput} placeholder="MOB2025A" placeholderTextColor="#475569" autoCapitalize="characters" value={zciFormData.code} onChangeText={v => zciF("code", v)} />
+                <Text style={styles.zciFieldLabel}>Title</Text>
+                <TextInput style={styles.zciFieldInput} placeholder="Weekend Flat ₹50 Off" placeholderTextColor="#475569" value={zciFormData.title} onChangeText={v => zciF("title", v)} />
+                <Text style={styles.zciFieldLabel}>Discount Type</Text>
+                <View style={styles.zciSegment}>
+                  {(["flat", "percent"] as const).map(t => (
+                    <Pressable key={t} style={[styles.zciSegmentBtn, zciFormData.discountType === t && { backgroundColor: "#7c3aed" }]} onPress={() => zciF("discountType", t)}>
+                      <Text style={[styles.zciSegmentText, zciFormData.discountType === t && { color: "#fff" }]}>{t === "flat" ? "₹ Flat" : "% Percent"}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={styles.zciFieldRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.zciFieldLabel}>{zciFormData.discountType === "flat" ? "Discount (₹)" : "Discount (%)"}</Text>
+                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder={zciFormData.discountType === "flat" ? "50" : "10"} placeholderTextColor="#475569" value={zciFormData.discountValue} onChangeText={v => zciF("discountValue", v)} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.zciFieldLabel}>Min Order (₹)</Text>
+                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="199" placeholderTextColor="#475569" value={zciFormData.minOrderRupees} onChangeText={v => zciF("minOrderRupees", v)} />
+                  </View>
+                </View>
+              </>
+            )}
+
+            {zciFormType === "campaign" && (
+              <>
+                <Text style={styles.zciFieldLabel}>Campaign Name</Text>
+                <TextInput style={styles.zciFieldInput} placeholder="Summer Launch 2025" placeholderTextColor="#475569" value={zciFormData.name} onChangeText={v => zciF("name", v)} />
+                <Text style={styles.zciFieldLabel}>Channel</Text>
+                <View style={styles.zciSegment}>
+                  {(["push", "email", "whatsapp", "ads"] as const).map(ch => (
+                    <Pressable key={ch} style={[styles.zciSegmentBtn, zciFormData.channel === ch && { backgroundColor: "#d97706" }]} onPress={() => zciF("channel", ch)}>
+                      <Text style={[styles.zciSegmentText, zciFormData.channel === ch && { color: "#fff" }]}>{ch === "push" ? "📲 Push" : ch === "email" ? "📧 Email" : ch === "whatsapp" ? "💬 WA" : "📢 Ads"}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={styles.zciFieldLabel}>Budget (₹)</Text>
+                <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="1000" placeholderTextColor="#475569" value={zciFormData.budgetRupees} onChangeText={v => zciF("budgetRupees", v)} />
+                <Text style={styles.zciFieldLabel}>AI Creative (optional)</Text>
+                <TextInput style={[styles.zciFieldInput, styles.zciFieldMultiline]} placeholder="Describe the ad creative…" placeholderTextColor="#475569" multiline numberOfLines={3} value={zciFormData.aiCreative} onChangeText={v => zciF("aiCreative", v)} />
+              </>
+            )}
+
+            {zciFormType === "incentive" && (
+              <>
+                <Text style={styles.zciFieldLabel}>Incentive Title</Text>
+                <TextInput style={styles.zciFieldInput} placeholder="Weekend Delivery Bonus" placeholderTextColor="#475569" value={zciFormData.title} onChangeText={v => zciF("title", v)} />
+                <View style={styles.zciFieldRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.zciFieldLabel}>Target Deliveries</Text>
+                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="5" placeholderTextColor="#475569" value={zciFormData.targetDeliveries} onChangeText={v => zciF("targetDeliveries", v)} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.zciFieldLabel}>Reward (₹)</Text>
+                    <TextInput style={styles.zciFieldInput} keyboardType="numeric" placeholder="75" placeholderTextColor="#475569" value={zciFormData.rewardRupees} onChangeText={v => zciF("rewardRupees", v)} />
+                  </View>
+                </View>
+                <Text style={styles.zciFieldHint}>🎁 Reward is paid when the driver completes the target number of deliveries.</Text>
+              </>
+            )}
+
+            <View style={styles.zciModalActions}>
+              <Pressable style={styles.zciModalCancel} onPress={() => setZciFormType(null)}>
+                <Text style={styles.zciModalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={[styles.zciModalSubmit, { backgroundColor: zciAccent }]} onPress={submitZCIForm} disabled={loading}>
+                <Text style={styles.zciModalSubmitText}>{loading ? "Creating…" : "Create"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <ScrollView contentContainerStyle={styles.container}>
 
         {/* ── Login Panel ── */}
@@ -2320,10 +2503,10 @@ export default function App() {
                 {/* Create action buttons */}
                 <View style={styles.zciActionGrid}>
                   {[
-                    { icon: "🗺️", label: "Create Zone",      sub: "Delhi NCR · SLA 3min",     accent: "#2563eb", onPress: () => run("Creating zone",      () => api.createZone(token, `Zone ${Date.now().toString(36).slice(-4).toUpperCase()}`, "Delhi NCR", location.lat, location.lng, 3, 20)) },
-                    { icon: "🏷️", label: "Create Offer",     sub: "₹50 flat · min ₹199",      accent: "#7c3aed", onPress: () => run("Creating offer",     () => api.createOffer(token, `MOB${Date.now().toString(36).slice(-5).toUpperCase()}`, "Mobile Offer", "flat", 5000, 19900)) },
-                    { icon: "📣", label: "Create Campaign",  sub: "Push · ₹1,000 budget",     accent: "#d97706", onPress: () => run("Creating campaign",  () => api.createCampaign(token, `Campaign ${Date.now().toString(36).slice(-4).toUpperCase()}`, "push", 100000, "AI mobile launch creative")) },
-                    { icon: "🎁", label: "Create Incentive", sub: "5 deliveries → ₹75 bonus", accent: "#0f766e", onPress: () => run("Creating incentive", () => api.createDriverIncentive(token, `Delivery Bonus ${Date.now().toString(36).slice(-4).toUpperCase()}`, 5, 7500)) },
+                    { icon: "🗺️", label: "Create Zone",      sub: "Delhi NCR · SLA 3min",     accent: "#2563eb", onPress: () => { setZciFormData(d => ({ ...d, name: "", city: "Delhi NCR", radiusKm: "3", slaMinutes: "20" })); setZciFormType("zone"); } },
+                    { icon: "🏷️", label: "Create Offer",     sub: "₹50 flat · min ₹199",      accent: "#7c3aed", onPress: () => { setZciFormData(d => ({ ...d, code: `MOB${Date.now().toString(36).slice(-5).toUpperCase()}`, title: "", discountType: "flat", discountValue: "50", minOrderRupees: "199" })); setZciFormType("offer"); } },
+                    { icon: "📣", label: "Create Campaign",  sub: "Push · ₹1,000 budget",     accent: "#d97706", onPress: () => { setZciFormData(d => ({ ...d, name: "", channel: "push", budgetRupees: "1000", aiCreative: "" })); setZciFormType("campaign"); } },
+                    { icon: "🎁", label: "Create Incentive", sub: "5 deliveries → ₹75 bonus", accent: "#0f766e", onPress: () => { setZciFormData(d => ({ ...d, title: "", targetDeliveries: "5", rewardRupees: "75" })); setZciFormType("incentive"); } },
                   ].map(btn => (
                     <Pressable
                       key={btn.label}
@@ -4864,5 +5047,124 @@ const styles = StyleSheet.create({
   zciEmptyText: {
     color: "#475569",
     fontSize: 13
+  },
+
+  // ── ZCI Create Form Modal ─────────────────────────────────────────────────
+  zciModalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.6)"
+  },
+  zciModalSheet: {
+    backgroundColor: "#0f172a",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 3,
+    padding: 20,
+    paddingBottom: 36
+  },
+  zciModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20
+  },
+  zciModalTitle: {
+    fontSize: 17,
+    fontWeight: "700" as const,
+    flex: 1
+  },
+  zciModalClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#1e293b",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  zciModalCloseText: {
+    color: "#94a3b8",
+    fontSize: 14,
+    fontWeight: "700" as const
+  },
+  zciFieldLabel: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "600" as const,
+    marginBottom: 6,
+    marginTop: 12
+  },
+  zciFieldInput: {
+    backgroundColor: "#1e293b",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#334155",
+    color: "#f1f5f9",
+    fontSize: 15,
+    paddingHorizontal: 14,
+    paddingVertical: 11
+  },
+  zciFieldMultiline: {
+    minHeight: 80,
+    textAlignVertical: "top" as const,
+    paddingTop: 11
+  },
+  zciFieldRow: {
+    flexDirection: "row",
+    gap: 10
+  },
+  zciFieldHint: {
+    color: "#475569",
+    fontSize: 12,
+    marginTop: 10,
+    lineHeight: 18
+  },
+  zciSegment: {
+    flexDirection: "row",
+    backgroundColor: "#1e293b",
+    borderRadius: 10,
+    padding: 3,
+    gap: 2
+  },
+  zciSegmentBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: "center"
+  },
+  zciSegmentText: {
+    color: "#64748b",
+    fontSize: 12,
+    fontWeight: "600" as const
+  },
+  zciModalActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 24
+  },
+  zciModalCancel: {
+    flex: 1,
+    backgroundColor: "#1e293b",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#334155"
+  },
+  zciModalCancelText: {
+    color: "#94a3b8",
+    fontSize: 15,
+    fontWeight: "600" as const
+  },
+  zciModalSubmit: {
+    flex: 2,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center"
+  },
+  zciModalSubmitText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700" as const
   }
 });
