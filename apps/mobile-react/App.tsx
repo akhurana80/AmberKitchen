@@ -108,6 +108,7 @@ export default function App() {
   const [analyticsJobs, setAnalyticsJobs] = useState<Array<{ id: string; job_type: string; status: string; summary: unknown; created_at: string }>>([]);
   const [demandPredictions, setDemandPredictions] = useState<Array<{ id: string; zone_key: string; cuisine_type: string | null; hour_start: string; predicted_orders: number; confidence: string }>>([]);
   const [adminMktSnapshot, setAdminMktSnapshot] = useState<{ nearby: number; trending: number; offers: number } | null>(null);
+  const [mockAppStatus, setMockAppStatus] = useState<"pending" | "approved" | "rejected">("pending");
 
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [collapsedPanels, setCollapsedPanels] = useState<Record<string, boolean>>({
@@ -2059,13 +2060,30 @@ export default function App() {
 
                 {/* Applications */}
                 <Text style={styles.doaSectionTitle}>🪪 Applications</Text>
-                {driverApplications.length === 0 ? (
-                  <View style={styles.raEmpty}>
-                    <Text style={styles.raEmptyIcon}>🪪</Text>
-                    <Text style={styles.raEmptyText}>No driver applications</Text>
-                    <Text style={styles.raEmptyHint}>Applications will appear here once drivers submit their documents.</Text>
-                  </View>
-                ) : driverApplications.map(item => {
+                {(() => {
+                  const mockApp = __DEV__ ? [{
+                    id: "dev-mock-001",
+                    full_name: "Ramesh Kumar (Demo)",
+                    phone: "+91 98765 43210",
+                    aadhaar_last4: "4821",
+                    ocr_status: "verified",
+                    selfie_status: "verified",
+                    background_check_status: "pending",
+                    bank_account_last4: "7733",
+                    upi_id: "ramesh@upi",
+                    referral_code: "DEMO2025",
+                    approval_status: mockAppStatus as string,
+                    admin_note: null,
+                  }] : [];
+                  const displayApps = [...mockApp, ...driverApplications];
+                  if (displayApps.length === 0) return (
+                    <View style={styles.raEmpty}>
+                      <Text style={styles.raEmptyIcon}>🪪</Text>
+                      <Text style={styles.raEmptyText}>No driver applications</Text>
+                      <Text style={styles.raEmptyHint}>Applications will appear here once drivers submit their documents.</Text>
+                    </View>
+                  );
+                  return displayApps.map(item => {
                   const statusColor = restaurantStatusColor(item.approval_status);
                   const checks = [
                     { label: "OCR",   status: item.ocr_status },
@@ -2141,6 +2159,7 @@ export default function App() {
                             onPress={() => Alert.alert("Approve Driver", `Approve application for ${item.full_name}?`, [
                               { text: "Cancel", style: "cancel" },
                               { text: "Approve", onPress: async () => {
+                                if (item.id === "dev-mock-001") { setMockAppStatus("approved"); return; }
                                 const result = await run("Approving application", () => api.updateDriverApplicationApproval(token, item.id, "approved", "Approved from AK Ops mobile"));
                                 if (result) setDriverApplications(prev => prev.map(a => a.id === item.id ? { ...a, approval_status: "approved" } : a));
                               }}
@@ -2154,6 +2173,7 @@ export default function App() {
                               onPress={() => Alert.prompt("Reject Application", "Enter reason for rejection:", [
                                 { text: "Cancel", style: "cancel" },
                                 { text: "Reject", style: "destructive", onPress: async (note) => {
+                                  if (item.id === "dev-mock-001") { setMockAppStatus("rejected"); return; }
                                   const result = await run("Rejecting application", () => api.updateDriverApplicationApproval(token, item.id, "rejected", note ?? "Rejected from AK Ops mobile"));
                                   if (result) setDriverApplications(prev => prev.map(a => a.id === item.id ? { ...a, approval_status: "rejected", admin_note: note ?? null } : a));
                                 }}
@@ -2166,7 +2186,8 @@ export default function App() {
                       )}
                     </View>
                   );
-                })}
+                });
+                })()}
 
                 {/* Referrals */}
                 {driverReferrals.length > 0 && (
