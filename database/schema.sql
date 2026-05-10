@@ -54,9 +54,12 @@ create table if not exists restaurants (
   bank_account_last4 text,
   onboarding_status text not null default 'draft' check (onboarding_status in ('draft', 'submitted', 'approved', 'rejected')),
   approval_status text not null default 'pending' check (approval_status in ('pending', 'approved', 'rejected')),
+  rejection_reason text,
+  is_active boolean not null default true,
   lat numeric(10, 7),
   lng numeric(10, 7),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 alter table restaurants add column if not exists approval_status text not null default 'pending';
@@ -67,6 +70,9 @@ alter table restaurants add column if not exists fssai_license text;
 alter table restaurants add column if not exists gst_number text;
 alter table restaurants add column if not exists bank_account_last4 text;
 alter table restaurants add column if not exists onboarding_status text not null default 'draft';
+alter table restaurants add column if not exists rejection_reason text;
+alter table restaurants add column if not exists is_active boolean not null default true;
+alter table restaurants add column if not exists updated_at timestamptz not null default now();
 
 create table if not exists menu_items (
   id uuid primary key default uuid_generate_v4(),
