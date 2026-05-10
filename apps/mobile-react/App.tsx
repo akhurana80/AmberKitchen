@@ -117,6 +117,18 @@ export default function App() {
   const [auditDisplayLimit, setAuditDisplayLimit] = useState(10);
   const [analyticsTab, setAnalyticsTab] = useState<"jobs" | "predictions">("jobs");
 
+  // Display limits for lists that previously had hardcoded .slice() or no pagination
+  const [driverOrdersLimit, setDriverOrdersLimit] = useState(10);
+  const [incentivesLimit, setIncentivesLimit] = useState(5);
+  const [txLimit, setTxLimit] = useState(5);
+  const [restaurantOrdersLimit, setRestaurantOrdersLimit] = useState(10);
+  const [zonesLimit, setZonesLimit] = useState(10);
+  const [campaignsLimit, setCampaignsLimit] = useState(10);
+  const [incentivesZciLimit, setIncentivesZciLimit] = useState(10);
+  const [payoutsLimit, setPayoutsLimit] = useState(10);
+  const [referralsLimit, setReferralsLimit] = useState(10);
+  const [vcLimit, setVcLimit] = useState(5);
+
   const [zciFormType, setZciFormType] = useState<null | "zone" | "offer" | "campaign" | "incentive">(null);
   const [zciFormData, setZciFormData] = useState<{
     name: string; city: string; radiusKm: string; slaMinutes: string; surgeMultiplier: string;
@@ -279,11 +291,40 @@ export default function App() {
     await SecureStore.deleteItemAsync("amberkitchen.token");
   }
 
+  function validatePhone(p: string): string | null {
+    const digits = p.replace(/\D/g, "");
+    if (!digits) return "Phone number is required.";
+    if (digits.length < 10) return "Enter a valid 10-digit phone number.";
+    if (digits.length > 12) return "Phone number is too long.";
+    return null;
+  }
+
+  function validateOtp(o: string): string | null {
+    const digits = o.replace(/\D/g, "");
+    if (!digits) return "OTP is required.";
+    if (digits.length !== 6) return "OTP must be exactly 6 digits.";
+    return null;
+  }
+
+  // Consistent timestamp formatter used everywhere: "9 May, 2:30 PM"
+  function fmtTs(ts: string | null | undefined): string {
+    if (!ts) return "—";
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return ts;
+    return d.toLocaleString([], { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  // Date-only variant: "9 May 2026"
+  function fmtDate(ts: string | null | undefined): string {
+    if (!ts) return "—";
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return ts as string;
+    return d.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+  }
+
   async function requestOtp() {
-    if (!phone.trim()) {
-      Alert.alert("Phone required", "Enter your phone number before requesting an OTP.");
-      return;
-    }
+    const err = validatePhone(phone);
+    if (err) { Alert.alert("Invalid phone number", err); return; }
     const response = await run("Sending OTP", () => api.requestOtp(phone));
     if (response != null) {
       setOtpSent(true);
@@ -294,10 +335,10 @@ export default function App() {
   }
 
   async function verifyOtp() {
-    if (!phone.trim() || !otp.trim()) {
-      Alert.alert("Fields required", "Enter both phone number and OTP.");
-      return;
-    }
+    const phoneErr = validatePhone(phone);
+    if (phoneErr) { Alert.alert("Invalid phone number", phoneErr); return; }
+    const otpErr = validateOtp(otp);
+    if (otpErr) { Alert.alert("Invalid OTP", otpErr); return; }
     const response = await run("Verifying OTP", () => api.verifyOtp(phone, otp, role));
     if (response && typeof response === "object" && "token" in response) {
       const userRole = (response as { user?: { role?: string } }).user?.role;
@@ -493,10 +534,17 @@ export default function App() {
 
   async function onboardRestaurant() {
     if (!token) return;
-    if (!restaurantName || !restaurantAddress || !restaurantPhone) {
-      Alert.alert("Incomplete form", "Provide restaurant name, address, and contact phone number.");
+    if (!restaurantName.trim()) {
+      Alert.alert("Name required", "Enter the restaurant name.");
       return;
     }
+    if (!restaurantAddress.trim()) {
+      Alert.alert("Address required", "Enter the restaurant address.");
+      return;
+    }
+    const phoneErr = validatePhone(restaurantPhone);
+    if (phoneErr) { Alert.alert("Invalid contact phone", phoneErr); return; }
+
     await run("Submitting restaurant onboarding", () => api.onboardRestaurant(token, {
       name: restaurantName,
       address: restaurantAddress,
@@ -633,40 +681,80 @@ export default function App() {
     const formType = zciFormType;
     if (!token || !formType) return;
     const f = zciFormData;
-    setZciFormType(null);
     const autoId = () => Date.now().toString(36).slice(-4).toUpperCase();
+
     if (formType === "zone") {
-      await run("Creating zone", () => api.createZone(
-        token,
-        f.name.trim() || `Zone ${autoId()}`,
-        f.city.trim() || "Delhi NCR",
-        location.lat, location.lng,
-        Number(f.radiusKm) || 3,
-        Number(f.slaMinutes) || 20
-      ));
+      if (!f.name.trim()) { Alert.alert("Name required", "Enter a zone name."); return; }
+      if (!f.city.trim()) { Alert.alert("City required", "Enter a city for this zone."); return; }
+      const radius = Number(f.radiusKm);
+      if (!f.radiusKm.trim() || isNaN(radius) || radius <= 0) {
+        Alert.alert("Invalid radius", "Radius must be a positive number (e.g. 3)."); return;
+      }
+      const sla = Number(f.slaMinutes);
+      if (!f.slaMinutes.trim() || isNaN(sla) || sla <= 0 || !Number.isInteger(sla)) {
+        Alert.alert("Invalid SLA", "SLA must be a whole number of minutes (e.g. 20)."); return;
+      }
+      const surge = Number(f.surgeMultiplier);
+      if (isNaN(surge) || surge < 1) {
+        Alert.alert("Invalid surge multiplier", "Surge multiplier must be 1.0 or higher."); return;
+      }
+      setZciFormType(null);
+      await run("Creating zone", () => api.createZone(token, f.name.trim(), f.city.trim(), location.lat, location.lng, radius, sla));
+
     } else if (formType === "offer") {
+      if (!f.title.trim()) { Alert.alert("Title required", "Enter an offer title."); return; }
+      const discountVal = Number(f.discountValue);
+      if (!f.discountValue.trim() || isNaN(discountVal) || discountVal <= 0) {
+        Alert.alert("Invalid discount", "Discount value must be a positive number."); return;
+      }
+      if (f.discountType === "percent" && discountVal > 100) {
+        Alert.alert("Invalid discount", "Percent discount cannot exceed 100%."); return;
+      }
+      const minOrder = Number(f.minOrderRupees);
+      if (f.minOrderRupees.trim() && (isNaN(minOrder) || minOrder < 0)) {
+        Alert.alert("Invalid minimum order", "Minimum order must be a positive number."); return;
+      }
+      setZciFormType(null);
       await run("Creating offer", () => api.createOffer(
         token,
         f.code.trim() || `MOB${Date.now().toString(36).slice(-5).toUpperCase()}`,
-        f.title.trim() || "Mobile Offer",
+        f.title.trim(),
         f.discountType,
-        Math.round(Number(f.discountValue) * 100),
-        Math.round(Number(f.minOrderRupees) * 100)
+        Math.round(discountVal * 100),
+        Math.round((minOrder || 0) * 100)
       ));
+
     } else if (formType === "campaign") {
+      if (!f.name.trim()) { Alert.alert("Name required", "Enter a campaign name."); return; }
+      const budget = Number(f.budgetRupees);
+      if (!f.budgetRupees.trim() || isNaN(budget) || budget <= 0) {
+        Alert.alert("Invalid budget", "Budget must be a positive number (in ₹)."); return;
+      }
+      setZciFormType(null);
       await run("Creating campaign", () => api.createCampaign(
         token,
-        f.name.trim() || `Campaign ${autoId()}`,
+        f.name.trim(),
         f.channel,
-        Math.round(Number(f.budgetRupees) * 100),
+        Math.round(budget * 100),
         f.aiCreative.trim() || undefined
       ));
+
     } else {
+      if (!f.title.trim()) { Alert.alert("Title required", "Enter an incentive title."); return; }
+      const target = Number(f.targetDeliveries);
+      if (!f.targetDeliveries.trim() || isNaN(target) || target <= 0 || !Number.isInteger(target)) {
+        Alert.alert("Invalid target", "Target deliveries must be a whole number (e.g. 50)."); return;
+      }
+      const reward = Number(f.rewardRupees);
+      if (!f.rewardRupees.trim() || isNaN(reward) || reward <= 0) {
+        Alert.alert("Invalid reward", "Reward must be a positive amount in ₹."); return;
+      }
+      setZciFormType(null);
       await run("Creating incentive", () => api.createDriverIncentive(
         token,
-        f.title.trim() || `Delivery Bonus ${autoId()}`,
-        Number(f.targetDeliveries) || 5,
-        Math.round(Number(f.rewardRupees) * 100)
+        f.title.trim(),
+        target,
+        Math.round(reward * 100)
       ));
     }
     await refreshZCI();
@@ -836,9 +924,9 @@ export default function App() {
                   />
                 </View>
                 <Pressable
-                  style={[styles.loginPrimaryBtn, (!phone.trim() || loading) && styles.loginPrimaryBtnDisabled]}
+                  style={[styles.loginPrimaryBtn, (phone.replace(/\D/g, "").length < 10 || loading) && styles.loginPrimaryBtnDisabled]}
                   onPress={requestOtp}
-                  disabled={!phone.trim() || loading}
+                  disabled={phone.replace(/\D/g, "").length < 10 || loading}
                 >
                   <Text style={styles.loginPrimaryBtnText}>{loading ? "Sending…" : "Send OTP"}</Text>
                 </Pressable>
@@ -882,9 +970,9 @@ export default function App() {
                   />
                 </View>
                 <Pressable
-                  style={[styles.loginPrimaryBtn, (!otp.trim() || loading) && styles.loginPrimaryBtnDisabled]}
+                  style={[styles.loginPrimaryBtn, (otp.replace(/\D/g, "").length !== 6 || loading) && styles.loginPrimaryBtnDisabled]}
                   onPress={verifyOtp}
-                  disabled={!otp.trim() || loading}
+                  disabled={otp.replace(/\D/g, "").length !== 6 || loading}
                 >
                   <Text style={styles.loginPrimaryBtnText}>{loading ? "Verifying…" : "Verify OTP"}</Text>
                 </Pressable>
@@ -1137,7 +1225,7 @@ export default function App() {
                   </View>
                   <View style={styles.mkEtaRouteItem}>
                     <Text style={styles.mkEtaRouteLabel}>Arrives By</Text>
-                    <Text style={styles.mkEtaRouteValue}>{new Date(eta.predictedDeliveryAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
+                    <Text style={styles.mkEtaRouteValue}>{fmtTs(eta.predictedDeliveryAt)}</Text>
                   </View>
                 </View>
               </View>
@@ -1146,7 +1234,7 @@ export default function App() {
               <View key={item.id} style={styles.mkEtaLoopRow}>
                 <Text style={styles.mkEtaLoopMin}>{item.predicted_eta_minutes} min</Text>
                 <Text style={styles.mkEtaLoopSrc}>{item.source}</Text>
-                <Text style={styles.mkEtaLoopTime}>{new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
+                <Text style={styles.mkEtaLoopTime}>{fmtTs(item.created_at)}</Text>
               </View>
             ))}
               </>
@@ -1202,20 +1290,33 @@ export default function App() {
             <View style={styles.actions}>
               <Button label="Share Live Location" onPress={shareDriverLocation} disabled={!orderId} />
             </View>
-            {driverOrders.length === 0
-              ? <Text style={styles.emptyHint}>No available delivery orders. Load driver workspace to refresh.</Text>
-              : driverOrders.map(item => (
-                <ListItem
-                  key={item.id}
-                  title={`${item.restaurant_name} → ${item.delivery_address}`}
-                  subtitle={`${titleCase(item.status)} · ${formatCurrency(item.total_paise)} — Tap to accept`}
-                  onPress={() => {
-                    setOrderId(item.id);
-                    void run("Accepting delivery", () => api.acceptDeliveryOrder(token, item.id));
-                  }}
-                />
-              ))
-            }
+            {driverOrders.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateIcon}>📭</Text>
+                <Text style={styles.emptyStateText}>No available delivery orders</Text>
+                <Text style={styles.emptyStateHint}>New orders will appear here automatically.</Text>
+                <Pressable style={styles.emptyStateBtn} onPress={loadDriverWork}><Text style={styles.emptyStateBtnText}>Refresh</Text></Pressable>
+              </View>
+            ) : (
+              <>
+                {driverOrders.slice(0, driverOrdersLimit).map(item => (
+                  <ListItem
+                    key={item.id}
+                    title={`${item.restaurant_name} → ${item.delivery_address}`}
+                    subtitle={`${titleCase(item.status)} · ${formatCurrency(item.total_paise)} — Tap to accept`}
+                    onPress={() => {
+                      setOrderId(item.id);
+                      void run("Accepting delivery", () => api.acceptDeliveryOrder(token, item.id));
+                    }}
+                  />
+                ))}
+                {driverOrders.length > driverOrdersLimit && (
+                  <Pressable style={styles.loadMoreBtn} onPress={() => setDriverOrdersLimit(l => l + 10)}>
+                    <Text style={styles.loadMoreBtnText}>Load more ({driverOrders.length - driverOrdersLimit} remaining)</Text>
+                  </Pressable>
+                )}
+              </>
+            )}
             <View style={styles.actions}>
               <Button
                 label="Mark Picked Up"
@@ -1235,12 +1336,23 @@ export default function App() {
             </View>
 
             {/* Incentives */}
-            {incentives.length > 0 && (
+            <Text style={styles.sectionTitle}>Driver Incentives</Text>
+            {incentives.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateIcon}>🎁</Text>
+                <Text style={styles.emptyStateText}>No active incentives</Text>
+                <Text style={styles.emptyStateHint}>Admins can create delivery bonuses in the Admin tab.</Text>
+              </View>
+            ) : (
               <>
-                <Text style={styles.sectionTitle}>Driver Incentives</Text>
-                {incentives.slice(0, 3).map(item => (
+                {incentives.slice(0, incentivesLimit).map(item => (
                   <ListItem key={item.id} title={item.title} subtitle={`${item.target_deliveries} deliveries → ${formatCurrency(item.reward_paise)} · ${titleCase(item.status)}`} />
                 ))}
+                {incentives.length > incentivesLimit && (
+                  <Pressable style={styles.loadMoreBtn} onPress={() => setIncentivesLimit(l => l + 5)}>
+                    <Text style={styles.loadMoreBtnText}>Load more ({incentives.length - incentivesLimit} remaining)</Text>
+                  </Pressable>
+                )}
               </>
             )}
               </>
@@ -1260,12 +1372,24 @@ export default function App() {
             ) : (
               <Text style={styles.emptyHint}>Wallet data not loaded. Tap "Load Driver Workspace" above.</Text>
             )}
-            {walletTransactions.length === 0
-              ? <Text style={styles.emptyHint}>No wallet transactions yet.</Text>
-              : walletTransactions.slice(0, 3).map(item => (
-                <ListItem key={item.id} title={`${titleCase(item.type)} — ${formatCurrency(item.amount_paise)}`} subtitle={titleCase(item.status)} />
-              ))
-            }
+            {walletTransactions.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateIcon}>💳</Text>
+                <Text style={styles.emptyStateText}>No transactions yet</Text>
+                <Text style={styles.emptyStateHint}>Earnings from deliveries and payouts will appear here.</Text>
+              </View>
+            ) : (
+              <>
+                {walletTransactions.slice(0, txLimit).map(item => (
+                  <ListItem key={item.id} title={`${titleCase(item.type)} — ${formatCurrency(item.amount_paise)}`} subtitle={titleCase(item.status)} />
+                ))}
+                {walletTransactions.length > txLimit && (
+                  <Pressable style={styles.loadMoreBtn} onPress={() => setTxLimit(l => l + 5)}>
+                    <Text style={styles.loadMoreBtnText}>Load more ({walletTransactions.length - txLimit} remaining)</Text>
+                  </Pressable>
+                )}
+              </>
+            )}
               </>
             )}
           </Card>
@@ -1313,25 +1437,38 @@ export default function App() {
             <View style={styles.actions}>
               <Button label="Refresh Orders" onPress={loadRestaurantPanel} disabled={!authed} />
             </View>
-            {restaurantOrders.length === 0
-              ? <Text style={styles.emptyHint}>No pending orders. Create a test order from the Driver tab first.</Text>
-              : restaurantOrders.map(item => (
-                <View key={item.id} style={styles.orderCard}>
-                  <Text style={styles.listTitle}>Order #{item.id.slice(-8).toUpperCase()}</Text>
-                  <Text style={styles.listSubtitle}>{titleCase(item.status)} · {formatCurrency(item.total_paise)}</Text>
-                  <View style={[styles.actions, { marginTop: 8 }]}>
-                    <Button
-                      label="Accept"
-                      onPress={() => run("Accepting order", () => api.decideRestaurantOrder(token, item.id, "accepted"))}
-                    />
-                    <Button
-                      label="Reject"
-                      onPress={() => run("Rejecting order", () => api.decideRestaurantOrder(token, item.id, "cancelled"))}
-                    />
+            {restaurantOrders.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateIcon}>📥</Text>
+                <Text style={styles.emptyStateText}>No pending orders</Text>
+                <Text style={styles.emptyStateHint}>Incoming customer orders will appear here. Tap Refresh to check.</Text>
+                <Pressable style={styles.emptyStateBtn} onPress={loadRestaurantPanel}><Text style={styles.emptyStateBtnText}>Refresh Orders</Text></Pressable>
+              </View>
+            ) : (
+              <>
+                {restaurantOrders.slice(0, restaurantOrdersLimit).map(item => (
+                  <View key={item.id} style={styles.orderCard}>
+                    <Text style={styles.listTitle}>Order #{item.id.slice(-8).toUpperCase()}</Text>
+                    <Text style={styles.listSubtitle}>{titleCase(item.status)} · {formatCurrency(item.total_paise)}</Text>
+                    <View style={[styles.actions, { marginTop: 8 }]}>
+                      <Button
+                        label="Accept"
+                        onPress={() => run("Accepting order", () => api.decideRestaurantOrder(token, item.id, "accepted"))}
+                      />
+                      <Button
+                        label="Reject"
+                        onPress={() => run("Rejecting order", () => api.decideRestaurantOrder(token, item.id, "cancelled"))}
+                      />
+                    </View>
                   </View>
-                </View>
-              ))
-            }
+                ))}
+                {restaurantOrders.length > restaurantOrdersLimit && (
+                  <Pressable style={styles.loadMoreBtn} onPress={() => setRestaurantOrdersLimit(l => l + 10)}>
+                    <Text style={styles.loadMoreBtnText}>Load more ({restaurantOrders.length - restaurantOrdersLimit} remaining)</Text>
+                  </Pressable>
+                )}
+              </>
+            )}
 
             {restaurantEarnings && (
               <Summary title="Earnings Summary" lines={[
@@ -1397,7 +1534,7 @@ export default function App() {
                         <Text style={styles.recentOrderCardDot}>·</Text>
                         <Text style={[styles.recentOrderCardAmount, { color: statusColor }]}>{formatCurrency(o.total_paise)}</Text>
                         <Text style={styles.recentOrderCardDot}>·</Text>
-                        <Text style={styles.recentOrderCardDate}>{new Date(o.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>
+                        <Text style={styles.recentOrderCardDate}>{fmtTs(o.created_at)}</Text>
                       </View>
                     </View>
                   );
@@ -1744,7 +1881,7 @@ export default function App() {
                                     {item.phone ?? item.email ?? item.id.slice(0, 16)}
                                   </Text>
                                   {item.created_at && (
-                                    <Text style={styles.umJoined}>Joined {new Date(item.created_at).toLocaleDateString()}</Text>
+                                    <Text style={styles.umJoined}>Joined {fmtDate(item.created_at)}</Text>
                                   )}
                                 </View>
                                 <View style={styles.umCardRight}>
@@ -1769,15 +1906,24 @@ export default function App() {
                                         item.role === r && { backgroundColor: roleAccent(r), borderColor: roleAccent(r) }
                                       ]}
                                       disabled={loading || item.role === r}
-                                      onPress={async () => {
-                                        try {
-                                          const updated = await api.changeUserRole(token, item.id, r);
-                                          const patch = { role: updated.role };
-                                          setAdminUsers(prev => prev.map(u => u.id === item.id ? { ...u, ...patch } : u));
-                                          setUserSearchResults(prev => prev ? prev.map(u => u.id === item.id ? { ...u, ...patch } : u) : null);
-                                        } catch (err) {
-                                          Alert.alert("Role change failed", err instanceof Error ? err.message : "Unexpected error");
-                                        }
+                                      onPress={() => {
+                                        Alert.alert(
+                                          "Change Role",
+                                          `Change ${item.phone ?? item.email ?? "this user"}'s role from ${titleCase(item.role)} to ${titleCase(r)}?`,
+                                          [
+                                            { text: "Cancel", style: "cancel" },
+                                            { text: "Change Role", style: "destructive", onPress: async () => {
+                                              try {
+                                                const updated = await api.changeUserRole(token, item.id, r);
+                                                const patch = { role: updated.role };
+                                                setAdminUsers(prev => prev.map(u => u.id === item.id ? { ...u, ...patch } : u));
+                                                setUserSearchResults(prev => prev ? prev.map(u => u.id === item.id ? { ...u, ...patch } : u) : null);
+                                              } catch (err) {
+                                                Alert.alert("Role change failed", err instanceof Error ? err.message : "Unexpected error");
+                                              }
+                                            }}
+                                          ]
+                                        );
                                       }}
                                     >
                                       <Text style={[styles.umRoleChipText, item.role === r && { color: "#fff" }]}>{titleCase(r)}</Text>
@@ -1789,13 +1935,26 @@ export default function App() {
                                   <Pressable
                                     style={[styles.umActionBtn, item.is_banned ? styles.umActionBtnUnban : styles.umActionBtnBan]}
                                     disabled={loading}
-                                    onPress={async () => {
-                                      const updated = await run(item.is_banned ? "Unbanning user" : "Banning user", () => api.banUser(token, item.id, !item.is_banned));
-                                      if (updated) {
-                                        const patch = { is_banned: (updated as typeof item).is_banned };
-                                        setAdminUsers(prev => prev.map(u => u.id === item.id ? { ...u, ...patch } : u));
-                                        setUserSearchResults(prev => prev ? prev.map(u => u.id === item.id ? { ...u, ...patch } : u) : null);
-                                      }
+                                    onPress={() => {
+                                      const action = item.is_banned ? "Unban" : "Ban";
+                                      const user = item.phone ?? item.email ?? "this user";
+                                      Alert.alert(
+                                        `${action} User`,
+                                        item.is_banned
+                                          ? `Restore access for ${user}? They will be able to log in again.`
+                                          : `Ban ${user}? They will be immediately locked out.`,
+                                        [
+                                          { text: "Cancel", style: "cancel" },
+                                          { text: action, style: "destructive", onPress: async () => {
+                                            const updated = await run(item.is_banned ? "Unbanning user" : "Banning user", () => api.banUser(token, item.id, !item.is_banned));
+                                            if (updated) {
+                                              const patch = { is_banned: (updated as typeof item).is_banned };
+                                              setAdminUsers(prev => prev.map(u => u.id === item.id ? { ...u, ...patch } : u));
+                                              setUserSearchResults(prev => prev ? prev.map(u => u.id === item.id ? { ...u, ...patch } : u) : null);
+                                            }
+                                          }}
+                                        ]
+                                      );
                                     }}
                                   >
                                     <Text style={[styles.umActionBtnText, item.is_banned ? { color: "#fbbf24" } : { color: "#fca5a5" }]}>
@@ -1823,7 +1982,7 @@ export default function App() {
                                     <View style={[styles.umOrderDot, { backgroundColor: orderStatusColor(o.status) }]} />
                                     <View style={{ flex: 1 }}>
                                       <Text style={styles.umOrderName}>{o.restaurant_name ?? "—"}</Text>
-                                      <Text style={styles.umOrderMeta}>{titleCase(o.status)} · {formatCurrency(o.total_paise)} · {new Date(o.created_at).toLocaleDateString()}</Text>
+                                      <Text style={styles.umOrderMeta}>{titleCase(o.status)} · {formatCurrency(o.total_paise)} · {fmtDate(o.created_at)}</Text>
                                     </View>
                                   </View>
                                 ))}
@@ -1971,12 +2130,21 @@ export default function App() {
                         {(item.approval_status !== "approved" || (item.approval_status === "approved" && item.is_active)) && (
                           <View style={styles.raActions}>
                             {item.approval_status !== "approved" && (
-                              <Pressable style={styles.raApproveBtn} onPress={async () => {
-                                const result = await run("Approving restaurant", () => api.updateRestaurantApproval(token, item.id, "approved"));
-                                if (result) {
-                                  setAdminRestaurants(prev => prev.map(r => r.id === item.id ? { ...r, approval_status: "approved", rejection_reason: null } : r));
-                                  setRestaurantSearchResults(prev => prev ? prev.map(r => r.id === item.id ? { ...r, approval_status: "approved", rejection_reason: null } : r) : null);
-                                }
+                              <Pressable style={styles.raApproveBtn} onPress={() => {
+                                Alert.alert(
+                                  "Approve Restaurant",
+                                  `Approve "${item.name}"? It will become visible to customers immediately.`,
+                                  [
+                                    { text: "Cancel", style: "cancel" },
+                                    { text: "Approve", onPress: async () => {
+                                      const result = await run("Approving restaurant", () => api.updateRestaurantApproval(token, item.id, "approved"));
+                                      if (result) {
+                                        setAdminRestaurants(prev => prev.map(r => r.id === item.id ? { ...r, approval_status: "approved", rejection_reason: null } : r));
+                                        setRestaurantSearchResults(prev => prev ? prev.map(r => r.id === item.id ? { ...r, approval_status: "approved", rejection_reason: null } : r) : null);
+                                      }
+                                    }}
+                                  ]
+                                );
                               }}>
                                 <Text style={styles.raApproveBtnText}>✓ Approve</Text>
                               </Pressable>
@@ -2147,7 +2315,7 @@ export default function App() {
                               {item.created_at && (
                                 <>
                                   <Text style={styles.opmOrderDot}>·</Text>
-                                  <Text style={styles.opmOrderDate}>{new Date(item.created_at).toLocaleDateString()}</Text>
+                                  <Text style={styles.opmOrderDate}>{fmtTs(item.created_at)}</Text>
                                 </>
                               )}
                             </View>
@@ -2471,34 +2639,47 @@ export default function App() {
                 })()}
 
                 {/* Referrals */}
-                {driverReferrals.length > 0 && (
-                  <>
-                    <Text style={[styles.doaSectionTitle, { marginTop: 8 }]}>🔗 Referrals</Text>
-                    {driverReferrals.map(item => {
-                      const refColor = item.status === "rewarded" ? "#22c55e" : item.status === "pending" ? "#eab308" : "#aaaaaa";
-                      return (
-                        <View key={item.id} style={[styles.doaRefCard, { borderLeftColor: refColor }]}>
-                          <View style={styles.doaRefHeader}>
-                            <View style={styles.doaRefCodeWrap}>
-                              <Text style={styles.doaRefCodeLabel}>Code</Text>
-                              <Text style={styles.doaRefCode}>{item.referral_code}</Text>
+                <>
+                  <Text style={[styles.doaSectionTitle, { marginTop: 8 }]}>🔗 Referrals</Text>
+                  {driverReferrals.length === 0 ? (
+                    <View style={styles.raEmpty}>
+                      <Text style={styles.raEmptyIcon}>🔗</Text>
+                      <Text style={styles.raEmptyText}>No referrals yet</Text>
+                      <Text style={styles.raEmptyHint}>Driver referral rewards will appear here once codes are used.</Text>
+                    </View>
+                  ) : (
+                    <>
+                      {driverReferrals.slice(0, referralsLimit).map(item => {
+                        const refColor = item.status === "rewarded" ? "#22c55e" : item.status === "pending" ? "#eab308" : "#aaaaaa";
+                        return (
+                          <View key={item.id} style={[styles.doaRefCard, { borderLeftColor: refColor }]}>
+                            <View style={styles.doaRefHeader}>
+                              <View style={styles.doaRefCodeWrap}>
+                                <Text style={styles.doaRefCodeLabel}>Code</Text>
+                                <Text style={styles.doaRefCode}>{item.referral_code}</Text>
+                              </View>
+                              <View style={[styles.raStatusBadge, { backgroundColor: refColor + "22", borderColor: refColor }]}>
+                                <View style={[styles.raStatusDot, { backgroundColor: refColor }]} />
+                                <Text style={[styles.raStatusText, { color: refColor }]}>{titleCase(item.status)}</Text>
+                              </View>
                             </View>
-                            <View style={[styles.raStatusBadge, { backgroundColor: refColor + "22", borderColor: refColor }]}>
-                              <View style={[styles.raStatusDot, { backgroundColor: refColor }]} />
-                              <Text style={[styles.raStatusText, { color: refColor }]}>{titleCase(item.status)}</Text>
+                            <View style={styles.doaRefMeta}>
+                              <Text style={styles.doaRefPhone}>{item.referrer_phone ?? "—"}</Text>
+                              <Text style={styles.doaRefArrow}>→</Text>
+                              <Text style={styles.doaRefPhone}>{item.referred_phone ?? "—"}</Text>
+                              <Text style={[styles.doaRefReward, { color: refColor }]}>{formatCurrency(item.reward_paise)}</Text>
                             </View>
                           </View>
-                          <View style={styles.doaRefMeta}>
-                            <Text style={styles.doaRefPhone}>{item.referrer_phone ?? "—"}</Text>
-                            <Text style={styles.doaRefArrow}>→</Text>
-                            <Text style={styles.doaRefPhone}>{item.referred_phone ?? "—"}</Text>
-                            <Text style={[styles.doaRefReward, { color: refColor }]}>{formatCurrency(item.reward_paise)}</Text>
-                          </View>
-                        </View>
-                      );
-                    })}
-                  </>
-                )}
+                        );
+                      })}
+                      {driverReferrals.length > referralsLimit && (
+                        <Pressable style={styles.loadMoreBtn} onPress={() => setReferralsLimit(l => l + 10)}>
+                          <Text style={styles.loadMoreBtnText}>Load more ({driverReferrals.length - referralsLimit} remaining)</Text>
+                        </Pressable>
+                      )}
+                    </>
+                  )}
+                </>
               </>
             )}
 
@@ -2531,70 +2712,88 @@ export default function App() {
                 <Text style={styles.zciSectionTitle}>🗺️ Zones</Text>
                 {zones.length === 0 ? (
                   <View style={styles.zciEmptyRow}>
-                    <Text style={styles.zciEmptyText}>No zones — tap Create Zone above.</Text>
+                    <Text style={styles.zciEmptyText}>No zones yet — tap Create Zone above to add your first delivery zone.</Text>
                   </View>
-                ) : zones.map(item => (
-                  <View key={item.id} style={[styles.zciCard, { borderLeftColor: "#2563eb" }]}>
-                    <View style={styles.zciCardHeader}>
-                      <Text style={styles.zciCardName}>{item.name}</Text>
-                      <View style={styles.zciCityChip}>
-                        <Text style={styles.zciCityChipText}>{item.city}</Text>
+                ) : (
+                  <>
+                    {zones.slice(0, zonesLimit).map(item => (
+                      <View key={item.id} style={[styles.zciCard, { borderLeftColor: "#2563eb" }]}>
+                        <View style={styles.zciCardHeader}>
+                          <Text style={styles.zciCardName}>{item.name}</Text>
+                          <View style={styles.zciCityChip}>
+                            <Text style={styles.zciCityChipText}>{item.city}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.zciCardMeta}>
+                          <View style={styles.zciMetaChip}>
+                            <Text style={styles.zciMetaChipIcon}>⏱</Text>
+                            <Text style={styles.zciMetaChipText}>SLA {item.sla_minutes} min</Text>
+                          </View>
+                          <View style={styles.zciMetaChip}>
+                            <Text style={styles.zciMetaChipIcon}>⚡</Text>
+                            <Text style={styles.zciMetaChipText}>Surge {item.surge_multiplier}×</Text>
+                          </View>
+                        </View>
                       </View>
-                    </View>
-                    <View style={styles.zciCardMeta}>
-                      <View style={styles.zciMetaChip}>
-                        <Text style={styles.zciMetaChipIcon}>⏱</Text>
-                        <Text style={styles.zciMetaChipText}>SLA {item.sla_minutes} min</Text>
-                      </View>
-                      <View style={styles.zciMetaChip}>
-                        <Text style={styles.zciMetaChipIcon}>⚡</Text>
-                        <Text style={styles.zciMetaChipText}>Surge {item.surge_multiplier}×</Text>
-                      </View>
-                    </View>
-                  </View>
-                ))}
+                    ))}
+                    {zones.length > zonesLimit && (
+                      <Pressable style={styles.loadMoreBtn} onPress={() => setZonesLimit(l => l + 10)}>
+                        <Text style={styles.loadMoreBtnText}>Load more ({zones.length - zonesLimit} remaining)</Text>
+                      </Pressable>
+                    )}
+                  </>
+                )}
 
                 {/* Campaigns */}
                 <Text style={[styles.zciSectionTitle, { marginTop: 8 }]}>📣 Campaigns</Text>
                 {campaigns.length === 0 ? (
                   <View style={styles.zciEmptyRow}>
-                    <Text style={styles.zciEmptyText}>No campaigns — tap Create Campaign above.</Text>
+                    <Text style={styles.zciEmptyText}>No campaigns yet — tap Create Campaign above to launch your first campaign.</Text>
                   </View>
-                ) : campaigns.map(item => {
-                  const campColor = item.status === "active" ? "#22c55e" : item.status === "paused" ? "#eab308" : "#888888";
-                  return (
-                    <View key={item.id} style={[styles.zciCard, { borderLeftColor: "#d97706" }]}>
-                      <View style={styles.zciCardHeader}>
-                        <Text style={styles.zciCardName} numberOfLines={1}>{item.name}</Text>
-                        <View style={[styles.raStatusBadge, { backgroundColor: campColor + "22", borderColor: campColor }]}>
-                          <View style={[styles.raStatusDot, { backgroundColor: campColor }]} />
-                          <Text style={[styles.raStatusText, { color: campColor }]}>{titleCase(item.status)}</Text>
+                ) : (
+                  <>
+                    {campaigns.slice(0, campaignsLimit).map(item => {
+                      const campColor = item.status === "active" ? "#22c55e" : item.status === "paused" ? "#eab308" : "#888888";
+                      return (
+                        <View key={item.id} style={[styles.zciCard, { borderLeftColor: "#d97706" }]}>
+                          <View style={styles.zciCardHeader}>
+                            <Text style={styles.zciCardName} numberOfLines={1}>{item.name}</Text>
+                            <View style={[styles.raStatusBadge, { backgroundColor: campColor + "22", borderColor: campColor }]}>
+                              <View style={[styles.raStatusDot, { backgroundColor: campColor }]} />
+                              <Text style={[styles.raStatusText, { color: campColor }]}>{titleCase(item.status)}</Text>
+                            </View>
+                          </View>
+                          <View style={styles.zciCardMeta}>
+                            <View style={styles.zciMetaChip}>
+                              <Text style={styles.zciMetaChipIcon}>📡</Text>
+                              <Text style={styles.zciMetaChipText}>{titleCase(item.channel)}</Text>
+                            </View>
+                            <View style={styles.zciMetaChip}>
+                              <Text style={styles.zciMetaChipIcon}>💰</Text>
+                              <Text style={styles.zciMetaChipText}>{formatCurrency(item.budget_paise)}</Text>
+                            </View>
+                          </View>
+                          {item.ai_creative && (
+                            <Text style={styles.zciAiCreative} numberOfLines={2}>🤖 {item.ai_creative}</Text>
+                          )}
                         </View>
-                      </View>
-                      <View style={styles.zciCardMeta}>
-                        <View style={styles.zciMetaChip}>
-                          <Text style={styles.zciMetaChipIcon}>📡</Text>
-                          <Text style={styles.zciMetaChipText}>{titleCase(item.channel)}</Text>
-                        </View>
-                        <View style={styles.zciMetaChip}>
-                          <Text style={styles.zciMetaChipIcon}>💰</Text>
-                          <Text style={styles.zciMetaChipText}>{formatCurrency(item.budget_paise)}</Text>
-                        </View>
-                      </View>
-                      {item.ai_creative && (
-                        <Text style={styles.zciAiCreative} numberOfLines={2}>🤖 {item.ai_creative}</Text>
-                      )}
-                    </View>
-                  );
-                })}
+                      );
+                    })}
+                    {campaigns.length > campaignsLimit && (
+                      <Pressable style={styles.loadMoreBtn} onPress={() => setCampaignsLimit(l => l + 10)}>
+                        <Text style={styles.loadMoreBtnText}>Load more ({campaigns.length - campaignsLimit} remaining)</Text>
+                      </Pressable>
+                    )}
+                  </>
+                )}
 
                 {/* Incentives */}
                 <Text style={[styles.zciSectionTitle, { marginTop: 8 }]}>🎁 Driver Incentives</Text>
                 {incentives.length === 0 ? (
                   <View style={styles.zciEmptyRow}>
-                    <Text style={styles.zciEmptyText}>No incentives — tap Create Incentive above.</Text>
+                    <Text style={styles.zciEmptyText}>No incentives yet — tap Create Incentive above to reward drivers.</Text>
                   </View>
-                ) : incentives.map(item => {
+                ) : incentives.slice(0, incentivesZciLimit).map(item => {
                   const incColor = item.status === "active" ? "#22c55e" : item.status === "completed" ? "#3b82f6" : "#888888";
                   return (
                     <View key={item.id} style={[styles.zciCard, { borderLeftColor: "#0f766e" }]}>
@@ -2618,6 +2817,11 @@ export default function App() {
                     </View>
                   );
                 })}
+                {incentives.length > incentivesZciLimit && (
+                  <Pressable style={styles.loadMoreBtn} onPress={() => setIncentivesZciLimit(l => l + 10)}>
+                    <Text style={styles.loadMoreBtnText}>Load more ({incentives.length - incentivesZciLimit} remaining)</Text>
+                  </Pressable>
+                )}
               </>
             )}
 
@@ -2706,7 +2910,7 @@ export default function App() {
                           </View>
                         </View>
                         <View style={styles.anlJobMeta}>
-                          <Text style={styles.anlJobDate}>{new Date(item.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>
+                          <Text style={styles.anlJobDate}>{fmtTs(item.created_at)}</Text>
                           {summary && <Text style={styles.anlJobSummary}>· {summary}</Text>}
                         </View>
                       </View>
@@ -2733,7 +2937,7 @@ export default function App() {
                             <Text style={styles.anlPredChipText}>{item.cuisine_type ?? "All cuisines"}</Text>
                           </View>
                           <View style={styles.anlPredChip}>
-                            <Text style={styles.anlPredChipText}>⏰ {new Date(item.hour_start).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" })}</Text>
+                            <Text style={styles.anlPredChipText}>⏰ {fmtTs(item.hour_start)}</Text>
                           </View>
                         </View>
                         <View style={styles.anlConfRow}>
@@ -2789,7 +2993,7 @@ export default function App() {
                     <Text style={styles.raEmptyText}>No payouts</Text>
                     <Text style={styles.raEmptyHint}>Payout requests will appear here when drivers or restaurants request payments.</Text>
                   </View>
-                ) : adminPayouts.map(item => {
+                ) : adminPayouts.slice(0, payoutsLimit).map(item => {
                   const payoutStatusColor = (s: string) =>
                     s === "paid" ? "#22c55e" : s === "approved" ? "#3b82f6" : s === "rejected" ? "#ef4444" : "#eab308";
                   const statusColor = payoutStatusColor(item.status);
@@ -2866,6 +3070,11 @@ export default function App() {
                     </View>
                   );
                 })}
+                {adminPayouts.length > payoutsLimit && (
+                  <Pressable style={styles.loadMoreBtn} onPress={() => setPayoutsLimit(l => l + 10)}>
+                    <Text style={styles.loadMoreBtnText}>Load more ({adminPayouts.length - payoutsLimit} remaining)</Text>
+                  </Pressable>
+                )}
               </>
             )}
 
@@ -2959,7 +3168,7 @@ export default function App() {
                             <View style={styles.stCardMeta}>
                               <Text style={styles.stCardId}>#{String(item.id).slice(-8).toUpperCase()}</Text>
                               <Text style={styles.stCardDot}>·</Text>
-                              <Text style={styles.stCardDate}>{new Date(item.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>
+                              <Text style={styles.stCardDate}>{fmtTs(item.created_at)}</Text>
                             </View>
                           </View>
                         );
@@ -3011,10 +3220,16 @@ export default function App() {
                   )}
 
                   {/* Verification Checks */}
-                  {verificationChecks.length > 0 && (
+                  <Text style={styles.audSectionLabel}>🔐 Identity Verifications</Text>
+                  {verificationChecks.length === 0 ? (
+                    <View style={styles.raEmpty}>
+                      <Text style={styles.raEmptyIcon}>🔐</Text>
+                      <Text style={styles.raEmptyText}>No verification checks</Text>
+                      <Text style={styles.raEmptyHint}>Identity verification records will appear here once drivers submit documents.</Text>
+                    </View>
+                  ) : (
                     <>
-                      <Text style={styles.audSectionLabel}>🔐 Identity Verifications</Text>
-                      {verificationChecks.slice(0, 5).map(item => {
+                      {verificationChecks.slice(0, vcLimit).map(item => {
                         const vcColor = checkStatusColor(item.status);
                         return (
                           <View key={item.id} style={[styles.audVcCard, { borderLeftColor: vcColor }]}>
@@ -3029,11 +3244,16 @@ export default function App() {
                               </View>
                             </View>
                             {"created_at" in item && (
-                              <Text style={styles.audVcDate}>{new Date((item as { created_at: string }).created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>
+                              <Text style={styles.audVcDate}>{fmtTs((item as { created_at: string }).created_at)}</Text>
                             )}
                           </View>
                         );
                       })}
+                      {verificationChecks.length > vcLimit && (
+                        <Pressable style={styles.loadMoreBtn} onPress={() => setVcLimit(l => l + 5)}>
+                          <Text style={styles.loadMoreBtnText}>Load more ({verificationChecks.length - vcLimit} remaining)</Text>
+                        </Pressable>
+                      )}
                     </>
                   )}
 
@@ -3063,7 +3283,7 @@ export default function App() {
                               </View>
                             </View>
                             {"created_at" in item && (
-                              <Text style={styles.audLogDate}>{new Date((item as { created_at: string }).created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>
+                              <Text style={styles.audLogDate}>{fmtTs((item as { created_at: string }).created_at)}</Text>
                             )}
                           </View>
                         );
@@ -5822,5 +6042,53 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 15,
     fontWeight: "700" as const
+  },
+  emptyState: {
+    alignItems: "center" as const,
+    paddingVertical: 32,
+    paddingHorizontal: 16
+  },
+  emptyStateIcon: {
+    fontSize: 40,
+    marginBottom: 10
+  },
+  emptyStateText: {
+    fontSize: 16,
+    fontWeight: "700" as const,
+    color: "#1e293b",
+    marginBottom: 6,
+    textAlign: "center" as const
+  },
+  emptyStateHint: {
+    fontSize: 13,
+    color: "#64748b",
+    textAlign: "center" as const,
+    marginBottom: 14,
+    lineHeight: 18
+  },
+  emptyStateBtn: {
+    backgroundColor: "#0f766e",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20
+  },
+  emptyStateBtnText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "700" as const
+  },
+  loadMoreBtn: {
+    alignItems: "center" as const,
+    paddingVertical: 12,
+    marginTop: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    backgroundColor: "#f8fafc"
+  },
+  loadMoreBtnText: {
+    fontSize: 13,
+    color: "#475569",
+    fontWeight: "600" as const
   }
 });
