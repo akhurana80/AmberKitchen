@@ -154,6 +154,7 @@ export default function App() {
   const isCollapsed = (label: string) => Boolean(collapsedPanels[label]);
 
   const authed = Boolean(token);
+  const isAdmin = authed && (role === "admin" || role === "super_admin");
   const availableTabs = useMemo(() => {
     if (role === "driver") return ["driver"] as Tab[];
     if (role === "restaurant") return ["restaurant"] as Tab[];
@@ -911,11 +912,26 @@ export default function App() {
           </View>
         )}
 
-        {authed && tab !== "admin" && (
+        {isAdmin && tab !== "admin" && (
           <Segmented values={availableTabs} value={tab} onChange={next => setTab(next as Tab)} />
         )}
 
-        {authed && tab === "admin" && (
+        {/* Access denied — logged in but not admin/super_admin */}
+        {authed && !isAdmin && (
+          <View style={styles.accessDeniedCard}>
+            <Text style={styles.accessDeniedIcon}>🔒</Text>
+            <Text style={styles.accessDeniedTitle}>Admin Access Only</Text>
+            <Text style={styles.accessDeniedText}>
+              This app is for AmberKitchen admins only.{"\n"}
+              You are signed in as <Text style={styles.accessDeniedRole}>{role.replace(/_/g, " ").toUpperCase()}</Text>, which does not have access.
+            </Text>
+            <Pressable style={styles.accessDeniedLogoutBtn} onPress={logout}>
+              <Text style={styles.accessDeniedLogoutText}>Sign Out</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {isAdmin && tab === "admin" && (
           <View style={styles.adminHeader}>
             <View style={styles.adminHeaderTop}>
               <View>
@@ -946,7 +962,7 @@ export default function App() {
         )}
 
         {/* ── Driver Tab ── */}
-        {tab === "driver" && (
+        {isAdmin && tab === "driver" && (
           <Card title="Delivery Partner App">
             <Text style={styles.sectionHint}>Onboard, browse orders, manage deliveries, and track earnings.</Text>
             <View style={styles.actions}>
@@ -1271,7 +1287,7 @@ export default function App() {
         )}
 
         {/* ── Restaurant Tab ── */}
-        {tab === "restaurant" && (
+        {isAdmin && tab === "restaurant" && (
           <Card title="Restaurant Panel">
             <Text style={styles.sectionHint}>Manage onboarding, menu items, incoming orders and earnings.</Text>
 
@@ -1345,7 +1361,7 @@ export default function App() {
         )}
 
         {/* ── Admin Tab ── */}
-        {tab === "admin" && (
+        {isAdmin && tab === "admin" && (
           <Card>
 
             {/* KPI Grid */}
@@ -5778,5 +5794,48 @@ const styles = StyleSheet.create({
     color: "#555555",
     fontSize: 11,
     marginTop: 5
+  },
+
+  // ── Access Denied ─────────────────────────────────────────────────────────
+  accessDeniedCard: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#2e2e2e",
+    padding: 32,
+    alignItems: "center",
+    gap: 12,
+    marginTop: 8
+  },
+  accessDeniedIcon: {
+    fontSize: 48,
+    marginBottom: 4
+  },
+  accessDeniedTitle: {
+    color: "#ffffff",
+    fontSize: 20,
+    fontWeight: "800" as const
+  },
+  accessDeniedText: {
+    color: "#888888",
+    fontSize: 14,
+    textAlign: "center" as const,
+    lineHeight: 22
+  },
+  accessDeniedRole: {
+    color: "#E23744",
+    fontWeight: "700" as const
+  },
+  accessDeniedLogoutBtn: {
+    marginTop: 8,
+    backgroundColor: "#E23744",
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 32
+  },
+  accessDeniedLogoutText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "700" as const
   }
 });
