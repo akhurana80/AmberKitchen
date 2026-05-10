@@ -5156,13 +5156,15 @@ const styles = StyleSheet.create({
     lineHeight: 17
   },
   raInactiveCallout: {
-    backgroundColor: "#222222",
+    backgroundColor: "#E2374418",
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E2374444",
     padding: 8,
     marginBottom: 8
   },
   raInactiveText: {
-    color: "#888888",
+    color: "#E23744",
     fontSize: 12
   },
   raActions: {
