@@ -2036,29 +2036,167 @@ export default function App() {
             )}
 
             {/* Driver Onboarding Admin */}
-            <Divider label="Driver Onboarding Admin" icon="🪪" subtitle={driverApplications.length > 0 ? `${driverApplications.length} applications · ${driverReferrals.length} referrals` : "Review driver applications and referrals"} collapsed={isCollapsed("Driver Onboarding Admin")} onPress={() => togglePanel("Driver Onboarding Admin")} />
+            <Divider label="Driver Onboarding Admin" icon="🪪" subtitle={driverApplications.length > 0 ? `${driverApplications.filter(a => a.approval_status === "pending").length} pending · ${driverApplications.length} total · ${driverReferrals.length} referrals` : "Review driver applications and referrals"} collapsed={isCollapsed("Driver Onboarding Admin")} onPress={() => togglePanel("Driver Onboarding Admin")} />
             {!isCollapsed("Driver Onboarding Admin") && (
               <>
-            {driverApplications.length === 0
-              ? <Text style={styles.emptyHint}>No driver applications pending.</Text>
-              : driverApplications.slice(0, 5).map(item => (
-                <ListItem
-                  key={item.id}
-                  title={`${item.full_name} — ${titleCase(item.approval_status)}`}
-                  subtitle={`OCR: ${item.ocr_status} · Selfie: ${item.selfie_status}`}
-                  onPress={async () => {
-                    const result = await run("Approving application", () => api.updateDriverApplicationApproval(token, item.id, "approved", "Approved from AK Ops mobile"));
-                    if (result) setDriverApplications(prev => prev.map(a => a.id === item.id ? { ...a, approval_status: "approved" } : a));
-                  }}
-                />
-              ))
-            }
-            {driverReferrals.length === 0
-              ? <Text style={styles.emptyHint}>No driver referral records.</Text>
-              : driverReferrals.slice(0, 5).map(item => (
-                <ListItem key={item.id} title={`${item.referral_code} — ${titleCase(item.status)}`} subtitle={`${item.referrer_phone ?? "–"} → ${item.referred_phone ?? "–"} · ${formatCurrency(item.reward_paise)}`} />
-              ))
-            }
+                {/* Stats row */}
+                {driverApplications.length > 0 && (
+                  <View style={styles.raStatsRow}>
+                    {[
+                      { label: "Pending",  color: "#eab308", count: driverApplications.filter(a => a.approval_status === "pending").length },
+                      { label: "Approved", color: "#22c55e", count: driverApplications.filter(a => a.approval_status === "approved").length },
+                      { label: "Rejected", color: "#ef4444", count: driverApplications.filter(a => a.approval_status === "rejected").length },
+                      { label: "Referrals", color: "#7c3aed", count: driverReferrals.length },
+                    ].map(s => (
+                      <View key={s.label} style={styles.raStatPill}>
+                        <View style={[styles.raStatDot, { backgroundColor: s.color }]} />
+                        <Text style={[styles.raStatCount, { color: s.color }]}>{s.count}</Text>
+                        <Text style={styles.raStatLabel}>{s.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Applications */}
+                <Text style={styles.doaSectionTitle}>🪪 Applications</Text>
+                {driverApplications.length === 0 ? (
+                  <View style={styles.raEmpty}>
+                    <Text style={styles.raEmptyIcon}>🪪</Text>
+                    <Text style={styles.raEmptyText}>No driver applications</Text>
+                    <Text style={styles.raEmptyHint}>Applications will appear here once drivers submit their documents.</Text>
+                  </View>
+                ) : driverApplications.map(item => {
+                  const statusColor = restaurantStatusColor(item.approval_status);
+                  const checks = [
+                    { label: "OCR",   status: item.ocr_status },
+                    { label: "Selfie", status: item.selfie_status },
+                    { label: "BG",    status: item.background_check_status },
+                  ];
+                  const checkColor = (s: string) => s === "verified" || s === "passed" ? "#22c55e" : s === "failed" ? "#ef4444" : "#eab308";
+                  return (
+                    <View key={item.id} style={[styles.doaCard, { borderLeftColor: statusColor }]}>
+                      {/* Header */}
+                      <View style={styles.doaCardHeader}>
+                        <View style={styles.doaCardTitleRow}>
+                          <Text style={styles.doaCardName}>{item.full_name}</Text>
+                          {item.phone && <Text style={styles.doaCardPhone}>{item.phone}</Text>}
+                        </View>
+                        <View style={[styles.raStatusBadge, { backgroundColor: statusColor + "22", borderColor: statusColor }]}>
+                          <View style={[styles.raStatusDot, { backgroundColor: statusColor }]} />
+                          <Text style={[styles.raStatusText, { color: statusColor }]}>{titleCase(item.approval_status)}</Text>
+                        </View>
+                      </View>
+
+                      {/* Verification checks */}
+                      <View style={styles.doaChecks}>
+                        {checks.map(c => (
+                          <View key={c.label} style={styles.doaCheckChip}>
+                            <View style={[styles.doaCheckDot, { backgroundColor: checkColor(c.status) }]} />
+                            <Text style={styles.doaCheckLabel}>{c.label}</Text>
+                            <Text style={[styles.doaCheckStatus, { color: checkColor(c.status) }]}>{titleCase(c.status)}</Text>
+                          </View>
+                        ))}
+                      </View>
+
+                      {/* Meta */}
+                      <View style={styles.doaCardMeta}>
+                        {item.aadhaar_last4 && (
+                          <View style={styles.doaMetaChip}>
+                            <Text style={styles.doaMetaChipIcon}>🪪</Text>
+                            <Text style={styles.doaMetaChipText}>Aadhaar ••••{item.aadhaar_last4}</Text>
+                          </View>
+                        )}
+                        {item.bank_account_last4 && (
+                          <View style={styles.doaMetaChip}>
+                            <Text style={styles.doaMetaChipIcon}>🏦</Text>
+                            <Text style={styles.doaMetaChipText}>Bank ••••{item.bank_account_last4}</Text>
+                          </View>
+                        )}
+                        {item.upi_id && (
+                          <View style={styles.doaMetaChip}>
+                            <Text style={styles.doaMetaChipIcon}>💳</Text>
+                            <Text style={styles.doaMetaChipText}>{item.upi_id}</Text>
+                          </View>
+                        )}
+                        {item.referral_code && (
+                          <View style={styles.doaMetaChip}>
+                            <Text style={styles.doaMetaChipIcon}>🔗</Text>
+                            <Text style={styles.doaMetaChipText}>{item.referral_code}</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Admin note */}
+                      {item.admin_note && (
+                        <View style={styles.doaAdminNote}>
+                          <Text style={styles.doaAdminNoteText}>📝 {item.admin_note}</Text>
+                        </View>
+                      )}
+
+                      {/* Actions */}
+                      {item.approval_status !== "approved" && (
+                        <View style={styles.raActions}>
+                          <Pressable
+                            style={styles.raApproveBtn}
+                            onPress={() => Alert.alert("Approve Driver", `Approve application for ${item.full_name}?`, [
+                              { text: "Cancel", style: "cancel" },
+                              { text: "Approve", onPress: async () => {
+                                const result = await run("Approving application", () => api.updateDriverApplicationApproval(token, item.id, "approved", "Approved from AK Ops mobile"));
+                                if (result) setDriverApplications(prev => prev.map(a => a.id === item.id ? { ...a, approval_status: "approved" } : a));
+                              }}
+                            ])}
+                          >
+                            <Text style={styles.raApproveBtnText}>✓ Approve</Text>
+                          </Pressable>
+                          {item.approval_status === "pending" && (
+                            <Pressable
+                              style={styles.raRejectBtn}
+                              onPress={() => Alert.prompt("Reject Application", "Enter reason for rejection:", [
+                                { text: "Cancel", style: "cancel" },
+                                { text: "Reject", style: "destructive", onPress: async (note) => {
+                                  const result = await run("Rejecting application", () => api.updateDriverApplicationApproval(token, item.id, "rejected", note ?? "Rejected from AK Ops mobile"));
+                                  if (result) setDriverApplications(prev => prev.map(a => a.id === item.id ? { ...a, approval_status: "rejected", admin_note: note ?? null } : a));
+                                }}
+                              ], "plain-text")}
+                            >
+                              <Text style={styles.raRejectBtnText}>✕ Reject</Text>
+                            </Pressable>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+
+                {/* Referrals */}
+                {driverReferrals.length > 0 && (
+                  <>
+                    <Text style={[styles.doaSectionTitle, { marginTop: 8 }]}>🔗 Referrals</Text>
+                    {driverReferrals.map(item => {
+                      const refColor = item.status === "rewarded" ? "#22c55e" : item.status === "pending" ? "#eab308" : "#94a3b8";
+                      return (
+                        <View key={item.id} style={[styles.doaRefCard, { borderLeftColor: refColor }]}>
+                          <View style={styles.doaRefHeader}>
+                            <View style={styles.doaRefCodeWrap}>
+                              <Text style={styles.doaRefCodeLabel}>Code</Text>
+                              <Text style={styles.doaRefCode}>{item.referral_code}</Text>
+                            </View>
+                            <View style={[styles.raStatusBadge, { backgroundColor: refColor + "22", borderColor: refColor }]}>
+                              <View style={[styles.raStatusDot, { backgroundColor: refColor }]} />
+                              <Text style={[styles.raStatusText, { color: refColor }]}>{titleCase(item.status)}</Text>
+                            </View>
+                          </View>
+                          <View style={styles.doaRefMeta}>
+                            <Text style={styles.doaRefPhone}>{item.referrer_phone ?? "—"}</Text>
+                            <Text style={styles.doaRefArrow}>→</Text>
+                            <Text style={styles.doaRefPhone}>{item.referred_phone ?? "—"}</Text>
+                            <Text style={[styles.doaRefReward, { color: refColor }]}>{formatCurrency(item.reward_paise)}</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </>
+                )}
               </>
             )}
 
@@ -3196,6 +3334,153 @@ const styles = StyleSheet.create({
   umLoadMoreCount: {
     color: "#475569",
     fontSize: 11,
+  },
+
+  /* ── Driver Onboarding Admin panel ── */
+  doaSectionTitle: {
+    color: "#64748b",
+    fontSize: 10,
+    fontWeight: "700" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  doaCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    padding: 14,
+    marginBottom: 10,
+    gap: 10,
+  },
+  doaCardHeader: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "flex-start" as const,
+    gap: 8,
+  },
+  doaCardTitleRow: {
+    flex: 1,
+    gap: 3,
+  },
+  doaCardName: {
+    color: "#f1f5f9",
+    fontSize: 15,
+    fontWeight: "700" as const,
+  },
+  doaCardPhone: {
+    color: "#64748b",
+    fontSize: 12,
+  },
+  doaChecks: {
+    flexDirection: "row" as const,
+    gap: 6,
+    flexWrap: "wrap" as const,
+  },
+  doaCheckChip: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 5,
+    backgroundColor: "#1e293b",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  doaCheckDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  doaCheckLabel: {
+    color: "#64748b",
+    fontSize: 10,
+    fontWeight: "700" as const,
+  },
+  doaCheckStatus: {
+    fontSize: 10,
+    fontWeight: "600" as const,
+  },
+  doaCardMeta: {
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
+    gap: 6,
+  },
+  doaMetaChip: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 5,
+    backgroundColor: "#1e293b",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  doaMetaChipIcon: {
+    fontSize: 11,
+  },
+  doaMetaChipText: {
+    color: "#94a3b8",
+    fontSize: 11,
+  },
+  doaAdminNote: {
+    backgroundColor: "#1e293b",
+    borderRadius: 8,
+    padding: 8,
+  },
+  doaAdminNoteText: {
+    color: "#94a3b8",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  doaRefCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    borderLeftWidth: 3,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    padding: 12,
+    marginBottom: 8,
+    gap: 8,
+  },
+  doaRefHeader: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
+  },
+  doaRefCodeWrap: {
+    gap: 2,
+  },
+  doaRefCodeLabel: {
+    color: "#475569",
+    fontSize: 9,
+    fontWeight: "700" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.5,
+  },
+  doaRefCode: {
+    color: "#f1f5f9",
+    fontSize: 14,
+    fontWeight: "700" as const,
+    letterSpacing: 1,
+  },
+  doaRefMeta: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+  },
+  doaRefPhone: {
+    color: "#64748b",
+    fontSize: 12,
+  },
+  doaRefArrow: {
+    color: "#334155",
+    fontSize: 12,
+  },
+  doaRefReward: {
+    fontSize: 13,
+    fontWeight: "700" as const,
+    marginLeft: "auto" as const,
   },
   /* legacy - kept for other uses */
   umSearchIcon: { fontSize: 14 },
