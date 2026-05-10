@@ -104,13 +104,18 @@ export default function App() {
   const [campaigns, setCampaigns] = useState<Array<{ id: string; name: string; channel: string; budget_paise: number; status: string; ai_creative: string | null }>>([]);
   const [incentives, setIncentives] = useState<Array<{ id: string; title: string; target_deliveries: number; reward_paise: number; status: string }>>([]);
   const [adminPayouts, setAdminPayouts] = useState<Array<{ id: string; amount_paise: number; method: string; status: string; phone: string | null; role: string }>>([]);
-  const [supportTickets, setSupportTickets] = useState<Array<{ id: string; category: string; subject: string; status: string }>>([]);
+  const [supportTickets, setSupportTickets] = useState<Array<{ id: string; category: string; subject: string; status: string; created_at: string }>>([]);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; method: string; path: string; status_code: number }>>([]);
   const [verificationChecks, setVerificationChecks] = useState<Array<{ id: string; provider: string; check_type: string; status: string }>>([]);
   const [analyticsJobs, setAnalyticsJobs] = useState<Array<{ id: string; job_type: string; status: string; summary: unknown; created_at: string }>>([]);
   const [demandPredictions, setDemandPredictions] = useState<Array<{ id: string; zone_key: string; cuisine_type: string | null; hour_start: string; predicted_orders: number; confidence: string }>>([]);
   const [adminMktSnapshot, setAdminMktSnapshot] = useState<{ nearby: number; trending: number; offers: number } | null>(null);
   const [mockAppStatus, setMockAppStatus] = useState<"pending" | "approved" | "rejected">("pending");
+
+  const [ticketFilter, setTicketFilter] = useState<"all" | "open" | "in_progress" | "resolved" | "closed">("all");
+  const [ticketDisplayLimit, setTicketDisplayLimit] = useState(10);
+  const [auditDisplayLimit, setAuditDisplayLimit] = useState(10);
+  const [analyticsTab, setAnalyticsTab] = useState<"jobs" | "predictions">("jobs");
 
   const [zciFormType, setZciFormType] = useState<null | "zone" | "offer" | "campaign" | "incentive">(null);
   const [zciFormData, setZciFormData] = useState<{
@@ -2615,24 +2620,134 @@ export default function App() {
               </>
             )}
 
-            {/* Analytics */}
-            <Divider label="Analytics & Predictions" icon="📈" subtitle="AI-powered demand forecasts and order trends" collapsed={isCollapsed("Analytics & Predictions")} onPress={() => togglePanel("Analytics & Predictions")} />
-            {!isCollapsed("Analytics & Predictions") && (
-              <>
-            {analyticsJobs.length === 0
-              ? <Text style={styles.emptyHint}>No analytics jobs yet. Tap "Run Demand Prediction" to trigger one.</Text>
-              : analyticsJobs.slice(0, 3).map(item => (
-                <ListItem key={item.id} title={`${item.job_type} — ${titleCase(item.status)}`} subtitle={new Date(item.created_at).toLocaleString()} />
-              ))
-            }
-            {demandPredictions.length === 0
-              ? <Text style={styles.emptyHint}>No demand predictions yet.</Text>
-              : demandPredictions.slice(0, 2).map(item => (
-                <ListItem key={item.id} title={`${item.zone_key} — ${item.predicted_orders} predicted orders`} subtitle={`${item.cuisine_type ?? "All cuisines"} · Confidence: ${item.confidence}`} />
-              ))
-            }
-              </>
-            )}
+            {/* Analytics & Predictions */}
+            <Divider
+              label="Analytics & Predictions"
+              icon="📈"
+              subtitle={analyticsJobs.length > 0 ? `${analyticsJobs.length} jobs · ${demandPredictions.length} predictions` : "AI-powered demand forecasts and order trends"}
+              collapsed={isCollapsed("Analytics & Predictions")}
+              onPress={() => togglePanel("Analytics & Predictions")}
+            />
+            {!isCollapsed("Analytics & Predictions") && (() => {
+              const jobStatusColor = (s: string) => s === "completed" ? "#22c55e" : s === "running" ? "#3b82f6" : s === "failed" ? "#ef4444" : "#94a3b8";
+              const completedJobs = analyticsJobs.filter(j => j.status === "completed").length;
+              const runningJobs  = analyticsJobs.filter(j => j.status === "running").length;
+              const failedJobs   = analyticsJobs.filter(j => j.status === "failed").length;
+              return (
+                <>
+                  {/* Run button */}
+                  <Pressable
+                    style={[styles.anlRunBtn, (!authed || loading) && styles.anlRunBtnDisabled]}
+                    disabled={!authed || loading}
+                    onPress={async () => {
+                      const result = await run("Running AI demand prediction", () => api.runDemandPredictionJob(token));
+                      if (result) {
+                        const [jobs, preds] = await Promise.allSettled([api.analyticsJobs(token), api.demandPredictions(token)]);
+                        if (jobs.status === "fulfilled") setAnalyticsJobs(jobs.value);
+                        if (preds.status === "fulfilled") setDemandPredictions(preds.value);
+                      }
+                    }}
+                  >
+                    <Text style={styles.anlRunIcon}>🤖</Text>
+                    <View>
+                      <Text style={styles.anlRunLabel}>Run AI Demand Prediction</Text>
+                      <Text style={styles.anlRunSub}>Generates zone-level order forecasts</Text>
+                    </View>
+                  </Pressable>
+
+                  {/* Stats */}
+                  {analyticsJobs.length > 0 && (
+                    <View style={styles.raStatsRow}>
+                      {[
+                        { label: "Total",     color: "#94a3b8", count: analyticsJobs.length },
+                        { label: "Completed", color: "#22c55e", count: completedJobs },
+                        { label: "Running",   color: "#3b82f6", count: runningJobs },
+                        { label: "Failed",    color: "#ef4444", count: failedJobs },
+                      ].map(s => (
+                        <View key={s.label} style={styles.raStatPill}>
+                          <View style={[styles.raStatDot, { backgroundColor: s.color }]} />
+                          <Text style={[styles.raStatCount, { color: s.color }]}>{s.count}</Text>
+                          <Text style={styles.raStatLabel}>{s.label}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Tab toggle */}
+                  <View style={styles.anlTabRow}>
+                    {(["jobs", "predictions"] as const).map(t => (
+                      <Pressable key={t} style={[styles.anlTab, analyticsTab === t && styles.anlTabActive]} onPress={() => setAnalyticsTab(t)}>
+                        <Text style={[styles.anlTabText, analyticsTab === t && styles.anlTabTextActive]}>
+                          {t === "jobs" ? `⚙️ Jobs (${analyticsJobs.length})` : `🔮 Predictions (${demandPredictions.length})`}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  {analyticsTab === "jobs" && (analyticsJobs.length === 0 ? (
+                    <View style={styles.raEmpty}>
+                      <Text style={styles.raEmptyIcon}>📊</Text>
+                      <Text style={styles.raEmptyText}>No jobs yet</Text>
+                      <Text style={styles.raEmptyHint}>Tap "Run AI Demand Prediction" to trigger your first analytics job.</Text>
+                    </View>
+                  ) : analyticsJobs.slice(0, 10).map(item => {
+                    const jColor = jobStatusColor(item.status);
+                    const summary = item.summary && typeof item.summary === "object" && "predictions" in (item.summary as object)
+                      ? `${(item.summary as { predictions: number }).predictions} predictions generated`
+                      : null;
+                    return (
+                      <View key={item.id} style={[styles.anlJobCard, { borderLeftColor: jColor }]}>
+                        <View style={styles.anlJobTop}>
+                          <Text style={styles.anlJobType}>{item.job_type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</Text>
+                          <View style={[styles.raStatusBadge, { backgroundColor: jColor + "22", borderColor: jColor }]}>
+                            <View style={[styles.raStatusDot, { backgroundColor: jColor }]} />
+                            <Text style={[styles.raStatusText, { color: jColor }]}>{titleCase(item.status)}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.anlJobMeta}>
+                          <Text style={styles.anlJobDate}>{new Date(item.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>
+                          {summary && <Text style={styles.anlJobSummary}>· {summary}</Text>}
+                        </View>
+                      </View>
+                    );
+                  }))}
+
+                  {analyticsTab === "predictions" && (demandPredictions.length === 0 ? (
+                    <View style={styles.raEmpty}>
+                      <Text style={styles.raEmptyIcon}>🔮</Text>
+                      <Text style={styles.raEmptyText}>No predictions yet</Text>
+                      <Text style={styles.raEmptyHint}>Run an AI demand prediction job to see zone-level forecasts here.</Text>
+                    </View>
+                  ) : demandPredictions.slice(0, 20).map(item => {
+                    const conf = parseFloat(item.confidence);
+                    const confColor = conf >= 80 ? "#22c55e" : conf >= 60 ? "#eab308" : "#ef4444";
+                    return (
+                      <View key={item.id} style={[styles.anlPredCard, { borderLeftColor: confColor }]}>
+                        <View style={styles.anlPredTop}>
+                          <Text style={styles.anlPredZone} numberOfLines={1}>{item.zone_key}</Text>
+                          <Text style={[styles.anlPredOrders, { color: confColor }]}>{item.predicted_orders} orders</Text>
+                        </View>
+                        <View style={styles.anlPredMeta}>
+                          <View style={styles.anlPredChip}>
+                            <Text style={styles.anlPredChipText}>{item.cuisine_type ?? "All cuisines"}</Text>
+                          </View>
+                          <View style={styles.anlPredChip}>
+                            <Text style={styles.anlPredChipText}>⏰ {new Date(item.hour_start).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" })}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.anlConfRow}>
+                          <Text style={styles.anlConfLabel}>Confidence</Text>
+                          <View style={styles.anlConfBarBg}>
+                            <View style={[styles.anlConfBarFill, { width: `${conf}%` as `${number}%`, backgroundColor: confColor }]} />
+                          </View>
+                          <Text style={[styles.anlConfValue, { color: confColor }]}>{conf.toFixed(1)}%</Text>
+                        </View>
+                      </View>
+                    );
+                  }))}
+                </>
+              );
+            })()}
 
             {/* Payouts */}
             <Divider label="Payouts" icon="💸" subtitle={adminPayouts.length > 0 ? `${adminPayouts.filter(p => p.status === "pending").length} pending · ${adminPayouts.length} total` : "Driver and restaurant payout management"} collapsed={isCollapsed("Payouts")} onPress={() => togglePanel("Payouts")} />
@@ -2754,43 +2869,215 @@ export default function App() {
             )}
 
             {/* Support Tickets */}
-            <Divider label="Support Tickets" icon="🎫" subtitle={supportTickets.length > 0 ? `${supportTickets.length} ticket${supportTickets.length !== 1 ? "s" : ""}` : "Customer support and issue resolution"} collapsed={isCollapsed("Support Tickets")} onPress={() => togglePanel("Support Tickets")} />
-            {!isCollapsed("Support Tickets") && (
-              <>
-            <View style={styles.actions}>
-              <Button
-                label="Create Test Ticket"
-                onPress={() => run("Creating support ticket", () => api.createSupportTicket(token, "technical", "Mobile test ticket", "Test ticket created from AK Ops mobile app."))}
-                disabled={!authed}
-              />
-            </View>
-            {supportTickets.length === 0
-              ? <Text style={styles.emptyHint}>No support tickets. Tap "Create Test Ticket" to add one.</Text>
-              : supportTickets.slice(0, 5).map(item => (
-                <ListItem key={item.id} title={`${titleCase(item.category)} — ${titleCase(item.status)}`} subtitle={item.subject} />
-              ))
-            }
-              </>
-            )}
+            <Divider
+              label="Support Tickets"
+              icon="🎫"
+              subtitle={supportTickets.length > 0 ? `${supportTickets.filter(t => t.status === "open").length} open · ${supportTickets.length} total` : "Customer support and issue resolution"}
+              collapsed={isCollapsed("Support Tickets")}
+              onPress={() => togglePanel("Support Tickets")}
+            />
+            {!isCollapsed("Support Tickets") && (() => {
+              const ticketStatusColor = (s: string) => s === "open" ? "#eab308" : s === "in_progress" ? "#3b82f6" : s === "resolved" ? "#22c55e" : "#475569";
+              const ticketCategoryColor = (c: string) => c === "technical" ? "#7c3aed" : c === "billing" ? "#d97706" : c === "delivery" ? "#0f766e" : "#475569";
+              const filtered = ticketFilter === "all" ? supportTickets : supportTickets.filter(t => t.status === ticketFilter);
+              const visible = filtered.slice(0, ticketDisplayLimit);
+              const remaining = filtered.length - visible.length;
+              return (
+                <>
+                  {/* Stats row */}
+                  {supportTickets.length > 0 && (
+                    <View style={styles.raStatsRow}>
+                      {[
+                        { label: "Open",        color: "#eab308", count: supportTickets.filter(t => t.status === "open").length },
+                        { label: "In Progress", color: "#3b82f6", count: supportTickets.filter(t => t.status === "in_progress").length },
+                        { label: "Resolved",    color: "#22c55e", count: supportTickets.filter(t => t.status === "resolved").length },
+                        { label: "Closed",      color: "#475569", count: supportTickets.filter(t => t.status === "closed").length },
+                      ].map(s => (
+                        <View key={s.label} style={styles.raStatPill}>
+                          <View style={[styles.raStatDot, { backgroundColor: s.color }]} />
+                          <Text style={[styles.raStatCount, { color: s.color }]}>{s.count}</Text>
+                          <Text style={styles.raStatLabel}>{s.label}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
 
-            {/* Security & Audit */}
-            <Divider label="Security & Audit Logs" icon="🔒" subtitle={auditLogs.length > 0 ? `${auditLogs.length} log entries · ${verificationChecks.length} verification checks` : "Access logs, audit trail and verification"} collapsed={isCollapsed("Security & Audit Logs")} onPress={() => togglePanel("Security & Audit Logs")} />
-            {!isCollapsed("Security & Audit Logs") && (
-              <>
-            {auditLogs.length === 0
-              ? <Text style={styles.emptyHint}>No audit logs yet. Perform actions to generate entries.</Text>
-              : auditLogs.slice(0, 3).map(item => (
-                <ListItem key={item.id} title={`${item.method} ${item.path}`} subtitle={`HTTP ${item.status_code}`} />
-              ))
-            }
-            {verificationChecks.length === 0
-              ? <Text style={styles.emptyHint}>No verification checks yet.</Text>
-              : verificationChecks.slice(0, 2).map(item => (
-                <ListItem key={item.id} title={`${item.provider} — ${item.check_type}`} subtitle={titleCase(item.status)} />
-              ))
-            }
-              </>
-            )}
+                  {/* Filter chips */}
+                  <View style={styles.stFilterRow}>
+                    {(["all", "open", "in_progress", "resolved", "closed"] as const).map(f => (
+                      <Pressable
+                        key={f}
+                        style={[styles.stFilterChip, ticketFilter === f && styles.stFilterChipActive]}
+                        onPress={() => { setTicketFilter(f); setTicketDisplayLimit(10); }}
+                      >
+                        <Text style={[styles.stFilterChipText, ticketFilter === f && styles.stFilterChipTextActive]}>
+                          {f === "all" ? "All" : f === "in_progress" ? "In Progress" : titleCase(f)}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  {/* Create test ticket */}
+                  <Pressable
+                    style={[styles.stCreateBtn, (!authed || loading) && { opacity: 0.5 }]}
+                    disabled={!authed || loading}
+                    onPress={async () => {
+                      const result = await run("Creating support ticket", () => api.createSupportTicket(token, "technical", `Mobile test ticket ${new Date().toLocaleTimeString()}`, "Test ticket created from AK Ops mobile app."));
+                      if (result) {
+                        const fresh = await api.supportTickets(token).catch(() => null);
+                        if (fresh) setSupportTickets(fresh);
+                      }
+                    }}
+                  >
+                    <Text style={styles.stCreateBtnText}>＋ Create Test Ticket</Text>
+                  </Pressable>
+
+                  {filtered.length === 0 ? (
+                    <View style={styles.raEmpty}>
+                      <Text style={styles.raEmptyIcon}>🎫</Text>
+                      <Text style={styles.raEmptyText}>{ticketFilter === "all" ? "No tickets yet" : `No ${ticketFilter.replace("_", " ")} tickets`}</Text>
+                      <Text style={styles.raEmptyHint}>Customer support requests will appear here.</Text>
+                    </View>
+                  ) : (
+                    <>
+                      {visible.map(item => {
+                        const sColor = ticketStatusColor(item.status);
+                        const cColor = ticketCategoryColor(item.category);
+                        return (
+                          <View key={item.id} style={[styles.stCard, { borderLeftColor: sColor }]}>
+                            <View style={styles.stCardHeader}>
+                              <View style={[styles.stCategoryChip, { backgroundColor: cColor + "22", borderColor: cColor + "55" }]}>
+                                <Text style={[styles.stCategoryText, { color: cColor }]}>{titleCase(item.category)}</Text>
+                              </View>
+                              <View style={[styles.raStatusBadge, { backgroundColor: sColor + "22", borderColor: sColor }]}>
+                                <View style={[styles.raStatusDot, { backgroundColor: sColor }]} />
+                                <Text style={[styles.raStatusText, { color: sColor }]}>{item.status === "in_progress" ? "In Progress" : titleCase(item.status)}</Text>
+                              </View>
+                            </View>
+                            <Text style={styles.stSubject} numberOfLines={2}>{item.subject}</Text>
+                            <View style={styles.stCardMeta}>
+                              <Text style={styles.stCardId}>#{String(item.id).slice(-8).toUpperCase()}</Text>
+                              <Text style={styles.stCardDot}>·</Text>
+                              <Text style={styles.stCardDate}>{new Date(item.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>
+                            </View>
+                          </View>
+                        );
+                      })}
+                      {remaining > 0 && (
+                        <Pressable style={styles.umLoadMoreBtn} onPress={() => setTicketDisplayLimit(l => l + 10)}>
+                          <Text style={styles.umLoadMoreText}>Show {Math.min(remaining, 10)} more</Text>
+                          <Text style={styles.umLoadMoreCount}>{remaining} remaining</Text>
+                        </Pressable>
+                      )}
+                    </>
+                  )}
+                </>
+              );
+            })()}
+
+            {/* Security & Audit Logs */}
+            <Divider
+              label="Security & Audit Logs"
+              icon="🔒"
+              subtitle={auditLogs.length > 0 ? `${auditLogs.length} audit entries · ${verificationChecks.length} verifications` : "Access logs, audit trail and identity verification"}
+              collapsed={isCollapsed("Security & Audit Logs")}
+              onPress={() => togglePanel("Security & Audit Logs")}
+            />
+            {!isCollapsed("Security & Audit Logs") && (() => {
+              const methodColor = (m: string) => m === "GET" ? "#3b82f6" : m === "POST" ? "#22c55e" : m === "PATCH" || m === "PUT" ? "#eab308" : m === "DELETE" ? "#ef4444" : "#94a3b8";
+              const statusCodeColor = (c: number) => c >= 500 ? "#ef4444" : c >= 400 ? "#eab308" : c >= 200 ? "#22c55e" : "#94a3b8";
+              const checkStatusColor = (s: string) => s === "passed" ? "#22c55e" : s === "failed" ? "#ef4444" : s === "pending" ? "#eab308" : "#94a3b8";
+              const visibleLogs = auditLogs.slice(0, auditDisplayLimit);
+              const remainingLogs = auditLogs.length - visibleLogs.length;
+              return (
+                <>
+                  {/* Audit stats */}
+                  {auditLogs.length > 0 && (
+                    <View style={styles.raStatsRow}>
+                      {[
+                        { label: "Total",    color: "#94a3b8", count: auditLogs.length },
+                        { label: "Errors",   color: "#ef4444", count: auditLogs.filter(l => l.status_code >= 500).length },
+                        { label: "Warnings", color: "#eab308", count: auditLogs.filter(l => l.status_code >= 400 && l.status_code < 500).length },
+                        { label: "OK",       color: "#22c55e", count: auditLogs.filter(l => l.status_code >= 200 && l.status_code < 400).length },
+                      ].map(s => (
+                        <View key={s.label} style={styles.raStatPill}>
+                          <View style={[styles.raStatDot, { backgroundColor: s.color }]} />
+                          <Text style={[styles.raStatCount, { color: s.color }]}>{s.count}</Text>
+                          <Text style={styles.raStatLabel}>{s.label}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Verification Checks */}
+                  {verificationChecks.length > 0 && (
+                    <>
+                      <Text style={styles.audSectionLabel}>🔐 Identity Verifications</Text>
+                      {verificationChecks.slice(0, 5).map(item => {
+                        const vcColor = checkStatusColor(item.status);
+                        return (
+                          <View key={item.id} style={[styles.audVcCard, { borderLeftColor: vcColor }]}>
+                            <View style={styles.audVcRow}>
+                              <View style={styles.audVcLeft}>
+                                <Text style={styles.audVcProvider}>{titleCase(item.provider)}</Text>
+                                <Text style={styles.audVcType}>{item.check_type.replace(/_/g, " ")}</Text>
+                              </View>
+                              <View style={[styles.raStatusBadge, { backgroundColor: vcColor + "22", borderColor: vcColor }]}>
+                                <View style={[styles.raStatusDot, { backgroundColor: vcColor }]} />
+                                <Text style={[styles.raStatusText, { color: vcColor }]}>{titleCase(item.status)}</Text>
+                              </View>
+                            </View>
+                            {"created_at" in item && (
+                              <Text style={styles.audVcDate}>{new Date((item as { created_at: string }).created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>
+                            )}
+                          </View>
+                        );
+                      })}
+                    </>
+                  )}
+
+                  {/* Audit Logs */}
+                  <Text style={[styles.audSectionLabel, { marginTop: verificationChecks.length > 0 ? 12 : 0 }]}>📋 Audit Trail</Text>
+                  {auditLogs.length === 0 ? (
+                    <View style={styles.raEmpty}>
+                      <Text style={styles.raEmptyIcon}>🔒</Text>
+                      <Text style={styles.raEmptyText}>No audit logs yet</Text>
+                      <Text style={styles.raEmptyHint}>Every API action is logged here. Perform operations to see the trail.</Text>
+                    </View>
+                  ) : (
+                    <>
+                      {visibleLogs.map(item => {
+                        const mColor = methodColor(item.method);
+                        const sColor = statusCodeColor(item.status_code);
+                        const pathShort = item.path.replace(/\/api\/v1/, "").replace(/\/[0-9a-f-]{36}/g, "/:id");
+                        return (
+                          <View key={item.id} style={[styles.audLogCard, { borderLeftColor: sColor }]}>
+                            <View style={styles.audLogRow}>
+                              <View style={[styles.audMethodChip, { backgroundColor: mColor + "22", borderColor: mColor + "55" }]}>
+                                <Text style={[styles.audMethodText, { color: mColor }]}>{item.method}</Text>
+                              </View>
+                              <Text style={styles.audLogPath} numberOfLines={1}>{pathShort}</Text>
+                              <View style={[styles.audStatusCodeChip, { backgroundColor: sColor + "22" }]}>
+                                <Text style={[styles.audStatusCodeText, { color: sColor }]}>{item.status_code}</Text>
+                              </View>
+                            </View>
+                            {"created_at" in item && (
+                              <Text style={styles.audLogDate}>{new Date((item as { created_at: string }).created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>
+                            )}
+                          </View>
+                        );
+                      })}
+                      {remainingLogs > 0 && (
+                        <Pressable style={styles.umLoadMoreBtn} onPress={() => setAuditDisplayLimit(l => l + 10)}>
+                          <Text style={styles.umLoadMoreText}>Show {Math.min(remainingLogs, 10)} more</Text>
+                          <Text style={styles.umLoadMoreCount}>{remainingLogs} remaining</Text>
+                        </Pressable>
+                      )}
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </Card>
         )}
 
@@ -5166,5 +5453,330 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 15,
     fontWeight: "700" as const
+  },
+
+  // ── Analytics & Predictions ───────────────────────────────────────────────
+  anlRunBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: "#0f172a",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#0f766e",
+    padding: 16,
+    marginBottom: 14
+  },
+  anlRunBtnDisabled: { opacity: 0.4 },
+  anlRunIcon: { fontSize: 28 },
+  anlRunLabel: {
+    color: "#f1f5f9",
+    fontSize: 14,
+    fontWeight: "700" as const
+  },
+  anlRunSub: {
+    color: "#64748b",
+    fontSize: 12,
+    marginTop: 2
+  },
+  anlTabRow: {
+    flexDirection: "row",
+    backgroundColor: "#1e293b",
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 12,
+    gap: 2
+  },
+  anlTab: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 8,
+    alignItems: "center"
+  },
+  anlTabActive: { backgroundColor: "#0f172a" },
+  anlTabText: {
+    color: "#64748b",
+    fontSize: 13,
+    fontWeight: "600" as const
+  },
+  anlTabTextActive: { color: "#f1f5f9" },
+  anlJobCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderLeftWidth: 3,
+    padding: 12,
+    marginBottom: 8
+  },
+  anlJobTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6
+  },
+  anlJobType: {
+    color: "#f1f5f9",
+    fontSize: 14,
+    fontWeight: "700" as const,
+    flex: 1
+  },
+  anlJobMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
+  },
+  anlJobDate: {
+    color: "#64748b",
+    fontSize: 12
+  },
+  anlJobSummary: {
+    color: "#94a3b8",
+    fontSize: 12
+  },
+  anlPredCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderLeftWidth: 3,
+    padding: 12,
+    marginBottom: 8
+  },
+  anlPredTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8
+  },
+  anlPredZone: {
+    color: "#f1f5f9",
+    fontSize: 13,
+    fontWeight: "700" as const,
+    flex: 1
+  },
+  anlPredOrders: {
+    fontSize: 15,
+    fontWeight: "700" as const
+  },
+  anlPredMeta: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 10
+  },
+  anlPredChip: {
+    backgroundColor: "#1e293b",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3
+  },
+  anlPredChipText: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: "600" as const
+  },
+  anlConfRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
+  anlConfLabel: {
+    color: "#64748b",
+    fontSize: 11,
+    width: 68
+  },
+  anlConfBarBg: {
+    flex: 1,
+    height: 5,
+    backgroundColor: "#1e293b",
+    borderRadius: 3,
+    overflow: "hidden"
+  },
+  anlConfBarFill: {
+    height: 5,
+    borderRadius: 3
+  },
+  anlConfValue: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    width: 42,
+    textAlign: "right" as const
+  },
+
+  // ── Support Tickets ───────────────────────────────────────────────────────
+  stFilterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 12
+  },
+  stFilterChip: {
+    backgroundColor: "#1e293b",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#334155"
+  },
+  stFilterChipActive: {
+    backgroundColor: "#0f172a",
+    borderColor: "#0f766e"
+  },
+  stFilterChipText: {
+    color: "#64748b",
+    fontSize: 12,
+    fontWeight: "600" as const
+  },
+  stFilterChipTextActive: { color: "#0f766e" },
+  stCreateBtn: {
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#334155",
+    paddingVertical: 12,
+    alignItems: "center",
+    marginBottom: 12
+  },
+  stCreateBtnText: {
+    color: "#94a3b8",
+    fontSize: 13,
+    fontWeight: "600" as const
+  },
+  stCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderLeftWidth: 3,
+    padding: 12,
+    marginBottom: 8
+  },
+  stCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8
+  },
+  stCategoryChip: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1
+  },
+  stCategoryText: {
+    fontSize: 11,
+    fontWeight: "700" as const
+  },
+  stSubject: {
+    color: "#f1f5f9",
+    fontSize: 14,
+    fontWeight: "600" as const,
+    marginBottom: 8,
+    lineHeight: 20
+  },
+  stCardMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
+  },
+  stCardId: {
+    color: "#475569",
+    fontSize: 11,
+    fontFamily: "monospace"
+  },
+  stCardDot: {
+    color: "#334155",
+    fontSize: 11
+  },
+  stCardDate: {
+    color: "#475569",
+    fontSize: 11
+  },
+
+  // ── Security & Audit Logs ─────────────────────────────────────────────────
+  audSectionLabel: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "700" as const,
+    letterSpacing: 0.6,
+    textTransform: "uppercase" as const,
+    marginBottom: 8
+  },
+  audVcCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderLeftWidth: 3,
+    padding: 12,
+    marginBottom: 6
+  },
+  audVcRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
+  },
+  audVcLeft: { flex: 1 },
+  audVcProvider: {
+    color: "#f1f5f9",
+    fontSize: 13,
+    fontWeight: "700" as const
+  },
+  audVcType: {
+    color: "#64748b",
+    fontSize: 12,
+    marginTop: 2,
+    textTransform: "capitalize" as const
+  },
+  audVcDate: {
+    color: "#475569",
+    fontSize: 11,
+    marginTop: 6
+  },
+  audLogCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderLeftWidth: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    marginBottom: 5
+  },
+  audLogRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
+  audMethodChip: {
+    borderRadius: 5,
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2
+  },
+  audMethodText: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    fontFamily: "monospace"
+  },
+  audLogPath: {
+    flex: 1,
+    color: "#94a3b8",
+    fontSize: 12,
+    fontFamily: "monospace"
+  },
+  audStatusCodeChip: {
+    borderRadius: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2
+  },
+  audStatusCodeText: {
+    fontSize: 11,
+    fontWeight: "700" as const
+  },
+  audLogDate: {
+    color: "#475569",
+    fontSize: 11,
+    marginTop: 5
   }
 });
