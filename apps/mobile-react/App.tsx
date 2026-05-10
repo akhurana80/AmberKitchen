@@ -82,14 +82,14 @@ export default function App() {
   const [adminRestaurants, setAdminRestaurants] = useState<Array<{ id: string; name: string; address: string; approval_status: string; rejection_reason: string | null; is_active: boolean; cuisine_type?: string | null; owner_phone?: string | null; owner_email?: string | null; created_at?: string }>>([]);
   const [restaurantSearch, setRestaurantSearch] = useState("");
   const [restaurantSearchResults, setRestaurantSearchResults] = useState<Array<{ id: string; name: string; address: string; approval_status: string; rejection_reason: string | null; is_active: boolean; cuisine_type?: string | null; owner_phone?: string | null; owner_email?: string | null; created_at?: string }> | null>(null);
-  const [adminUsers, setAdminUsers] = useState<Array<{ id: string; phone: string | null; email: string | null; name: string | null; role: string; is_banned: boolean }>>([]);
+  const [adminUsers, setAdminUsers] = useState<Array<{ id: string; phone: string | null; email: string | null; name: string | null; role: string; is_banned: boolean; created_at?: string }>>([]);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [userOrdersMap, setUserOrdersMap] = useState<Record<string, Array<{ id: string; status: string; total_paise: number; restaurant_name: string; created_at: string }>>>({});
   const [userSearch, setUserSearch] = useState("");
-  const [userSearchResults, setUserSearchResults] = useState<Array<{ id: string; phone: string | null; email: string | null; name: string | null; role: string; is_banned: boolean }> | null>(null);
-  const [adminOrders, setAdminOrders] = useState<Array<{ id: string; status: string; total_paise: number; restaurant_name: string }>>([]);
+  const [userSearchResults, setUserSearchResults] = useState<Array<{ id: string; phone: string | null; email: string | null; name: string | null; role: string; is_banned: boolean; created_at?: string }> | null>(null);
+  const [adminOrders, setAdminOrders] = useState<Array<{ id: string; status: string; total_paise: number; restaurant_name: string; customer_phone?: string | null; driver_phone?: string | null; created_at?: string }>>([]);
   const [orderSearch, setOrderSearch] = useState("");
-  const [orderSearchResults, setOrderSearchResults] = useState<Array<{ id: string; status: string; total_paise: number; restaurant_name: string; created_at: string }> | null>(null);
+  const [orderSearchResults, setOrderSearchResults] = useState<Array<{ id: string; status: string; total_paise: number; restaurant_name: string; customer_phone?: string | null; driver_phone?: string | null; created_at: string }> | null>(null);
   const [paymentReports, setPaymentReports] = useState<Array<{ provider: string; status: string; transactions: number; amount_paise: number }>>([]);
   const [driverLoad, setDriverLoad] = useState<Array<{ id: string; phone: string | null; active_orders: number; capacity_score: number }>>([]);
   const [deliveryOrders, setDeliveryOrders] = useState<Array<{ id: string; status: string; restaurant_name: string; last_driver_lat: string | null; last_driver_lng: string | null }>>([]);
@@ -1251,202 +1251,379 @@ export default function App() {
             )}
 
             {/* Order Operations */}
-            <Divider label="Order Operations" icon="⚙️" subtitle="Assign drivers and manage active orders" collapsed={isCollapsed("Order Operations")} onPress={() => togglePanel("Order Operations")} />
+            <Divider label="Order Operations" icon="⚙️" subtitle={orderId ? `Active: #${orderId.slice(0, 8).toUpperCase()}` : "Assign drivers and manage active orders"} collapsed={isCollapsed("Order Operations")} onPress={() => togglePanel("Order Operations")} />
             {!isCollapsed("Order Operations") && (
               <>
-            <TextInput
-              style={styles.input}
-              value={orderId}
-              onChangeText={setOrderId}
-              placeholder="Paste Order ID for driver assignment"
-            />
-            {!orderId && <Text style={styles.emptyHint}>Enter an Order ID above to enable driver assignment.</Text>}
-            <View style={styles.actions}>
-              <Button
-                label="Assign Best Driver"
-                onPress={() => run("Assigning best driver", () => api.assignBestDriver(token, orderId))}
-                disabled={!orderId}
-              />
-              <Button
-                label="Assign First Available"
-                onPress={() => run("Assigning driver", () => api.assignDriver(token, orderId, deliveryDrivers[0].id))}
-                disabled={!orderId || !deliveryDrivers[0]}
-              />
-            </View>
+                {/* Order ID input */}
+                <View style={styles.ooInputRow}>
+                  <View style={styles.ooInputWrap}>
+                    <Text style={styles.ooInputIcon}>📋</Text>
+                    <TextInput
+                      style={styles.ooInput}
+                      value={orderId}
+                      onChangeText={setOrderId}
+                      placeholder="Paste Order ID…"
+                      placeholderTextColor="#475569"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    {orderId.length > 0 && (
+                      <Pressable onPress={() => setOrderId("")}>
+                        <Text style={styles.ooInputClear}>✕</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                  <Pressable
+                    style={[styles.ooLoadBtn, (!orderId.trim() || loading) && styles.ooLoadBtnDisabled]}
+                    disabled={!orderId.trim() || loading}
+                    onPress={loadOrder}
+                  >
+                    <Text style={styles.ooLoadBtnIcon}>{loading ? "⏳" : "📦"}</Text>
+                    <Text style={styles.ooLoadBtnText}>{loading ? "Loading…" : "Load Order"}</Text>
+                  </Pressable>
+                </View>
+
+                {/* Loaded order preview */}
+                {order && orderId && (
+                  <View style={[styles.ooOrderPreview, { borderLeftColor: orderStatusColor(order.status) }]}>
+                    <View style={styles.ooOrderPreviewHeader}>
+                      <Text style={styles.ooOrderPreviewId}>#{order.id.slice(0, 8).toUpperCase()}</Text>
+                      <View style={[styles.raStatusBadge, { backgroundColor: orderStatusColor(order.status) + "22", borderColor: orderStatusColor(order.status) }]}>
+                        <View style={[styles.raStatusDot, { backgroundColor: orderStatusColor(order.status) }]} />
+                        <Text style={[styles.raStatusText, { color: orderStatusColor(order.status) }]}>{titleCase(order.status)}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.ooOrderPreviewAmount}>{formatCurrency(order.total_paise)}</Text>
+                    {order.delivery_address ? (
+                      <View style={styles.raMetaRow}>
+                        <Text style={styles.raMetaIcon}>📍</Text>
+                        <Text style={styles.raMetaText} numberOfLines={1}>{order.delivery_address}</Text>
+                      </View>
+                    ) : null}
+                    {order.driver_name || order.driver_phone ? (
+                      <View style={styles.raMetaRow}>
+                        <Text style={styles.raMetaIcon}>🚗</Text>
+                        <Text style={styles.raMetaText}>{order.driver_name ?? order.driver_phone ?? "Driver assigned"}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                )}
+
+                {/* No order hint */}
+                {!orderId && (
+                  <View style={styles.ooHint}>
+                    <Text style={styles.ooHintIcon}>💡</Text>
+                    <Text style={styles.ooHintText}>Paste an Order ID above or pick one from Order + Payment Monitoring.</Text>
+                  </View>
+                )}
+
+                {/* Driver assignment */}
+                <View style={styles.ooSection}>
+                  <Text style={styles.ooSectionTitle}>Driver Assignment</Text>
+                  <View style={styles.ooDriverMeta}>
+                    <View style={styles.ooDriverChip}>
+                      <Text style={styles.ooDriverChipIcon}>🚗</Text>
+                      <Text style={styles.ooDriverChipText}>{deliveryDrivers.length} drivers available</Text>
+                    </View>
+                    {driverLoad.length > 0 && (
+                      <View style={styles.ooDriverChip}>
+                        <Text style={styles.ooDriverChipIcon}>⚡</Text>
+                        <Text style={styles.ooDriverChipText}>{driverLoad.filter(d => d.active_orders > 0).length} active</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.ooAssignRow}>
+                    <Pressable
+                      style={[styles.ooAssignBtn, (!orderId || loading) && styles.ooAssignBtnDisabled]}
+                      disabled={!orderId || loading}
+                      onPress={() => run("Assigning best driver", () => api.assignBestDriver(token, orderId))}
+                    >
+                      <Text style={styles.ooAssignBtnIcon}>🎯</Text>
+                      <View>
+                        <Text style={styles.ooAssignBtnLabel}>Assign Best Driver</Text>
+                        <Text style={styles.ooAssignBtnSub}>AI-optimised selection</Text>
+                      </View>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.ooAssignBtn, styles.ooAssignBtnSecondary, (!orderId || !deliveryDrivers[0] || loading) && styles.ooAssignBtnDisabled]}
+                      disabled={!orderId || !deliveryDrivers[0] || loading}
+                      onPress={() => run("Assigning driver", () => api.assignDriver(token, orderId, deliveryDrivers[0].id))}
+                    >
+                      <Text style={styles.ooAssignBtnIcon}>👤</Text>
+                      <View>
+                        <Text style={styles.ooAssignBtnLabel}>First Available</Text>
+                        <Text style={styles.ooAssignBtnSub}>{deliveryDrivers[0]?.phone ?? "No driver"}</Text>
+                      </View>
+                    </Pressable>
+                  </View>
+                </View>
+
+                {/* Status actions */}
+                {orderId && (
+                  <View style={styles.ooSection}>
+                    <Text style={styles.ooSectionTitle}>Status Override</Text>
+                    <View style={styles.ooStatusRow}>
+                      {(["preparing", "ready", "picked_up", "delivered"] as const).map(s => (
+                        <Pressable
+                          key={s}
+                          style={[styles.ooStatusBtn, { borderColor: orderStatusColor(s) }]}
+                          onPress={() => run(`Marking ${s}`, () => api.updateOrderStatus(token, orderId, s))}
+                        >
+                          <View style={[styles.ooStatusBtnDot, { backgroundColor: orderStatusColor(s) }]} />
+                          <Text style={[styles.ooStatusBtnText, { color: orderStatusColor(s) }]}>{titleCase(s)}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Danger zone */}
+                {orderId && (
+                  <View style={styles.ooDangerZone}>
+                    <Text style={styles.ooDangerTitle}>⚠️ Danger Zone</Text>
+                    <View style={styles.ooDangerRow}>
+                      <Pressable
+                        style={styles.ooDangerBtn}
+                        onPress={() => Alert.alert("Cancel Order", "This will cancel the order. Are you sure?", [
+                          { text: "Cancel", style: "cancel" },
+                          { text: "Confirm", style: "destructive", onPress: () => run("Cancelling order", () => api.cancelOrder(token, orderId, "Admin cancellation")) }
+                        ])}
+                      >
+                        <Text style={styles.ooDangerBtnText}>✕ Cancel Order</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.ooDangerBtn, styles.ooDangerBtnAlt]}
+                        onPress={() => Alert.alert("Request Refund", "Issue a full refund for this order?", [
+                          { text: "No", style: "cancel" },
+                          { text: "Refund", style: "destructive", onPress: () => run("Requesting refund", () => api.requestRefund(token, orderId, "Admin refund")) }
+                        ])}
+                      >
+                        <Text style={styles.ooDangerBtnText}>↩ Refund</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
               </>
             )}
 
             {/* User Management */}
-            <Divider label="User Management" icon="👥" subtitle={adminUsers.length > 0 ? `${adminUsers.length} users loaded · search by name, phone or role` : "Search or load dashboard to see users"} collapsed={isCollapsed("User Management")} onPress={() => togglePanel("User Management")} />
+            <Divider label="User Management" icon="👥" subtitle={adminUsers.length > 0 ? `${adminUsers.length} users · ${adminUsers.filter(u => u.is_banned).length} banned` : "Search or load dashboard to see users"} collapsed={isCollapsed("User Management")} onPress={() => togglePanel("User Management")} />
             {!isCollapsed("User Management") && (
               <>
-            {/* Search bar */}
-            <View style={styles.umSearchRow}>
-              <View style={styles.umSearchInputWrap}>
-                <Text style={styles.umSearchIcon}>🔍</Text>
-                <TextInput
-                  style={styles.umSearchInput}
-                  placeholder="Name, phone, email or User ID…"
-                  placeholderTextColor="#94a3b8"
-                  value={userSearch}
-                  onChangeText={text => { setUserSearch(text); if (!text) setUserSearchResults(null); }}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                {userSearch.length > 0 && (
-                  <Pressable onPress={() => { setUserSearch(""); setUserSearchResults(null); }}>
-                    <Text style={styles.umSearchClear}>✕</Text>
-                  </Pressable>
-                )}
-              </View>
-              <Pressable
-                style={[styles.umSearchBtn, (!userSearch.trim() || loading) && styles.umSearchBtnDisabled]}
-                disabled={!userSearch.trim() || loading}
-                onPress={async () => {
-                  const result = await run("Searching users", () => api.adminUsersSearch(token, userSearch.trim()));
-                  if (result) setUserSearchResults(result as typeof userSearchResults);
-                }}
-              >
-                <Text style={styles.umSearchBtnText}>{loading ? "…" : "Search"}</Text>
-              </Pressable>
-            </View>
-
-            {(() => {
-              const q = userSearch.trim().toLowerCase();
-              const displayUsers = userSearchResults
-                ?? (q
-                  ? adminUsers.filter(u =>
-                      (u.name ?? "").toLowerCase().includes(q) ||
-                      (u.phone ?? "").includes(q) ||
-                      (u.email ?? "").toLowerCase().includes(q) ||
-                      u.id.toLowerCase().startsWith(q)
-                    )
-                  : Object.values(
-                      adminUsers.reduce<Record<string, typeof adminUsers[0]>>((acc, u) => {
-                        if (!acc[u.role]) acc[u.role] = u;
-                        return acc;
-                      }, {})
-                    ).slice(0, 5));
-
-              if (adminUsers.length === 0 && !userSearchResults) {
-                return <Text style={styles.emptyHint}>Load admin dashboard to see users.</Text>;
-              }
-              if (displayUsers.length === 0) {
-                return <Text style={styles.emptyHint}>No users match "{userSearch}".</Text>;
-              }
-
-              return (
-                <>
-                  <View style={styles.umMeta}>
-                    <Text style={styles.umMetaCount}>{displayUsers.length} user{displayUsers.length !== 1 ? "s" : ""}</Text>
-                    {userSearchResults && <View style={styles.umMetaTag}><Text style={styles.umMetaTagText}>Search results</Text></View>}
+                {/* Role distribution stats */}
+                {adminUsers.length > 0 && (
+                  <View style={styles.umRoleStats}>
+                    {(["customer", "driver", "restaurant", "admin", "super_admin", "delivery_admin"] as const).map(r => {
+                      const count = adminUsers.filter(u => u.role === r).length;
+                      if (count === 0) return null;
+                      const accent = roleAccent(r);
+                      return (
+                        <View key={r} style={[styles.umRoleStatPill, { borderColor: accent + "44" }]}>
+                          <View style={[styles.umRoleStatDot, { backgroundColor: accent }]} />
+                          <Text style={[styles.umRoleStatCount, { color: accent }]}>{count}</Text>
+                          <Text style={styles.umRoleStatLabel}>{r === "super_admin" ? "S.Admin" : r === "delivery_admin" ? "D.Admin" : titleCase(r)}</Text>
+                        </View>
+                      );
+                    })}
+                    {adminUsers.filter(u => u.is_banned).length > 0 && (
+                      <View style={[styles.umRoleStatPill, { borderColor: "#ef444444" }]}>
+                        <View style={[styles.umRoleStatDot, { backgroundColor: "#ef4444" }]} />
+                        <Text style={[styles.umRoleStatCount, { color: "#ef4444" }]}>{adminUsers.filter(u => u.is_banned).length}</Text>
+                        <Text style={styles.umRoleStatLabel}>Banned</Text>
+                      </View>
+                    )}
                   </View>
-                  {displayUsers.map(item => {
-                    const isExpanded = expandedUserId === item.id;
-                    const orders = userOrdersMap[item.id];
-                    const displayName = item.name ?? item.phone ?? item.email ?? item.id.slice(0, 8);
-                    const accent = roleAccent(item.role);
-                    const initial = (displayName[0] ?? "?").toUpperCase();
+                )}
+
+                {/* Search bar */}
+                <View style={styles.raSearchRow}>
+                  <Text style={styles.raSearchIcon}>🔍</Text>
+                  <TextInput
+                    style={styles.raSearchInput}
+                    placeholder="Name, phone, email or User ID…"
+                    placeholderTextColor="#475569"
+                    value={userSearch}
+                    onChangeText={text => { setUserSearch(text); if (!text) setUserSearchResults(null); }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  {userSearch.length > 0 && (
+                    <Pressable onPress={() => { setUserSearch(""); setUserSearchResults(null); }}>
+                      <Text style={styles.ooInputClear}>✕</Text>
+                    </Pressable>
+                  )}
+                  {userSearch.trim().length > 0 && (
+                    <Pressable
+                      style={[styles.raSearchBtn, (!userSearch.trim() || loading) && { opacity: 0.4 }]}
+                      disabled={!userSearch.trim() || loading}
+                      onPress={async () => {
+                        const result = await run("Searching users", () => api.adminUsersSearch(token, userSearch.trim()));
+                        if (result) setUserSearchResults(result as typeof userSearchResults);
+                      }}
+                    >
+                      <Text style={styles.raSearchBtnText}>{loading ? "…" : "Search"}</Text>
+                    </Pressable>
+                  )}
+                </View>
+
+                {/* User cards */}
+                {(() => {
+                  const q = userSearch.trim().toLowerCase();
+                  const displayUsers = userSearchResults
+                    ?? (q
+                      ? adminUsers.filter(u =>
+                          (u.name ?? "").toLowerCase().includes(q) ||
+                          (u.phone ?? "").includes(q) ||
+                          (u.email ?? "").toLowerCase().includes(q) ||
+                          u.id.toLowerCase().startsWith(q)
+                        )
+                      : adminUsers.slice(0, 15));
+
+                  if (adminUsers.length === 0 && !userSearchResults) {
                     return (
-                      <View key={item.id} style={[styles.umCard, item.is_banned && styles.umCardBanned]}>
-                        <Pressable onPress={() => setExpandedUserId(isExpanded ? null : item.id)}>
-                          <View style={styles.umCardHeader}>
-                            <View style={[styles.umAvatar, { backgroundColor: accent + "22" }]}>
-                              <Text style={[styles.umAvatarText, { color: accent }]}>{initial}</Text>
-                            </View>
-                            <View style={styles.umInfo}>
-                              <View style={styles.umNameRow}>
-                                <Text style={styles.umName} numberOfLines={1}>{displayName}</Text>
-                                {item.is_banned && <View style={styles.umBannedBadge}><Text style={styles.umBannedBadgeText}>BANNED</Text></View>}
-                              </View>
-                              <Text style={styles.umContact} numberOfLines={1}>{item.phone ?? item.email ?? item.id.slice(0, 16)}</Text>
-                            </View>
-                            <View style={styles.umCardRight}>
-                              <View style={[styles.umRoleBadge, { backgroundColor: accent + "18" }]}>
-                                <Text style={[styles.umRoleBadgeText, { color: accent }]}>{titleCase(item.role)}</Text>
-                              </View>
-                              <Text style={styles.umChevron}>{isExpanded ? "▲" : "▼"}</Text>
-                            </View>
-                          </View>
-                        </Pressable>
+                      <View style={styles.raEmpty}>
+                        <Text style={styles.raEmptyIcon}>👥</Text>
+                        <Text style={styles.raEmptyText}>No users loaded</Text>
+                        <Text style={styles.raEmptyHint}>Refresh the admin dashboard to load user data.</Text>
+                      </View>
+                    );
+                  }
+                  if (displayUsers.length === 0) {
+                    return (
+                      <View style={styles.raEmpty}>
+                        <Text style={styles.raEmptyIcon}>🔍</Text>
+                        <Text style={styles.raEmptyText}>No results for "{userSearch}"</Text>
+                      </View>
+                    );
+                  }
 
-                        {isExpanded && (
-                          <View style={styles.umExpanded}>
-                            <Text style={styles.umSectionLabel}>CHANGE ROLE</Text>
-                            <View style={styles.umRoleChips}>
-                              {(["customer", "driver", "restaurant", "admin", "super_admin", "delivery_admin"] as const).map(r => (
-                                <Pressable
-                                  key={r}
-                                  style={[
-                                    styles.umRoleChip,
-                                    { borderColor: roleAccent(r) + "55" },
-                                    item.role === r && { backgroundColor: roleAccent(r), borderColor: roleAccent(r) }
-                                  ]}
-                                  disabled={loading || item.role === r}
-                                  onPress={async () => {
-                                    try {
-                                      const updated = await api.changeUserRole(token, item.id, r);
-                                      const patch = { role: updated.role };
-                                      setAdminUsers(prev => prev.map(u => u.id === item.id ? { ...u, ...patch } : u));
-                                      setUserSearchResults(prev => prev ? prev.map(u => u.id === item.id ? { ...u, ...patch } : u) : null);
-                                    } catch (err) {
-                                      Alert.alert("Role change failed", err instanceof Error ? err.message : "Unexpected error");
-                                    }
-                                  }}
-                                >
-                                  <Text style={[styles.umRoleChipText, item.role === r && { color: "#ffffff" }]}>{titleCase(r)}</Text>
-                                </Pressable>
-                              ))}
-                            </View>
-
-                            <View style={styles.umActions}>
-                              <Pressable
-                                style={[styles.umActionBtn, item.is_banned ? styles.umActionBtnUnban : styles.umActionBtnBan]}
-                                disabled={loading}
-                                onPress={async () => {
-                                  const updated = await run(item.is_banned ? "Unbanning user" : "Banning user", () => api.banUser(token, item.id, !item.is_banned));
-                                  if (updated) {
-                                    const patch = { is_banned: (updated as typeof item).is_banned };
-                                    setAdminUsers(prev => prev.map(u => u.id === item.id ? { ...u, ...patch } : u));
-                                    setUserSearchResults(prev => prev ? prev.map(u => u.id === item.id ? { ...u, ...patch } : u) : null);
-                                  }
-                                }}
-                              >
-                                <Text style={[styles.umActionBtnText, item.is_banned ? { color: "#d97706" } : { color: "#ef4444" }]}>
-                                  {item.is_banned ? "🔓 Unban" : "🚫 Ban"}
-                                </Text>
-                              </Pressable>
-                              <Pressable
-                                style={styles.umActionBtn}
-                                disabled={loading}
-                                onPress={async () => {
-                                  if (orders) { setUserOrdersMap(prev => { const next = { ...prev }; delete next[item.id]; return next; }); return; }
-                                  const result = await run("Loading order history", () => api.adminUserOrders(token, item.id));
-                                  if (result) setUserOrdersMap(prev => ({ ...prev, [item.id]: result as typeof orders }));
-                                }}
-                              >
-                                <Text style={styles.umActionBtnText}>{orders ? "Hide Orders" : "📦 Orders"}</Text>
-                              </Pressable>
-                            </View>
-
-                            {orders && orders.length === 0 && <Text style={styles.emptyHint}>No orders for this user.</Text>}
-                            {orders && orders.map(o => (
-                              <View key={o.id} style={styles.umOrderRow}>
-                                <View style={[styles.umOrderDot, { backgroundColor: orderStatusColor(o.status) }]} />
-                                <View style={{ flex: 1 }}>
-                                  <Text style={styles.umOrderName}>{o.restaurant_name ?? "—"}</Text>
-                                  <Text style={styles.umOrderMeta}>{titleCase(o.status)} · {formatCurrency(o.total_paise)} · {new Date(o.created_at).toLocaleDateString()}</Text>
-                                </View>
-                              </View>
-                            ))}
+                  return (
+                    <>
+                      <View style={styles.umResultsMeta}>
+                        <Text style={styles.umResultsCount}>{displayUsers.length} user{displayUsers.length !== 1 ? "s" : ""}</Text>
+                        {userSearchResults && (
+                          <View style={styles.umResultsTag}>
+                            <Text style={styles.umResultsTagText}>Search results</Text>
                           </View>
                         )}
                       </View>
-                    );
-                  })}
-                </>
-              );
-            })()}
+                      {displayUsers.map(item => {
+                        const isExpanded = expandedUserId === item.id;
+                        const orders = userOrdersMap[item.id];
+                        const displayName = item.name ?? item.phone ?? item.email ?? item.id.slice(0, 8);
+                        const accent = roleAccent(item.role);
+                        const initial = (displayName[0] ?? "?").toUpperCase();
+                        return (
+                          <View key={item.id} style={[styles.umCard, { borderLeftColor: accent }, item.is_banned && styles.umCardBanned]}>
+                            <Pressable onPress={() => setExpandedUserId(isExpanded ? null : item.id)}>
+                              <View style={styles.umCardHeader}>
+                                <View style={[styles.umAvatar, { backgroundColor: accent + "22" }]}>
+                                  <Text style={[styles.umAvatarText, { color: accent }]}>{initial}</Text>
+                                </View>
+                                <View style={styles.umInfo}>
+                                  <View style={styles.umNameRow}>
+                                    <Text style={styles.umName} numberOfLines={1}>{displayName}</Text>
+                                    {item.is_banned && (
+                                      <View style={styles.umBannedBadge}>
+                                        <Text style={styles.umBannedBadgeText}>BANNED</Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                  <Text style={styles.umContact} numberOfLines={1}>
+                                    {item.phone ?? item.email ?? item.id.slice(0, 16)}
+                                  </Text>
+                                  {item.created_at && (
+                                    <Text style={styles.umJoined}>Joined {new Date(item.created_at).toLocaleDateString()}</Text>
+                                  )}
+                                </View>
+                                <View style={styles.umCardRight}>
+                                  <View style={[styles.umRoleBadge, { backgroundColor: accent + "18", borderColor: accent + "44" }]}>
+                                    <Text style={[styles.umRoleBadgeText, { color: accent }]}>{titleCase(item.role)}</Text>
+                                  </View>
+                                  <Text style={styles.umChevron}>{isExpanded ? "▲" : "▼"}</Text>
+                                </View>
+                              </View>
+                            </Pressable>
+
+                            {isExpanded && (
+                              <View style={styles.umExpanded}>
+                                <Text style={styles.umSectionLabel}>CHANGE ROLE</Text>
+                                <View style={styles.umRoleChips}>
+                                  {(["customer", "driver", "restaurant", "admin", "super_admin", "delivery_admin"] as const).map(r => (
+                                    <Pressable
+                                      key={r}
+                                      style={[
+                                        styles.umRoleChip,
+                                        { borderColor: roleAccent(r) + "55" },
+                                        item.role === r && { backgroundColor: roleAccent(r), borderColor: roleAccent(r) }
+                                      ]}
+                                      disabled={loading || item.role === r}
+                                      onPress={async () => {
+                                        try {
+                                          const updated = await api.changeUserRole(token, item.id, r);
+                                          const patch = { role: updated.role };
+                                          setAdminUsers(prev => prev.map(u => u.id === item.id ? { ...u, ...patch } : u));
+                                          setUserSearchResults(prev => prev ? prev.map(u => u.id === item.id ? { ...u, ...patch } : u) : null);
+                                        } catch (err) {
+                                          Alert.alert("Role change failed", err instanceof Error ? err.message : "Unexpected error");
+                                        }
+                                      }}
+                                    >
+                                      <Text style={[styles.umRoleChipText, item.role === r && { color: "#fff" }]}>{titleCase(r)}</Text>
+                                    </Pressable>
+                                  ))}
+                                </View>
+
+                                <View style={styles.umActions}>
+                                  <Pressable
+                                    style={[styles.umActionBtn, item.is_banned ? styles.umActionBtnUnban : styles.umActionBtnBan]}
+                                    disabled={loading}
+                                    onPress={async () => {
+                                      const updated = await run(item.is_banned ? "Unbanning user" : "Banning user", () => api.banUser(token, item.id, !item.is_banned));
+                                      if (updated) {
+                                        const patch = { is_banned: (updated as typeof item).is_banned };
+                                        setAdminUsers(prev => prev.map(u => u.id === item.id ? { ...u, ...patch } : u));
+                                        setUserSearchResults(prev => prev ? prev.map(u => u.id === item.id ? { ...u, ...patch } : u) : null);
+                                      }
+                                    }}
+                                  >
+                                    <Text style={[styles.umActionBtnText, item.is_banned ? { color: "#fbbf24" } : { color: "#fca5a5" }]}>
+                                      {item.is_banned ? "🔓 Unban User" : "🚫 Ban User"}
+                                    </Text>
+                                  </Pressable>
+                                  <Pressable
+                                    style={styles.umActionBtn}
+                                    disabled={loading}
+                                    onPress={async () => {
+                                      if (orders) { setUserOrdersMap(prev => { const next = { ...prev }; delete next[item.id]; return next; }); return; }
+                                      const result = await run("Loading order history", () => api.adminUserOrders(token, item.id));
+                                      if (result) setUserOrdersMap(prev => ({ ...prev, [item.id]: result as typeof orders }));
+                                    }}
+                                  >
+                                    <Text style={styles.umActionBtnText}>{orders ? "▲ Hide Orders" : "📦 Order History"}</Text>
+                                  </Pressable>
+                                </View>
+
+                                {orders && orders.length === 0 && (
+                                  <Text style={styles.umOrderEmpty}>No orders for this user.</Text>
+                                )}
+                                {orders && orders.map(o => (
+                                  <View key={o.id} style={styles.umOrderRow}>
+                                    <View style={[styles.umOrderDot, { backgroundColor: orderStatusColor(o.status) }]} />
+                                    <View style={{ flex: 1 }}>
+                                      <Text style={styles.umOrderName}>{o.restaurant_name ?? "—"}</Text>
+                                      <Text style={styles.umOrderMeta}>{titleCase(o.status)} · {formatCurrency(o.total_paise)} · {new Date(o.created_at).toLocaleDateString()}</Text>
+                                    </View>
+                                  </View>
+                                ))}
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })}
+                    </>
+                  );
+                })()}
               </>
             )}
 
@@ -1633,60 +1810,143 @@ export default function App() {
             )}
 
             {/* Order + Payment Monitoring */}
-            <Divider label="Order + Payment Monitoring" icon="📊" subtitle="Search and monitor orders across all restaurants" collapsed={isCollapsed("Order + Payment Monitoring")} onPress={() => togglePanel("Order + Payment Monitoring")} />
+            <Divider label="Order + Payment Monitoring" icon="📊" subtitle={adminOrders.length > 0 ? `${adminOrders.length} orders · ${paymentReports.reduce((s, r) => s + r.transactions, 0)} payments` : "Search and monitor orders across all restaurants"} collapsed={isCollapsed("Order + Payment Monitoring")} onPress={() => togglePanel("Order + Payment Monitoring")} />
             {!isCollapsed("Order + Payment Monitoring") && (
               <>
-            <View style={styles.orderSearchRow}>
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                placeholder="Restaurant name or Order ID…"
-                placeholderTextColor="#94a3b8"
-                value={orderSearch}
-                onChangeText={text => { setOrderSearch(text); if (!text) setOrderSearchResults(null); }}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <Pressable
-                style={[styles.button, { marginLeft: 8 }, (!orderSearch.trim() || loading) && styles.buttonDisabled]}
-                disabled={!orderSearch.trim() || loading}
-                onPress={async () => {
-                  const result = await run("Searching orders", () => api.adminOrdersSearch(token, orderSearch.trim()));
-                  if (result) setOrderSearchResults(result as typeof orderSearchResults);
-                }}
-              >
-                <Text style={styles.buttonText}>Load</Text>
-              </Pressable>
-            </View>
-            {(() => {
-              const q = orderSearch.trim().toLowerCase();
-              const displayOrders = orderSearchResults
-                ?? (q
-                  ? adminOrders.filter(o =>
-                      (o.restaurant_name ?? "").toLowerCase().includes(q) ||
-                      o.id.toLowerCase().startsWith(q)
-                    )
-                  : Object.values(
-                      adminOrders.reduce<Record<string, typeof adminOrders[0]>>((acc, o) => {
-                        if (!acc[o.status]) acc[o.status] = o;
-                        return acc;
-                      }, {})
-                    ).slice(0, 5));
-              if (adminOrders.length === 0 && !orderSearchResults) {
-                return <Text style={styles.emptyHint}>No orders yet. Load admin dashboard first.</Text>;
-              }
-              if (displayOrders.length === 0) {
-                return <Text style={styles.emptyHint}>No orders match "{orderSearch}".</Text>;
-              }
-              return displayOrders.map(item => (
-                <OrderRow key={item.id} restaurantName={item.restaurant_name ?? "Unknown Restaurant"} orderId={item.id} status={item.status} totalPaise={item.total_paise} />
-              ));
-            })()}
-            {paymentReports.length === 0
-              ? <Text style={styles.emptyHint}>No payment report data.</Text>
-              : paymentReports.slice(0, 5).map(item => (
-                <ListItem key={`${item.provider}-${item.status}`} title={`${titleCase(item.provider)} — ${titleCase(item.status)}`} subtitle={`${item.transactions} tx · ${formatCurrency(item.amount_paise)}`} />
-              ))
-            }
+                {/* Order status summary */}
+                {dashboard && dashboard.ordersByStatus.length > 0 && (
+                  <View style={styles.opmStatusRow}>
+                    {dashboard.ordersByStatus.map(s => (
+                      <View key={s.status} style={styles.opmStatusPill}>
+                        <View style={[styles.opmStatusDot, { backgroundColor: orderStatusColor(s.status) }]} />
+                        <Text style={[styles.opmStatusCount, { color: orderStatusColor(s.status) }]}>{s.count}</Text>
+                        <Text style={styles.opmStatusLabel}>{titleCase(s.status)}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Payment provider cards */}
+                {paymentReports.length > 0 && (
+                  <View style={styles.opmPaySection}>
+                    <Text style={styles.opmPayTitle}>💳 Payment Providers</Text>
+                    <View style={styles.opmPayGrid}>
+                      {paymentReports.map(item => {
+                        const isSuccess = item.status === "success" || item.status === "captured";
+                        const accent = isSuccess ? "#22c55e" : item.status === "failed" ? "#ef4444" : "#eab308";
+                        return (
+                          <View key={`${item.provider}-${item.status}`} style={[styles.opmPayCard, { borderTopColor: accent }]}>
+                            <View style={styles.opmPayCardHeader}>
+                              <Text style={styles.opmPayProvider}>{titleCase(item.provider)}</Text>
+                              <View style={[styles.opmPayStatus, { backgroundColor: accent + "22" }]}>
+                                <View style={[styles.opmPayStatusDot, { backgroundColor: accent }]} />
+                                <Text style={[styles.opmPayStatusText, { color: accent }]}>{titleCase(item.status)}</Text>
+                              </View>
+                            </View>
+                            <Text style={[styles.opmPayAmount, { color: accent }]}>{formatCurrency(item.amount_paise)}</Text>
+                            <Text style={styles.opmPayTx}>{item.transactions} transactions</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                {/* Search */}
+                <View style={styles.raSearchRow}>
+                  <Text style={styles.raSearchIcon}>🔍</Text>
+                  <TextInput
+                    style={styles.raSearchInput}
+                    placeholder="Restaurant name or Order ID…"
+                    placeholderTextColor="#475569"
+                    value={orderSearch}
+                    onChangeText={text => { setOrderSearch(text); if (!text) setOrderSearchResults(null); }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  {orderSearch.trim().length > 0 && (
+                    <Pressable
+                      style={[styles.raSearchBtn, (!orderSearch.trim() || loading) && { opacity: 0.4 }]}
+                      disabled={!orderSearch.trim() || loading}
+                      onPress={async () => {
+                        const result = await run("Searching orders", () => api.adminOrdersSearch(token, orderSearch.trim()));
+                        if (result) setOrderSearchResults(result as typeof orderSearchResults);
+                      }}
+                    >
+                      <Text style={styles.raSearchBtnText}>Search</Text>
+                    </Pressable>
+                  )}
+                </View>
+
+                {/* Order cards */}
+                {(() => {
+                  const q = orderSearch.trim().toLowerCase();
+                  const displayOrders = orderSearchResults
+                    ?? (q
+                      ? adminOrders.filter(o =>
+                          (o.restaurant_name ?? "").toLowerCase().includes(q) ||
+                          o.id.toLowerCase().startsWith(q)
+                        )
+                      : adminOrders.slice(0, 10));
+                  if (adminOrders.length === 0 && !orderSearchResults) {
+                    return (
+                      <View style={styles.raEmpty}>
+                        <Text style={styles.raEmptyIcon}>📦</Text>
+                        <Text style={styles.raEmptyText}>No orders loaded</Text>
+                        <Text style={styles.raEmptyHint}>Refresh the admin dashboard to load order data.</Text>
+                      </View>
+                    );
+                  }
+                  if (displayOrders.length === 0) {
+                    return (
+                      <View style={styles.raEmpty}>
+                        <Text style={styles.raEmptyIcon}>🔍</Text>
+                        <Text style={styles.raEmptyText}>No results for "{orderSearch}"</Text>
+                      </View>
+                    );
+                  }
+                  return displayOrders.map(item => {
+                    const statusColor = orderStatusColor(item.status);
+                    return (
+                      <View key={item.id} style={[styles.opmOrderCard, { borderLeftColor: statusColor }]}>
+                        <View style={styles.opmOrderHeader}>
+                          <Text style={styles.opmOrderRestaurant} numberOfLines={1}>{item.restaurant_name ?? "Unknown Restaurant"}</Text>
+                          <View style={[styles.raStatusBadge, { backgroundColor: statusColor + "22", borderColor: statusColor }]}>
+                            <View style={[styles.raStatusDot, { backgroundColor: statusColor }]} />
+                            <Text style={[styles.raStatusText, { color: statusColor }]}>{titleCase(item.status)}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.opmOrderMeta}>
+                          <Text style={styles.opmOrderId}>#{item.id.slice(0, 8).toUpperCase()}</Text>
+                          <Text style={styles.opmOrderDot}>·</Text>
+                          <Text style={[styles.opmOrderAmount, { color: statusColor }]}>{formatCurrency(item.total_paise)}</Text>
+                          {item.created_at && (
+                            <>
+                              <Text style={styles.opmOrderDot}>·</Text>
+                              <Text style={styles.opmOrderDate}>{new Date(item.created_at).toLocaleDateString()}</Text>
+                            </>
+                          )}
+                        </View>
+                        {(item.customer_phone || item.driver_phone) && (
+                          <View style={styles.opmOrderPhones}>
+                            {item.customer_phone && (
+                              <View style={styles.opmPhoneChip}>
+                                <Text style={styles.opmPhoneChipIcon}>👤</Text>
+                                <Text style={styles.opmPhoneChipText}>{item.customer_phone}</Text>
+                              </View>
+                            )}
+                            {item.driver_phone && (
+                              <View style={styles.opmPhoneChip}>
+                                <Text style={styles.opmPhoneChipIcon}>🚗</Text>
+                                <Text style={styles.opmPhoneChipText}>{item.driver_phone}</Text>
+                              </View>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    );
+                  });
+                })()}
               </>
             )}
 
@@ -2749,86 +3009,89 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     gap: 6,
   },
-  umSearchIcon: { fontSize: 14 },
-  umSearchInput: {
-    flex: 1,
-    paddingVertical: Platform.OS === "ios" ? 11 : 8,
-    fontSize: 14,
-    color: "#1e293b",
-  },
-  umSearchClear: { color: "#94a3b8", fontSize: 14, fontWeight: "700" as const, padding: 4 },
-  umSearchBtn: {
-    backgroundColor: TEAL,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === "ios" ? 12 : 9,
-  },
-  umSearchBtnDisabled: { backgroundColor: "#cbd5e1" },
-  umSearchBtnText: { color: "#ffffff", fontWeight: "700" as const, fontSize: 14 },
-  umMeta: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
-  umMetaCount: { color: "#64748b", fontSize: 12, fontWeight: "600" as const },
-  umMetaTag: { backgroundColor: "#f0fdf4", borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: "#bbf7d0" },
-  umMetaTagText: { color: "#15803d", fontSize: 11, fontWeight: "700" as const },
+  /* role stats */
+  umRoleStats: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6, marginBottom: 12 },
+  umRoleStatPill: { flexDirection: "row" as const, alignItems: "center" as const, gap: 5, backgroundColor: "#1e293b", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1 },
+  umRoleStatDot: { width: 6, height: 6, borderRadius: 3 },
+  umRoleStatCount: { fontSize: 13, fontWeight: "700" as const },
+  umRoleStatLabel: { color: "#64748b", fontSize: 11 },
+  /* results meta */
+  umResultsMeta: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, marginBottom: 8 },
+  umResultsCount: { color: "#64748b", fontSize: 12, fontWeight: "600" as const },
+  umResultsTag: { backgroundColor: "#0f2d1e", borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: "#166534" },
+  umResultsTagText: { color: "#4ade80", fontSize: 11, fontWeight: "700" as const },
+  /* card */
   umCard: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "#0f172a",
     borderRadius: 12,
+    borderLeftWidth: 4,
     borderWidth: 1,
-    borderColor: "#f1f5f9",
+    borderColor: "#1e293b",
     overflow: "hidden" as const,
-    shadowColor: "#0f172a",
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    marginBottom: 8,
   },
-  umCardBanned: { borderColor: "#fecaca", backgroundColor: "#fff8f8" },
+  umCardBanned: { borderColor: "#7f1d1d", backgroundColor: "#1c0a0a" },
   umCardHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 12, padding: 12 },
   umAvatar: { width: 42, height: 42, borderRadius: 21, alignItems: "center" as const, justifyContent: "center" as const },
   umAvatarText: { fontSize: 18, fontWeight: "800" as const },
   umInfo: { flex: 1, gap: 2 },
   umNameRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 },
-  umName: { fontSize: 14, fontWeight: "700" as const, color: "#0f172a", flex: 1 },
-  umBannedBadge: { backgroundColor: "#fef2f2", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 1, borderColor: "#fecaca" },
-  umBannedBadgeText: { color: "#ef4444", fontSize: 9, fontWeight: "800" as const, letterSpacing: 0.5 },
+  umName: { fontSize: 14, fontWeight: "700" as const, color: "#f1f5f9", flex: 1 },
+  umBannedBadge: { backgroundColor: "#450a0a", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 1, borderColor: "#dc2626" },
+  umBannedBadgeText: { color: "#fca5a5", fontSize: 9, fontWeight: "800" as const, letterSpacing: 0.5 },
   umContact: { fontSize: 12, color: "#64748b" },
+  umJoined: { fontSize: 10, color: "#334155", marginTop: 1 },
   umCardRight: { alignItems: "flex-end" as const, gap: 4 },
-  umRoleBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  umRoleBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1 },
   umRoleBadgeText: { fontSize: 11, fontWeight: "700" as const },
-  umChevron: { color: "#94a3b8", fontSize: 11 },
+  umChevron: { color: "#475569", fontSize: 11 },
+  /* expanded section */
   umExpanded: {
     borderTopWidth: 1,
-    borderTopColor: "#f1f5f9",
+    borderTopColor: "#1e293b",
     padding: 12,
     gap: 10,
-    backgroundColor: "#fafafa",
+    backgroundColor: "#080f1a",
   },
-  umSectionLabel: { color: "#94a3b8", fontSize: 10, fontWeight: "700" as const, letterSpacing: 1.5 },
+  umSectionLabel: { color: "#475569", fontSize: 10, fontWeight: "700" as const, letterSpacing: 1.5 },
   umRoleChips: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6 },
   umRoleChip: {
     borderRadius: 6,
     paddingVertical: 5,
     paddingHorizontal: 10,
     borderWidth: 1.5,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#0f172a",
   },
-  umRoleChipText: { color: "#334155", fontSize: 12, fontWeight: "600" as const },
+  umRoleChipText: { color: "#94a3b8", fontSize: 12, fontWeight: "600" as const },
   umActions: { flexDirection: "row" as const, gap: 8 },
   umActionBtn: {
     flex: 1,
     borderRadius: 8,
     paddingVertical: 9,
     alignItems: "center" as const,
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#1e293b",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#334155",
   },
-  umActionBtnBan: { backgroundColor: "#fef2f2", borderColor: "#fecaca" },
-  umActionBtnUnban: { backgroundColor: "#fffbeb", borderColor: "#fde68a" },
-  umActionBtnText: { fontSize: 12, fontWeight: "700" as const, color: "#374151" },
-  umOrderRow: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: 8, paddingVertical: 6, borderTopWidth: 1, borderTopColor: "#f1f5f9" },
+  umActionBtnBan: { backgroundColor: "#1c0a0a", borderColor: "#dc2626" },
+  umActionBtnUnban: { backgroundColor: "#1c1200", borderColor: "#d97706" },
+  umActionBtnText: { fontSize: 12, fontWeight: "700" as const, color: "#94a3b8" },
+  umOrderEmpty: { color: "#475569", fontSize: 12, textAlign: "center" as const, paddingVertical: 8 },
+  umOrderRow: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: 8, paddingVertical: 6, borderTopWidth: 1, borderTopColor: "#1e293b" },
   umOrderDot: { width: 8, height: 8, borderRadius: 4, marginTop: 4 },
-  umOrderName: { fontSize: 13, fontWeight: "600" as const, color: "#1e293b" },
-  umOrderMeta: { fontSize: 11, color: "#64748b", marginTop: 1 },
+  umOrderName: { fontSize: 13, fontWeight: "600" as const, color: "#cbd5e1" },
+  umOrderMeta: { fontSize: 11, color: "#475569", marginTop: 1 },
+  /* legacy - kept for other uses */
+  umSearchIcon: { fontSize: 14 },
+  umSearchInput: { flex: 1, paddingVertical: Platform.OS === "ios" ? 11 : 8, fontSize: 14, color: "#1e293b" },
+  umSearchClear: { color: "#94a3b8", fontSize: 14, fontWeight: "700" as const, padding: 4 },
+  umSearchBtn: { backgroundColor: TEAL, borderRadius: 10, paddingHorizontal: 16, paddingVertical: Platform.OS === "ios" ? 12 : 9 },
+  umSearchBtnDisabled: { backgroundColor: "#cbd5e1" },
+  umSearchBtnText: { color: "#ffffff", fontWeight: "700" as const, fontSize: 14 },
+  umMeta: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
+  umMetaCount: { color: "#64748b", fontSize: 12, fontWeight: "600" as const },
+  umMetaTag: { backgroundColor: "#f0fdf4", borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: "#bbf7d0" },
+  umMetaTagText: { color: "#15803d", fontSize: 11, fontWeight: "700" as const },
 
   orderSearchRow: {
     flexDirection: "row" as const,
@@ -3193,5 +3456,390 @@ const styles = StyleSheet.create({
     color: "#475569",
     fontSize: 12,
     textAlign: "center"
+  },
+
+  /* ── Order + Payment Monitoring panel ── */
+  opmStatusRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 12
+  },
+  opmStatusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#1e293b",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5
+  },
+  opmStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3
+  },
+  opmStatusCount: {
+    fontSize: 13,
+    fontWeight: "700" as const
+  },
+  opmStatusLabel: {
+    color: "#64748b",
+    fontSize: 11
+  },
+  opmPaySection: {
+    marginBottom: 12
+  },
+  opmPayTitle: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: "700" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.6,
+    marginBottom: 8
+  },
+  opmPayGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  opmPayCard: {
+    flex: 1,
+    minWidth: "45%",
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    borderTopWidth: 3,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    padding: 10
+  },
+  opmPayCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6
+  },
+  opmPayProvider: {
+    color: "#f1f5f9",
+    fontSize: 12,
+    fontWeight: "700" as const
+  },
+  opmPayStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2
+  },
+  opmPayStatusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3
+  },
+  opmPayStatusText: {
+    fontSize: 10,
+    fontWeight: "700" as const
+  },
+  opmPayAmount: {
+    fontSize: 16,
+    fontWeight: "800" as const,
+    marginBottom: 2
+  },
+  opmPayTx: {
+    color: "#64748b",
+    fontSize: 10
+  },
+  opmOrderCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    padding: 12,
+    marginBottom: 8
+  },
+  opmOrderHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6
+  },
+  opmOrderRestaurant: {
+    color: "#f1f5f9",
+    fontSize: 14,
+    fontWeight: "700" as const,
+    flex: 1
+  },
+  opmOrderMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6
+  },
+  opmOrderId: {
+    color: "#475569",
+    fontSize: 11,
+    fontFamily: "monospace"
+  },
+  opmOrderDot: {
+    color: "#334155",
+    fontSize: 11
+  },
+  opmOrderAmount: {
+    fontSize: 13,
+    fontWeight: "700" as const
+  },
+  opmOrderDate: {
+    color: "#475569",
+    fontSize: 11
+  },
+  opmOrderPhones: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap"
+  },
+  opmPhoneChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#1e293b",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3
+  },
+  opmPhoneChipIcon: {
+    fontSize: 10
+  },
+  opmPhoneChipText: {
+    color: "#94a3b8",
+    fontSize: 11
+  },
+
+  /* ── Order Operations panel ── */
+  ooInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10
+  },
+  ooInputWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#334155",
+    paddingHorizontal: 12,
+    height: 44
+  },
+  ooInputIcon: {
+    fontSize: 14,
+    marginRight: 8
+  },
+  ooInput: {
+    flex: 1,
+    color: "#f1f5f9",
+    fontSize: 13,
+    height: 44
+  },
+  ooInputClear: {
+    color: "#475569",
+    fontSize: 14,
+    paddingLeft: 6
+  },
+  ooLoadBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+    backgroundColor: TEAL,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10
+  },
+  ooLoadBtnDisabled: {
+    opacity: 0.4
+  },
+  ooLoadBtnIcon: {
+    fontSize: 14
+  },
+  ooLoadBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700" as const
+  },
+  ooOrderPreview: {
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    padding: 12,
+    marginBottom: 12,
+    gap: 4
+  },
+  ooOrderPreviewHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4
+  },
+  ooOrderPreviewId: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: "600" as const,
+    letterSpacing: 0.5
+  },
+  ooOrderPreviewAmount: {
+    color: "#f1f5f9",
+    fontSize: 20,
+    fontWeight: "800" as const,
+    marginBottom: 4
+  },
+  ooHint: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#1e293b",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12
+  },
+  ooHintIcon: {
+    fontSize: 14
+  },
+  ooHintText: {
+    color: "#64748b",
+    fontSize: 12,
+    flex: 1,
+    lineHeight: 17
+  },
+  ooSection: {
+    marginBottom: 14
+  },
+  ooSectionTitle: {
+    color: "#94a3b8",
+    fontSize: 10,
+    fontWeight: "700" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.7,
+    marginBottom: 8
+  },
+  ooDriverMeta: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 8
+  },
+  ooDriverChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#1e293b",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5
+  },
+  ooDriverChipIcon: {
+    fontSize: 11
+  },
+  ooDriverChipText: {
+    color: "#64748b",
+    fontSize: 11
+  },
+  ooAssignRow: {
+    flexDirection: "row",
+    gap: 8
+  },
+  ooAssignBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: TEAL,
+    padding: 12
+  },
+  ooAssignBtnSecondary: {
+    borderColor: "#334155"
+  },
+  ooAssignBtnDisabled: {
+    opacity: 0.35
+  },
+  ooAssignBtnIcon: {
+    fontSize: 20
+  },
+  ooAssignBtnLabel: {
+    color: "#f1f5f9",
+    fontSize: 12,
+    fontWeight: "700" as const
+  },
+  ooAssignBtnSub: {
+    color: "#64748b",
+    fontSize: 10,
+    marginTop: 1
+  },
+  ooStatusRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  ooStatusBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#0f172a",
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8
+  },
+  ooStatusBtnDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3
+  },
+  ooStatusBtnText: {
+    fontSize: 12,
+    fontWeight: "600" as const
+  },
+  ooDangerZone: {
+    backgroundColor: "#1c0a0a",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#7f1d1d",
+    padding: 12,
+    marginTop: 4
+  },
+  ooDangerTitle: {
+    color: "#fca5a5",
+    fontSize: 11,
+    fontWeight: "700" as const,
+    marginBottom: 10
+  },
+  ooDangerRow: {
+    flexDirection: "row",
+    gap: 8
+  },
+  ooDangerBtn: {
+    flex: 1,
+    backgroundColor: "#450a0a",
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#dc2626"
+  },
+  ooDangerBtnAlt: {
+    backgroundColor: "#1e293b",
+    borderColor: "#475569"
+  },
+  ooDangerBtnText: {
+    color: "#fca5a5",
+    fontSize: 13,
+    fontWeight: "700" as const
   }
 });
