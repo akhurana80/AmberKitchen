@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -49,6 +50,9 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("driver");
   const [notice, setNotice] = useState("Select a role, enter your phone number, and tap Send OTP to begin.");
   const [loading, setLoading] = useState(false);
+  const [userSearching, setUserSearching] = useState(false);
+  const [orderSearching, setOrderSearching] = useState(false);
+  const [uploadStep, setUploadStep] = useState<"" | "reading" | "uploading1" | "uploading2" | "uploading3" | "submitting">("");
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [location, setLocation] = useState({ lat: 28.6139, lng: 77.209 });
@@ -488,16 +492,19 @@ export default function App() {
       return;
     }
     const response = await run("Submitting onboarding", async () => {
+      setUploadStep("reading");
       const [frontData, backData, selfieData] = await Promise.all([
         FileSystem.readAsStringAsync(selectedAadhaarFront, { encoding: FileSystem.EncodingType.Base64 }),
         FileSystem.readAsStringAsync(selectedAadhaarBack, { encoding: FileSystem.EncodingType.Base64 }),
         FileSystem.readAsStringAsync(selectedSelfie, { encoding: FileSystem.EncodingType.Base64 })
       ]);
-      const [frontAsset, backAsset, selfieAsset] = await Promise.all([
-        api.createAzureBlobAsset(token, "aadhaar-front.jpg", "image/jpeg", 250000, frontData),
-        api.createAzureBlobAsset(token, "aadhaar-back.jpg", "image/jpeg", 250000, backData),
-        api.createAzureBlobAsset(token, "selfie.jpg", "image/jpeg", 200000, selfieData)
-      ]);
+      setUploadStep("uploading1");
+      const frontAsset = await api.createAzureBlobAsset(token, "aadhaar-front.jpg", "image/jpeg", 250000, frontData);
+      setUploadStep("uploading2");
+      const backAsset = await api.createAzureBlobAsset(token, "aadhaar-back.jpg", "image/jpeg", 250000, backData);
+      setUploadStep("uploading3");
+      const selfieAsset = await api.createAzureBlobAsset(token, "selfie.jpg", "image/jpeg", 200000, selfieData);
+      setUploadStep("submitting");
       return api.submitDriverOnboarding(token, {
         fullName: driverFullName,
         aadhaarLast4: driverAadhaarLast4,
@@ -508,6 +515,7 @@ export default function App() {
         upiId: driverUpiId
       });
     });
+    setUploadStep("");
     if (response) {
       setDriverApplication(response as DriverOnboardingApplication);
       setSelectedAadhaarFront(null);
@@ -1005,6 +1013,7 @@ export default function App() {
         )}
 
         {isAdmin && tab === "admin" && (
+          <>
           <View style={styles.adminHeader}>
             <View style={styles.adminHeaderTop}>
               <View>
@@ -1028,10 +1037,24 @@ export default function App() {
               </View>
               <View style={styles.adminStatusDot} />
               <Text style={styles.adminStatusText}>
-                {dashboard ? "Dashboard loaded" : "Loading…"}
+                {loading && !lastSynced ? "Fetching 20 endpoints…" : dashboard ? "Dashboard loaded" : "Loading…"}
               </Text>
             </View>
+            {loading && lastSynced && (
+              <View style={styles.adminRefreshBanner}>
+                <ActivityIndicator size="small" color="#0f766e" style={{ marginRight: 8 }} />
+                <Text style={styles.adminRefreshBannerText}>Refreshing dashboard…</Text>
+              </View>
+            )}
           </View>
+          {loading && !lastSynced && (
+            <View style={styles.adminLoadingOverlay}>
+              <ActivityIndicator size="large" color="#0f766e" />
+              <Text style={styles.adminLoadingTitle}>Loading Admin Dashboard</Text>
+              <Text style={styles.adminLoadingHint}>Fetching 20 endpoints in parallel…</Text>
+            </View>
+          )}
+          </>
         )}
 
         {/* ── Driver Tab ── */}
@@ -1264,9 +1287,21 @@ export default function App() {
               </Text>
             )}
             <View style={styles.actions}>
-              <Button label="Submit Onboarding" onPress={submitDriverOnboarding} disabled={!authed} />
+              <Button label="Submit Onboarding" onPress={submitDriverOnboarding} disabled={!authed || !!uploadStep} />
               <Button label="Run Verification Checks" onPress={runVerificationChecks} disabled={!authed} />
             </View>
+            {!!uploadStep && (
+              <View style={styles.uploadProgressBar}>
+                <ActivityIndicator size="small" color="#0f766e" style={{ marginRight: 10 }} />
+                <Text style={styles.uploadProgressText}>
+                  {uploadStep === "reading" && "Reading documents…"}
+                  {uploadStep === "uploading1" && "Uploading Aadhaar front (1/3)…"}
+                  {uploadStep === "uploading2" && "Uploading Aadhaar back (2/3)…"}
+                  {uploadStep === "uploading3" && "Uploading selfie (3/3)…"}
+                  {uploadStep === "submitting" && "Submitting application…"}
+                </Text>
+              </View>
+            )}
             {driverApplication ? (
               <Summary title="Onboarding Status" lines={[
                 driverApplication.full_name,
@@ -1799,20 +1834,35 @@ export default function App() {
                   )}
                   {userSearch.trim().length > 0 && (
                     <Pressable
-                      style={[styles.raSearchBtn, (!userSearch.trim() || loading) && { opacity: 0.4 }]}
-                      disabled={!userSearch.trim() || loading}
+                      style={[styles.raSearchBtn, (!userSearch.trim() || userSearching) && { opacity: 0.4 }]}
+                      disabled={!userSearch.trim() || userSearching}
                       onPress={async () => {
-                        const result = await run("Searching users", () => api.adminUsersSearch(token, userSearch.trim()));
-                        if (result) setUserSearchResults(result as typeof userSearchResults);
+                        setUserSearching(true);
+                        try {
+                          const result = await api.adminUsersSearch(token, userSearch.trim());
+                          if (result) setUserSearchResults(result as typeof userSearchResults);
+                        } catch (err) {
+                          Alert.alert("Search failed", err instanceof Error ? err.message : "Could not search users.");
+                        } finally {
+                          setUserSearching(false);
+                        }
                       }}
                     >
-                      <Text style={styles.raSearchBtnText}>{loading ? "…" : "Search"}</Text>
+                      {userSearching
+                        ? <ActivityIndicator size="small" color="#ffffff" />
+                        : <Text style={styles.raSearchBtnText}>Search</Text>}
                     </Pressable>
                   )}
                 </View>
 
                 {/* User cards */}
-                {(() => {
+                {userSearching && (
+                  <View style={styles.searchingRow}>
+                    <ActivityIndicator size="small" color="#0f766e" style={{ marginRight: 8 }} />
+                    <Text style={styles.searchingText}>Searching users…</Text>
+                  </View>
+                )}
+                {!userSearching && (() => {
                   const q = userSearch.trim().toLowerCase();
                   const displayUsers = userSearchResults
                     ?? (q
@@ -2251,20 +2301,35 @@ export default function App() {
                   />
                   {orderSearch.trim().length > 0 && (
                     <Pressable
-                      style={[styles.raSearchBtn, (!orderSearch.trim() || loading) && { opacity: 0.4 }]}
-                      disabled={!orderSearch.trim() || loading}
+                      style={[styles.raSearchBtn, (!orderSearch.trim() || orderSearching) && { opacity: 0.4 }]}
+                      disabled={!orderSearch.trim() || orderSearching}
                       onPress={async () => {
-                        const result = await run("Searching orders", () => api.adminOrdersSearch(token, orderSearch.trim()));
-                        if (result) setOrderSearchResults(result as typeof orderSearchResults);
+                        setOrderSearching(true);
+                        try {
+                          const result = await api.adminOrdersSearch(token, orderSearch.trim());
+                          if (result) setOrderSearchResults(result as typeof orderSearchResults);
+                        } catch (err) {
+                          Alert.alert("Search failed", err instanceof Error ? err.message : "Could not search orders.");
+                        } finally {
+                          setOrderSearching(false);
+                        }
                       }}
                     >
-                      <Text style={styles.raSearchBtnText}>Search</Text>
+                      {orderSearching
+                        ? <ActivityIndicator size="small" color="#ffffff" />
+                        : <Text style={styles.raSearchBtnText}>Search</Text>}
                     </Pressable>
                   )}
                 </View>
 
                 {/* Order cards */}
-                {(() => {
+                {orderSearching && (
+                  <View style={styles.searchingRow}>
+                    <ActivityIndicator size="small" color="#0f766e" style={{ marginRight: 8 }} />
+                    <Text style={styles.searchingText}>Searching orders…</Text>
+                  </View>
+                )}
+                {!orderSearching && (() => {
                   const q = orderSearch.trim().toLowerCase();
                   const displayOrders = orderSearchResults
                     ?? (q
@@ -6090,5 +6155,61 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#475569",
     fontWeight: "600" as const
+  },
+  adminLoadingOverlay: {
+    alignItems: "center" as const,
+    paddingVertical: 48,
+    gap: 12
+  },
+  adminLoadingTitle: {
+    fontSize: 16,
+    fontWeight: "700" as const,
+    color: "#1e293b"
+  },
+  adminLoadingHint: {
+    fontSize: 13,
+    color: "#64748b"
+  },
+  adminRefreshBanner: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "#f0fdf4",
+    borderTopWidth: 1,
+    borderTopColor: "#bbf7d0"
+  },
+  adminRefreshBannerText: {
+    fontSize: 13,
+    color: "#15803d",
+    fontWeight: "600" as const
+  },
+  searchingRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    justifyContent: "center" as const
+  },
+  searchingText: {
+    fontSize: 14,
+    color: "#64748b"
+  },
+  uploadProgressBar: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    backgroundColor: "#f0fdf4",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+    marginTop: 8
+  },
+  uploadProgressText: {
+    fontSize: 13,
+    color: "#15803d",
+    fontWeight: "600" as const,
+    flexShrink: 1
   }
 });
