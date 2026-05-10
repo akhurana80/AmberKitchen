@@ -39,6 +39,35 @@ import {
 
 type Tab = "driver" | "restaurant" | "admin";
 
+export class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <View style={{ flex: 1, backgroundColor: "#0f0f0f", padding: 24, paddingTop: 80 }}>
+          <Text style={{ color: "#E23744", fontSize: 18, fontWeight: "bold", marginBottom: 12 }}>
+            Runtime Error
+          </Text>
+          <Text style={{ color: "#ffffff", fontSize: 13, marginBottom: 8 }}>
+            {this.state.error.message}
+          </Text>
+          <Text style={{ color: "#888888", fontSize: 11 }}>
+            {this.state.error.stack?.split("\n").slice(0, 8).join("\n")}
+          </Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Show foreground notifications and handle badge/sound
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
