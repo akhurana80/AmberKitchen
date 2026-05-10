@@ -1137,27 +1137,37 @@ export default function App() {
             <Divider label="User Management" collapsed={isCollapsed("User Management")} onPress={() => togglePanel("User Management")} />
             {!isCollapsed("User Management") && (
               <>
-            <View style={styles.orderSearchRow}>
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                placeholder="Name, phone, email or User ID…"
-                placeholderTextColor="#94a3b8"
-                value={userSearch}
-                onChangeText={text => { setUserSearch(text); if (!text) setUserSearchResults(null); }}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+            {/* Search bar */}
+            <View style={styles.umSearchRow}>
+              <View style={styles.umSearchInputWrap}>
+                <Text style={styles.umSearchIcon}>🔍</Text>
+                <TextInput
+                  style={styles.umSearchInput}
+                  placeholder="Name, phone, email or User ID…"
+                  placeholderTextColor="#94a3b8"
+                  value={userSearch}
+                  onChangeText={text => { setUserSearch(text); if (!text) setUserSearchResults(null); }}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {userSearch.length > 0 && (
+                  <Pressable onPress={() => { setUserSearch(""); setUserSearchResults(null); }}>
+                    <Text style={styles.umSearchClear}>✕</Text>
+                  </Pressable>
+                )}
+              </View>
               <Pressable
-                style={[styles.button, { marginLeft: 8 }, (!userSearch.trim() || loading) && styles.buttonDisabled]}
+                style={[styles.umSearchBtn, (!userSearch.trim() || loading) && styles.umSearchBtnDisabled]}
                 disabled={!userSearch.trim() || loading}
                 onPress={async () => {
                   const result = await run("Searching users", () => api.adminUsersSearch(token, userSearch.trim()));
                   if (result) setUserSearchResults(result as typeof userSearchResults);
                 }}
               >
-                <Text style={styles.buttonText}>Load</Text>
+                <Text style={styles.umSearchBtnText}>{loading ? "…" : "Search"}</Text>
               </Pressable>
             </View>
+
             {(() => {
               const q = userSearch.trim().toLowerCase();
               const displayUsers = userSearchResults
@@ -1174,88 +1184,125 @@ export default function App() {
                         return acc;
                       }, {})
                     ).slice(0, 5));
+
               if (adminUsers.length === 0 && !userSearchResults) {
                 return <Text style={styles.emptyHint}>Load admin dashboard to see users.</Text>;
               }
               if (displayUsers.length === 0) {
                 return <Text style={styles.emptyHint}>No users match "{userSearch}".</Text>;
               }
-              return displayUsers.map(item => {
-                const isExpanded = expandedUserId === item.id;
-                const orders = userOrdersMap[item.id];
-                const displayName = item.name ?? item.phone ?? item.email ?? item.id.slice(0, 8);
-                return (
-                  <View key={item.id} style={[styles.listItem, item.is_banned && styles.listItemBanned]}>
-                    <Pressable onPress={() => setExpandedUserId(isExpanded ? null : item.id)}>
-                      <View style={styles.userRowHeader}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.listTitle}>{displayName}</Text>
-                          <Text style={styles.listSubtitle}><Text style={{ color: "#3b82f6", fontWeight: "700" }}>{titleCase(item.role)}</Text>{item.is_banned ? " · BANNED" : ""}</Text>
-                        </View>
-                        <Text style={styles.listTapHint}>{isExpanded ? "▲" : "▼"}</Text>
-                      </View>
-                    </Pressable>
-                    {isExpanded && (
-                      <View style={styles.userExpandedPanel}>
-                        <Text style={styles.userPanelLabel}>Change Role</Text>
-                        <View style={[styles.actions, { marginBottom: 6 }]}>
-                          {(["customer", "driver", "restaurant", "admin", "super_admin", "delivery_admin"] as const).map(r => (
-                            <Pressable
-                              key={r}
-                              style={[styles.roleChip, item.role === r && styles.roleChipActive]}
-                              disabled={loading || item.role === r}
-                              onPress={async () => {
-                                try {
-                                  const updated = await api.changeUserRole(token, item.id, r);
-                                  const patch = { role: updated.role };
-                                  setAdminUsers(prev => prev.map(u => u.id === item.id ? { ...u, ...patch } : u));
-                                  setUserSearchResults(prev => prev ? prev.map(u => u.id === item.id ? { ...u, ...patch } : u) : null);
-                                } catch (err) {
-                                  Alert.alert("Role change failed", err instanceof Error ? err.message : "Unexpected error");
-                                }
-                              }}
-                            >
-                              <Text style={[styles.roleChipText, item.role === r && styles.roleChipTextActive]}>{titleCase(r)}</Text>
-                            </Pressable>
-                          ))}
-                        </View>
-                        <Pressable
-                          style={[styles.button, item.is_banned ? styles.buttonUnban : styles.buttonBan, { alignSelf: "flex-start", marginBottom: 8 }]}
-                          disabled={loading}
-                          onPress={async () => {
-                            const updated = await run(item.is_banned ? "Unbanning user" : "Banning user", () => api.banUser(token, item.id, !item.is_banned));
-                            if (updated) {
-                              const patch = { is_banned: (updated as typeof item).is_banned };
-                              setAdminUsers(prev => prev.map(u => u.id === item.id ? { ...u, ...patch } : u));
-                              setUserSearchResults(prev => prev ? prev.map(u => u.id === item.id ? { ...u, ...patch } : u) : null);
-                            }
-                          }}
-                        >
-                          <Text style={styles.buttonText}>{item.is_banned ? "Unban User" : "Ban User"}</Text>
-                        </Pressable>
-                        <Pressable
-                          style={[styles.button, { alignSelf: "flex-start", marginBottom: orders ? 8 : 0 }]}
-                          disabled={loading}
-                          onPress={async () => {
-                            if (orders) { setUserOrdersMap(prev => { const next = { ...prev }; delete next[item.id]; return next; }); return; }
-                            const result = await run("Loading order history", () => api.adminUserOrders(token, item.id));
-                            if (result) setUserOrdersMap(prev => ({ ...prev, [item.id]: result as typeof orders }));
-                          }}
-                        >
-                          <Text style={styles.buttonText}>{orders ? "Hide Orders" : "View Order History"}</Text>
-                        </Pressable>
-                        {orders && orders.length === 0 && <Text style={styles.emptyHint}>No orders for this user.</Text>}
-                        {orders && orders.map(o => (
-                          <View key={o.id} style={styles.userOrderRow}>
-                            <Text style={styles.listTitle}>{o.restaurant_name ?? "—"} · {titleCase(o.status)}</Text>
-                            <Text style={styles.listSubtitle}>{formatCurrency(o.total_paise)} · {new Date(o.created_at).toLocaleDateString()}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
+
+              return (
+                <>
+                  <View style={styles.umMeta}>
+                    <Text style={styles.umMetaCount}>{displayUsers.length} user{displayUsers.length !== 1 ? "s" : ""}</Text>
+                    {userSearchResults && <View style={styles.umMetaTag}><Text style={styles.umMetaTagText}>Search results</Text></View>}
                   </View>
-                );
-              });
+                  {displayUsers.map(item => {
+                    const isExpanded = expandedUserId === item.id;
+                    const orders = userOrdersMap[item.id];
+                    const displayName = item.name ?? item.phone ?? item.email ?? item.id.slice(0, 8);
+                    const accent = roleAccent(item.role);
+                    const initial = (displayName[0] ?? "?").toUpperCase();
+                    return (
+                      <View key={item.id} style={[styles.umCard, item.is_banned && styles.umCardBanned]}>
+                        <Pressable onPress={() => setExpandedUserId(isExpanded ? null : item.id)}>
+                          <View style={styles.umCardHeader}>
+                            <View style={[styles.umAvatar, { backgroundColor: accent + "22" }]}>
+                              <Text style={[styles.umAvatarText, { color: accent }]}>{initial}</Text>
+                            </View>
+                            <View style={styles.umInfo}>
+                              <View style={styles.umNameRow}>
+                                <Text style={styles.umName} numberOfLines={1}>{displayName}</Text>
+                                {item.is_banned && <View style={styles.umBannedBadge}><Text style={styles.umBannedBadgeText}>BANNED</Text></View>}
+                              </View>
+                              <Text style={styles.umContact} numberOfLines={1}>{item.phone ?? item.email ?? item.id.slice(0, 16)}</Text>
+                            </View>
+                            <View style={styles.umCardRight}>
+                              <View style={[styles.umRoleBadge, { backgroundColor: accent + "18" }]}>
+                                <Text style={[styles.umRoleBadgeText, { color: accent }]}>{titleCase(item.role)}</Text>
+                              </View>
+                              <Text style={styles.umChevron}>{isExpanded ? "▲" : "▼"}</Text>
+                            </View>
+                          </View>
+                        </Pressable>
+
+                        {isExpanded && (
+                          <View style={styles.umExpanded}>
+                            <Text style={styles.umSectionLabel}>CHANGE ROLE</Text>
+                            <View style={styles.umRoleChips}>
+                              {(["customer", "driver", "restaurant", "admin", "super_admin", "delivery_admin"] as const).map(r => (
+                                <Pressable
+                                  key={r}
+                                  style={[
+                                    styles.umRoleChip,
+                                    { borderColor: roleAccent(r) + "55" },
+                                    item.role === r && { backgroundColor: roleAccent(r), borderColor: roleAccent(r) }
+                                  ]}
+                                  disabled={loading || item.role === r}
+                                  onPress={async () => {
+                                    try {
+                                      const updated = await api.changeUserRole(token, item.id, r);
+                                      const patch = { role: updated.role };
+                                      setAdminUsers(prev => prev.map(u => u.id === item.id ? { ...u, ...patch } : u));
+                                      setUserSearchResults(prev => prev ? prev.map(u => u.id === item.id ? { ...u, ...patch } : u) : null);
+                                    } catch (err) {
+                                      Alert.alert("Role change failed", err instanceof Error ? err.message : "Unexpected error");
+                                    }
+                                  }}
+                                >
+                                  <Text style={[styles.umRoleChipText, item.role === r && { color: "#ffffff" }]}>{titleCase(r)}</Text>
+                                </Pressable>
+                              ))}
+                            </View>
+
+                            <View style={styles.umActions}>
+                              <Pressable
+                                style={[styles.umActionBtn, item.is_banned ? styles.umActionBtnUnban : styles.umActionBtnBan]}
+                                disabled={loading}
+                                onPress={async () => {
+                                  const updated = await run(item.is_banned ? "Unbanning user" : "Banning user", () => api.banUser(token, item.id, !item.is_banned));
+                                  if (updated) {
+                                    const patch = { is_banned: (updated as typeof item).is_banned };
+                                    setAdminUsers(prev => prev.map(u => u.id === item.id ? { ...u, ...patch } : u));
+                                    setUserSearchResults(prev => prev ? prev.map(u => u.id === item.id ? { ...u, ...patch } : u) : null);
+                                  }
+                                }}
+                              >
+                                <Text style={[styles.umActionBtnText, item.is_banned ? { color: "#d97706" } : { color: "#ef4444" }]}>
+                                  {item.is_banned ? "🔓 Unban" : "🚫 Ban"}
+                                </Text>
+                              </Pressable>
+                              <Pressable
+                                style={styles.umActionBtn}
+                                disabled={loading}
+                                onPress={async () => {
+                                  if (orders) { setUserOrdersMap(prev => { const next = { ...prev }; delete next[item.id]; return next; }); return; }
+                                  const result = await run("Loading order history", () => api.adminUserOrders(token, item.id));
+                                  if (result) setUserOrdersMap(prev => ({ ...prev, [item.id]: result as typeof orders }));
+                                }}
+                              >
+                                <Text style={styles.umActionBtnText}>{orders ? "Hide Orders" : "📦 Orders"}</Text>
+                              </Pressable>
+                            </View>
+
+                            {orders && orders.length === 0 && <Text style={styles.emptyHint}>No orders for this user.</Text>}
+                            {orders && orders.map(o => (
+                              <View key={o.id} style={styles.umOrderRow}>
+                                <View style={[styles.umOrderDot, { backgroundColor: orderStatusColor(o.status) }]} />
+                                <View style={{ flex: 1 }}>
+                                  <Text style={styles.umOrderName}>{o.restaurant_name ?? "—"}</Text>
+                                  <Text style={styles.umOrderMeta}>{titleCase(o.status)} · {formatCurrency(o.total_paise)} · {new Date(o.created_at).toLocaleDateString()}</Text>
+                                </View>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </>
+              );
             })()}
               </>
             )}
@@ -1675,6 +1722,17 @@ function Segmented({ values, value, onChange }: { values: string[]; value: strin
       ))}
     </ScrollView>
   );
+}
+
+function roleAccent(role: string): string {
+  switch (role) {
+    case "super_admin":    return "#7c3aed";
+    case "admin":          return "#0f766e";
+    case "delivery_admin": return "#4f46e5";
+    case "restaurant":     return "#d97706";
+    case "driver":         return "#2563eb";
+    default:               return "#64748b";
+  }
 }
 
 function orderStatusColor(status: string) {
@@ -2320,27 +2378,107 @@ const styles = StyleSheet.create({
   userRowHeader: { flexDirection: "row" as const, alignItems: "center" as const },
   userExpandedPanel: { marginTop: 10, gap: 4, borderTopWidth: 1, borderTopColor: "#e5e7eb", paddingTop: 10 },
   userPanelLabel: { color: "#64748b", fontSize: 12, fontWeight: "700" as const, marginBottom: 4 },
-  roleChip: {
-    borderRadius: 6,
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    backgroundColor: "#f8fafc"
-  },
+  roleChip: { borderRadius: 6, paddingVertical: 5, paddingHorizontal: 8, borderWidth: 1, borderColor: "#cbd5e1", backgroundColor: "#f8fafc" },
   roleChipActive: { backgroundColor: TEAL, borderColor: TEAL_DARK },
   roleChipText: { color: "#334155", fontSize: 12, fontWeight: "600" as const },
   roleChipTextActive: { color: "#ffffff" },
   buttonBan: { backgroundColor: "#ef4444" },
   buttonUnban: { backgroundColor: "#f59e0b" },
-  userOrderRow: {
-    padding: 8,
-    borderRadius: 6,
+  userOrderRow: { padding: 8, borderRadius: 6, backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#e5e7eb", gap: 2 },
+
+  // User Management (production)
+  umSearchRow: { flexDirection: "row" as const, gap: 8, alignItems: "center" as const },
+  umSearchInputWrap: {
+    flex: 1,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
     backgroundColor: "#f8fafc",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    gap: 2
+    borderWidth: 1.5,
+    borderColor: "#e2e8f0",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    gap: 6,
   },
+  umSearchIcon: { fontSize: 14 },
+  umSearchInput: {
+    flex: 1,
+    paddingVertical: Platform.OS === "ios" ? 11 : 8,
+    fontSize: 14,
+    color: "#1e293b",
+  },
+  umSearchClear: { color: "#94a3b8", fontSize: 14, fontWeight: "700" as const, padding: 4 },
+  umSearchBtn: {
+    backgroundColor: TEAL,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === "ios" ? 12 : 9,
+  },
+  umSearchBtnDisabled: { backgroundColor: "#cbd5e1" },
+  umSearchBtnText: { color: "#ffffff", fontWeight: "700" as const, fontSize: 14 },
+  umMeta: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
+  umMetaCount: { color: "#64748b", fontSize: 12, fontWeight: "600" as const },
+  umMetaTag: { backgroundColor: "#f0fdf4", borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: "#bbf7d0" },
+  umMetaTagText: { color: "#15803d", fontSize: 11, fontWeight: "700" as const },
+  umCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
+    overflow: "hidden" as const,
+    shadowColor: "#0f172a",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  umCardBanned: { borderColor: "#fecaca", backgroundColor: "#fff8f8" },
+  umCardHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 12, padding: 12 },
+  umAvatar: { width: 42, height: 42, borderRadius: 21, alignItems: "center" as const, justifyContent: "center" as const },
+  umAvatarText: { fontSize: 18, fontWeight: "800" as const },
+  umInfo: { flex: 1, gap: 2 },
+  umNameRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 },
+  umName: { fontSize: 14, fontWeight: "700" as const, color: "#0f172a", flex: 1 },
+  umBannedBadge: { backgroundColor: "#fef2f2", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 1, borderColor: "#fecaca" },
+  umBannedBadgeText: { color: "#ef4444", fontSize: 9, fontWeight: "800" as const, letterSpacing: 0.5 },
+  umContact: { fontSize: 12, color: "#64748b" },
+  umCardRight: { alignItems: "flex-end" as const, gap: 4 },
+  umRoleBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  umRoleBadgeText: { fontSize: 11, fontWeight: "700" as const },
+  umChevron: { color: "#94a3b8", fontSize: 11 },
+  umExpanded: {
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+    padding: 12,
+    gap: 10,
+    backgroundColor: "#fafafa",
+  },
+  umSectionLabel: { color: "#94a3b8", fontSize: 10, fontWeight: "700" as const, letterSpacing: 1.5 },
+  umRoleChips: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6 },
+  umRoleChip: {
+    borderRadius: 6,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderWidth: 1.5,
+    backgroundColor: "#f8fafc",
+  },
+  umRoleChipText: { color: "#334155", fontSize: 12, fontWeight: "600" as const },
+  umActions: { flexDirection: "row" as const, gap: 8 },
+  umActionBtn: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 9,
+    alignItems: "center" as const,
+    backgroundColor: "#f1f5f9",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  umActionBtnBan: { backgroundColor: "#fef2f2", borderColor: "#fecaca" },
+  umActionBtnUnban: { backgroundColor: "#fffbeb", borderColor: "#fde68a" },
+  umActionBtnText: { fontSize: 12, fontWeight: "700" as const, color: "#374151" },
+  umOrderRow: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: 8, paddingVertical: 6, borderTopWidth: 1, borderTopColor: "#f1f5f9" },
+  umOrderDot: { width: 8, height: 8, borderRadius: 4, marginTop: 4 },
+  umOrderName: { fontSize: 13, fontWeight: "600" as const, color: "#1e293b" },
+  umOrderMeta: { fontSize: 11, color: "#64748b", marginTop: 1 },
 
   orderSearchRow: {
     flexDirection: "row" as const,
